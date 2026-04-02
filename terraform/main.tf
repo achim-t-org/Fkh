@@ -43,7 +43,7 @@ locals {
   aks_cluster_name       = "${local.product_prefix}-${var.customer_name}-aks"
   aks_dns_prefix         = local.aks_cluster_name
   function_plan_name     = "${local.product_prefix}-${var.customer_name}-plan"
-  function_app_name      = "${local.product_prefix}-${var.customer_name}-provisioner"
+  function_app_name      = "${local.product_prefix}-${var.customer_name}-functions"
   function_identity_name = "${local.product_prefix}-${var.customer_name}-identity"
   function_storage_name  = "${local.product_prefix}${local.storage_account_customer_id}func"
 }
@@ -58,7 +58,7 @@ resource "azurerm_resource_group" "this" {
 
   tags = {
     customer    = var.customer_name
-    environment = var.environment
+    environment = "prod"
     managed_by  = "terraform"
   }
 }
@@ -109,12 +109,6 @@ resource "azurerm_kubernetes_cluster_node_pool" "win" {
 }
 
 # ============================================================================
-# Configure Kubernetes provider using AKS credentials
+# AKS Cluster configuration complete
 # ============================================================================
 
-provider "kubernetes" {
-  host                   = azurerm_kubernetes_cluster.this.kube_config[0].host
-  client_certificate     = base64decode(azurerm_kubernetes_cluster.this.kube_config[0].client_certificate)
-  client_key             = base64decode(azurerm_kubernetes_cluster.this.kube_config[0].client_key)
-  cluster_ca_certificate = base64decode(azurerm_kubernetes_cluster.this.kube_config[0].cluster_ca_certificate)
-}

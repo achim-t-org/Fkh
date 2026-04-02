@@ -1,0 +1,17 @@
+# .NET build output
+fk8s-functions/bin/
+fk8s-functions/obj/
+fk8s-cli/bin/
+fk8s-cli/obj/
+
+# VSIX extension dependencies and package output
+fk8s-vsix/node_modules/
+fk8s-vsix/*.vsix
+
+# Azure Functions local config
+fk8s-functions/local.settings.json
+
+# Terraform local state
+terraform/.terraform/
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup

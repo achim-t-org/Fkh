@@ -21,12 +21,6 @@ variable "customer_name" {
   type        = string
 }
 
-variable "environment" {
-  description = "Environment tag (e.g. prod, staging)."
-  type        = string
-  default     = "prod"
-}
-
 # ── AKS ───────────────────────────────────────────────────────────────────────
 
 variable "linux_vm_size" {

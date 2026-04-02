@@ -1,4 +1,15 @@
 # ============================================================================
+# Configure Kubernetes provider using AKS credentials
+# ============================================================================
+
+provider "kubernetes" {
+  host                   = azurerm_kubernetes_cluster.this.kube_config[0].host
+  client_certificate     = base64decode(azurerm_kubernetes_cluster.this.kube_config[0].client_certificate)
+  client_key             = base64decode(azurerm_kubernetes_cluster.this.kube_config[0].client_key)
+  cluster_ca_certificate = base64decode(azurerm_kubernetes_cluster.this.kube_config[0].cluster_ca_certificate)
+}
+
+# ============================================================================
 # Namespace
 # ============================================================================
 
@@ -37,6 +48,12 @@ resource "kubernetes_persistent_volume_claim" "mssql_data" {
     namespace = kubernetes_namespace.workload.metadata[0].name
   }
 
+  wait_until_bound = false
+
+  timeouts {
+    create = "5m"
+  }
+
   spec {
     access_modes       = ["ReadWriteOnce"]
     storage_class_name = "managed-csi-premium"
@@ -46,6 +63,23 @@ resource "kubernetes_persistent_volume_claim" "mssql_data" {
         storage = var.sql_storage_size
       }
     }
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      echo "=== Checking PVC Status ==="
+      kubectl get pvc mssql-data-pvc -n ${kubernetes_namespace.workload.metadata[0].name} -o wide
+      echo ""
+      echo "=== PVC Detailed Description ==="
+      kubectl describe pvc mssql-data-pvc -n ${kubernetes_namespace.workload.metadata[0].name}
+      echo ""
+      echo "=== Recent Kubernetes Events ==="
+      kubectl get events -n ${kubernetes_namespace.workload.metadata[0].name} --sort-by='.lastTimestamp' | tail -20
+      echo ""
+      echo "=== Available Storage Classes ==="
+      kubectl get storageclass
+    EOT
+    on_failure = continue
   }
 }
 

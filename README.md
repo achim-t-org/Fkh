@@ -99,18 +99,18 @@ az account set --subscription "<your-subscription-id>"
    .\deploy.ps1 -VarFile customers/customer-a.tfvars
    ```
    `deploy.ps1` runs `checkGitHubTeam.ps1` first (imports an existing GitHub team
-   into Terraform state if needed) and then runs `terraform apply`.
+   into Terraform state if needed), runs `terraform apply`, and then publishes
+   the Azure Function code.
 
 ---
 
 ## Updating the Azure Function only
 
-To redeploy Function infrastructure and publish new function code without touching
-the AKS cluster:
+To publish updated function code without touching Terraform-managed infrastructure:
 
 ```powershell
 cd terraform
-.\deploy-function.ps1 -VarFile customers/customer-a.tfvars
+.\deploy-functionupdate.ps1
 ```
 
 ---
@@ -161,8 +161,8 @@ fk8s.exe removenode --NodeUrl "https://node01.example.com"
 ```
 terraform/               Terraform configuration
   customers/             Per-customer .tfvars files (copy example.tfvars)
-  deploy.ps1             Full environment deploy (GitHub check + terraform apply)
-  deploy-function.ps1    Function-only deploy (targeted apply + func publish)
+   deploy.ps1             Full environment deploy (GitHub check + terraform apply + function publish)
+   deploy-functionupdate.ps1 Function code publish only
   checkGitHubTeam.ps1    Imports existing GitHub team into Terraform state
 fk8s-functions/          Azure Function source (C#, .NET 8, isolated worker)
 fk8s-vsix/              VS Code extension source (TypeScript)

@@ -24,13 +24,13 @@ output "sql_service_fqdn" {
 }
 
 output "function_app_name" {
-  description = "Name of the Azure Function App. Used by deploy-function.ps1 to publish code."
+  description = "Name of the Azure Function App. Used by deploy-functionupdate.ps1 to publish code."
   value       = azurerm_linux_function_app.this.name
 }
 
 output "function_url" {
   description = "Base URL of the Azure Function. Paste this into FUNCTION_URL in the VS Code extension."
-  value       = "https://${azurerm_linux_function_app.this.default_hostname}/api/create-node"
+  value       = "https://${azurerm_linux_function_app.this.default_hostname}/api/CreateNode"
 }
 
 output "github_team_url" {

@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "nT3CHVR0qdE=",
+  "dgSpecHash": "TWWGKHN6aLU=",
   "success": true,
-  "projectFilePath": "C:\\src\\GitHub\\Freddy-DK\\K8S\\azure-function\\azure-function.csproj",
+  "projectFilePath": "C:\\src\\GitHub\\Freddy-DK\\K8S\\fk8s-functions\\azure-function.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\fredd\\.nuget\\packages\\azure.core\\1.37.0\\azure.core.1.37.0.nupkg.sha512",
     "C:\\Users\\fredd\\.nuget\\packages\\fractions\\7.3.0\\fractions.7.3.0.nupkg.sha512",

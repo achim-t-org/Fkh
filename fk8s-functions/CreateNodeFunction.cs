@@ -20,6 +20,6 @@ public class CreateNodeFunction : FunctionBase
 
     [Function("CreateNode")]
     public Task<HttpResponseData> RunAsync(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "create-node")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "CreateNode")] HttpRequestData req)
         => ExecuteAsync(req, _logger, _gitHub, "CreateNode", _aks.CreateNodeAsync);
 }

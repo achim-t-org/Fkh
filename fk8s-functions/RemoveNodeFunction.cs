@@ -20,6 +20,6 @@ public class RemoveNodeFunction : FunctionBase
 
     [Function("RemoveNode")]
     public Task<HttpResponseData> RunAsync(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "remove-node")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "RemoveNode")] HttpRequestData req)
         => ExecuteAsync(req, _logger, _gitHub, "RemoveNode", _aks.RemoveNodeAsync);
 }

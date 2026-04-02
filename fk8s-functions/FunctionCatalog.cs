@@ -10,7 +10,7 @@ public static class FunctionCatalog
         {
             Name = "CreateNode",
             Description = "Creates a node using the provided artifact and admin credentials.",
-            Route = "create-node",
+            Route = "CreateNode",
             Parameters = new List<FunctionParameterDefinition>
             {
                 new()
@@ -43,7 +43,7 @@ public static class FunctionCatalog
         {
             Name = "RemoveNode",
             Description = "Removes a node identified by URL.",
-            Route = "remove-node",
+            Route = "RemoveNode",
             Parameters = new List<FunctionParameterDefinition>
             {
                 new()

@@ -8,10 +8,10 @@
 #   export TF_VAR_sql_sa_password=<password>
 
 # Azure
-subscription_id = "00000000-0000-0000-0000-000000000000"
-tenant_id       = "00000000-0000-0000-0000-000000000000"
+subscription_id = "33360653-a61b-4d84-b963-23643b4bd2da"
+tenant_id       = "164d3b0c-8dca-45a9-9300-17a0e8bc3325"
 location        = "westeurope"
-customer_name   = "customer-a"
+customer_name   = "freddydk"
 
 # AKS
 linux_vm_size   = "Standard_D2s_v3"
@@ -24,15 +24,14 @@ namespace        = "app"
 sql_storage_size = "128Gi"
 
 # GitHub — primary org for team membership validation
-github_org        = "my-company"
+github_org        = "Freddy-DK"
 # github_token    = ""  # set via TF_VAR_github_token environment variable
 github_team_name  = "FK8s-members"
 github_team_members = [
-  "freddyk"
+  "freddydk"
 ]
 
 # Orgs and teams the Azure Function will accept
 allowed_org_teams = [
-  { org = "my-company",     team = "FK8s-members" },
-  { org = "customer-a-org", team = "FK8s-members" }
+  { org = "Freddy-DK",     team = "FK8s-members" }
 ]
