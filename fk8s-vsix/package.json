@@ -1,0 +1,44 @@
+{
+  "name": "fk8s",
+  "displayName": "Freddy's K8s Provisioner",
+  "description": "Provision AKS nodes via authenticated Azure Function",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "fk8s.run",
+        "title": "FK8s: Run Command"
+      },
+      {
+        "command": "fk8s.createContainer",
+        "title": "FK8s: Create Container"
+      }
+    ],
+    "configuration": {
+      "title": "FK8s",
+      "properties": {
+        "fk8s.baseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Base URL of the FK8s Azure Function app, e.g. https://<app>.azurewebsites.net/api"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0"
+  }
+}

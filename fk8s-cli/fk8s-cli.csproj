@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>fk8s</ToolCommandName>
+    <PackageId>fk8s-cli</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>Freddy DK</Authors>
+    <Description>FK8s command line client</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="fk8s.settings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+</Project>
