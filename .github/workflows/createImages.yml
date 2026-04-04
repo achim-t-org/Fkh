@@ -31,6 +31,7 @@ jobs:
           ARTIFACT_URLS: ${{ github.event.inputs.artifactUrls }}
         run: |
           $urls = $env:ARTIFACT_URLS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' }
+          if ($urls.Count -eq 0) { throw "No valid artifact URLs provided" }
           $matrix = @{ artifactUrl = $urls } | ConvertTo-Json -Compress
           "matrix=$matrix" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
@@ -52,12 +53,30 @@ jobs:
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
       - name: Login to ACR
-        run: az acr login --name ${{ env.ACR_LOGIN_SERVER }}
+        shell: pwsh
+        run: az acr login --name $env:ACR_LOGIN_SERVER
 
       - name: Build image
         shell: pwsh
         env:
           ARTIFACT_URL: ${{ matrix.artifactUrl }}
         run: |
+          $ErrorActionPreference = "Stop"
           $artifactUrl = $env:ARTIFACT_URL
+          Install-Module -Name BcContainerHelper -Force
+          Import-Module BcContainerHelper -disableNameChecking
+          $baseImage = Get-BestGenericImageName
+          $labels = Get-BcContainerImageLabels $baseImage
+          $osversion = $labels.osversion
           Write-Host "Building image for artifact: $artifactUrl"
+          Write-Host "Using base image: $baseImage"
+          $appUri = [Uri]::new($artifactUrl)
+          $imageTag = "$($appUri.AbsolutePath.Replace('/','-').TrimStart('-'))".ToLowerInvariant()
+          $imageName = "my:$imageTag"
+          New-BcImage -artifactUrl $artifactUrl -imageName $imageName -multitenant -baseImage $baseImage
+          docker tag $imageName "$env:ACR_LOGIN_SERVER/businesscentral:$imageTag"
+          docker push "$env:ACR_LOGIN_SERVER/businesscentral:$imageTag"
+          docker tag $imageName "$env:ACR_LOGIN_SERVER/businesscentral-$osversion:$imageTag"
+          docker push "$env:ACR_LOGIN_SERVER/businesscentral-$osversion:$imageTag"
+
+
