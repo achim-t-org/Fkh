@@ -76,7 +76,7 @@ jobs:
           New-BcImage -artifactUrl $artifactUrl -imageName $imageName -multitenant -baseImage $baseImage
           docker tag $imageName "$env:ACR_LOGIN_SERVER/businesscentral:$imageTag"
           docker push "$env:ACR_LOGIN_SERVER/businesscentral:$imageTag"
-          docker tag $imageName "$env:ACR_LOGIN_SERVER/businesscentral-$osversion:$imageTag"
-          docker push "$env:ACR_LOGIN_SERVER/businesscentral-$osversion:$imageTag"
+          docker tag $imageName "$env:ACR_LOGIN_SERVER/businesscentral-$($osversion):$imageTag"
+          docker push "$env:ACR_LOGIN_SERVER/businesscentral-$($osversion):$imageTag"
 
 
