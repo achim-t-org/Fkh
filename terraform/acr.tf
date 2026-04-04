@@ -10,15 +10,6 @@ resource "azurerm_container_registry" "this" {
   tags = azurerm_resource_group.this.tags
 }
 
-# ── Grant the Function's managed identity permission to build images in ACR ───
-# "Contributor" on ACR allows az acr build (push images + trigger builds).
-
-resource "azurerm_role_assignment" "function_acr_contributor" {
-  scope                = azurerm_container_registry.this.id
-  role_definition_name = "Contributor"
-  principal_id         = azurerm_user_assigned_identity.function.principal_id
-}
-
 # ── Grant AKS pull access to the container registry ──────────────────────────
 # "AcrPull" lets the kubelet pull images without imagePullSecrets.
 

@@ -12,9 +12,6 @@ var host = new HostBuilder()
 
         // Register FK8sService
         services.AddSingleton<FK8sService>();
-
-        // Register AcrBuildService
-        services.AddSingleton<AcrBuildService>();
     })
     .Build();
 
