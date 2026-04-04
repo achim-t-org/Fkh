@@ -176,7 +176,7 @@ $tfSubscriptionId = Get-TfVar "subscription_id" $VarFile
 $tfLocation       = Get-TfVar "location"        $VarFile
 $tfCustomerName   = Get-TfVar "customer_name"   $VarFile
 
-$stateRg      = "fk8s-$tfCustomerName"
+$stateRg      = "fk8s-$tfCustomerName-state"
 $stateAccount = "fk8s$($tfCustomerName.Replace('-','').Substring(0, [Math]::Min($tfCustomerName.Replace('-','').Length, 14)))state"
 $stateContainer = "tfstate"
 $stateKey       = "$tfCustomerName.tfstate"
@@ -188,7 +188,29 @@ if ($LASTEXITCODE -ne 0) { throw "Failed to set Azure subscription to $tfSubscri
 
 az group create --name $stateRg --location $tfLocation --output none 2>$null
 az storage account create --name $stateAccount --resource-group $stateRg --location $tfLocation --sku Standard_LRS --kind StorageV2 --allow-blob-public-access false --output none 2>$null
+
+# Grant the current user "Storage Blob Data Contributor" on the state storage account
+$currentUserId = az ad signed-in-user show --query id -o tsv
+$stateAccountId = az storage account show --name $stateAccount --resource-group $stateRg --query id -o tsv
+az role assignment create --role "Storage Blob Data Contributor" --assignee $currentUserId --scope $stateAccountId --output none 2>$null
+
 az storage container create --name $stateContainer --account-name $stateAccount --auth-mode login --output none 2>$null
+
+# Wait for RBAC propagation – role assignments can take up to a few minutes
+$maxRetries = 12
+$retryDelay = 10
+for ($i = 1; $i -le $maxRetries; $i++) {
+    $blobs = az storage blob list --container-name $stateContainer --account-name $stateAccount --auth-mode login --num-results 1 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "Storage RBAC permission confirmed." -ForegroundColor Green
+        break
+    }
+    if ($i -eq $maxRetries) {
+        throw "Storage Blob Data Contributor role did not propagate after $($maxRetries * $retryDelay)s. Re-run the script or assign the role manually."
+    }
+    Write-Host "Waiting for RBAC propagation ($i/$maxRetries)..." -ForegroundColor Yellow
+    Start-Sleep -Seconds $retryDelay
+}
 
 terraform init -reconfigure `
     -backend-config="resource_group_name=$stateRg" `

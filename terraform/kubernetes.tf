@@ -93,6 +93,13 @@ resource "kubernetes_deployment" "mssql" {
     namespace = kubernetes_namespace.workload.metadata[0].name
   }
 
+  wait_for_rollout = false
+
+  timeouts {
+    create = "15m"
+    update = "15m"
+  }
+
   spec {
     replicas = 1
 

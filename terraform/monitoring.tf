@@ -22,17 +22,6 @@ resource "azurerm_application_insights" "this" {
   tags = azurerm_resource_group.this.tags
 }
 
-# ── Container Insights for AKS (logs Kubernetes events, pod logs, metrics) ──────────
-
-resource "azurerm_log_analytics_solution" "container_insights" {
-  solution_name         = "ContainerInsights"
-  workspace_resource_id = azurerm_log_analytics_workspace.this.id
-  workspace_name        = azurerm_log_analytics_workspace.this.name
-  location              = azurerm_resource_group.this.location
-  resource_group_name   = azurerm_resource_group.this.name
-
-  plan {
-    publisher = "Microsoft"
-    product   = "OMSGallery/ContainerInsights"
-  }
-}
+# ── Container Insights for AKS ──────────────────────────────────────────────
+# The ContainerInsights solution is automatically deployed by the AKS oms_agent
+# block in main.tf. No separate azurerm_log_analytics_solution resource needed.
