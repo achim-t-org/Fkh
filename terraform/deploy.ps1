@@ -165,7 +165,38 @@ Write-Host -ForegroundColor Cyan @'
 $env:LANG = "en_US.UTF-8"
 $env:LC_ALL = "en_US.UTF-8"
 
-terraform init
+# ── Parse key values from the .tfvars file for state storage setup ────────────
+function Get-TfVar([string]$Name, [string]$File) {
+    $line = Get-Content $File | Where-Object { $_ -match "^\s*$Name\s*=" } | Select-Object -First 1
+    if ($line -match '=\s*"([^"]+)"') { return $Matches[1] }
+    throw "Could not find $Name in $File"
+}
+
+$tfSubscriptionId = Get-TfVar "subscription_id" $VarFile
+$tfLocation       = Get-TfVar "location"        $VarFile
+$tfCustomerName   = Get-TfVar "customer_name"   $VarFile
+
+$stateRg      = "fk8s-$tfCustomerName"
+$stateAccount = "fk8s$($tfCustomerName.Replace('-','').Substring(0, [Math]::Min($tfCustomerName.Replace('-','').Length, 14)))state"
+$stateContainer = "tfstate"
+$stateKey       = "$tfCustomerName.tfstate"
+
+Write-Host "Ensuring state storage: RG=$stateRg Account=$stateAccount Container=$stateContainer" -ForegroundColor Cyan
+
+az account set --subscription $tfSubscriptionId
+if ($LASTEXITCODE -ne 0) { throw "Failed to set Azure subscription to $tfSubscriptionId." }
+
+az group create --name $stateRg --location $tfLocation --output none 2>$null
+az storage account create --name $stateAccount --resource-group $stateRg --location $tfLocation --sku Standard_LRS --kind StorageV2 --allow-blob-public-access false --output none 2>$null
+az storage container create --name $stateContainer --account-name $stateAccount --auth-mode login --output none 2>$null
+
+terraform init -reconfigure `
+    -backend-config="resource_group_name=$stateRg" `
+    -backend-config="storage_account_name=$stateAccount" `
+    -backend-config="container_name=$stateContainer" `
+    -backend-config="key=$stateKey" `
+    -backend-config="subscription_id=$tfSubscriptionId" `
+    -backend-config="use_azuread_auth=true"
 if ($LASTEXITCODE -ne 0) { throw "Terraform init failed." }
 
 # ── Step 2: Bootstrap Azure infrastructure ────────────────────────────────────
