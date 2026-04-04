@@ -193,7 +193,7 @@ $bootstrapArgs = @(
     "-target=azurerm_kubernetes_cluster_node_pool.win",
     "-target=azurerm_storage_account.function",
     "-target=azurerm_service_plan.function",
-    "-target=azurerm_linux_function_app.this",
+    "-target=azurerm_windows_function_app.this",
     "-target=azurerm_user_assigned_identity.function",
     "-target=azurerm_role_assignment.function_aks"
 )
