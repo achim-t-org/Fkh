@@ -66,7 +66,7 @@ public class FK8sCreateNode : FK8sServiceBase
         Logger.LogInformation("Deployment {Deployment} and service {Service} created in namespace {Namespace}",
             deploymentName, serviceName, Namespace);
 
-        return $"Node created.\n  Deployment: {deploymentName}\n  Service: {serviceName}\n  Image: {fullImage}\n  FQDN: {publicDnsName}\n  Database: {databaseName}\n  SQL Disk: {diskInfo}";
+        return $"Node created.\n  Deployment: {deploymentName}\n  Service: {serviceName}\n  Image: {fullImage}\n  FQDN: {publicDnsName}\n  WebClient: {publicDnsName}/BC?tenant=default\n  Database: {databaseName}\n  SQL Disk: {diskInfo}";
     }
 
     private async Task EnsureDeploymentDoesNotExistAsync(Kubernetes client, string deploymentName)
