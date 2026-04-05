@@ -63,6 +63,40 @@ public static class FunctionCatalog
                     DefaultValue = null
                 }
             }
+        },
+        new FunctionDefinition
+        {
+            Name = "StopNode",
+            Description = "Stops a node by scaling its deployment to 0 replicas.",
+            Route = "StopNode",
+            Parameters = new List<FunctionParameterDefinition>
+            {
+                new()
+                {
+                    Name = "name",
+                    Type = "string",
+                    Description = "Name of the node to stop (same name used when creating it).",
+                    Required = true,
+                    DefaultValue = null
+                }
+            }
+        },
+        new FunctionDefinition
+        {
+            Name = "StartNode",
+            Description = "Starts a previously stopped node by scaling its deployment to 1 replica.",
+            Route = "StartNode",
+            Parameters = new List<FunctionParameterDefinition>
+            {
+                new()
+                {
+                    Name = "name",
+                    Type = "string",
+                    Description = "Name of the node to start (same name used when creating it).",
+                    Required = true,
+                    DefaultValue = null
+                }
+            }
         }
     };
 

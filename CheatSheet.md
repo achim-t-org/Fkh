@@ -4,10 +4,16 @@
 
 ```powershell
 # Create a node
-.\fk8s-cli.exe createnode --name bcserver --artifactUrl 'https://...' --adminUsername 'admin' --adminPassword 'P@ssword1'
+.\fk8s.exe createnode --name bcserver --artifactUrl 'https://...' --adminUsername 'admin' --adminPassword 'P@ssword1'
+
+# Stop a node (scales deployment to 0, keeps database)
+.\fk8s.exe stopnode --name bcserver
+
+# Start a stopped node (scales deployment back to 1)
+.\fk8s.exe startnode --name bcserver
 
 # Remove a node (deletes deployment, service, secret, and database)
-.\fk8s-cli.exe removenode --name bcserver
+.\fk8s.exe removenode --name bcserver
 ```
 
 ## Setup (for kubectl commands)

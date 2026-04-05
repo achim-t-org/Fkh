@@ -16,6 +16,7 @@ var host = new HostBuilder()
         // Register AKS operation services
         services.AddSingleton<FK8sCreateNode>();
         services.AddSingleton<FK8sRemoveNode>();
+        services.AddSingleton<FK8sScaleNode>();
     })
     .Build();
 

@@ -8,7 +8,7 @@ FK8s is a **GitHub-authenticated AKS node provisioner** that allows authorized G
 graph TB
     subgraph "User Interfaces"
         VSIX["VS Code Extension<br/>(fk8s-vsix)"]
-        CLI["CLI Tool<br/>(fk8s-cli)"]
+        CLI["CLI Tool<br/>(fk8s)"]
     end
 
     subgraph "GitHub"
@@ -21,9 +21,12 @@ graph TB
         FB["FunctionBase<br/>Auth & Parameter Validation"]
         CNF["CreateNodeFunction"]
         RNF["RemoveNodeFunction"]
+        SNDF["StopNodeFunction"]
+        SNTF["StartNodeFunction"]
         CAT["GetFunctionCatalog"]
         CN["FK8sCreateNode"]
         RN["FK8sRemoveNode"]
+        SN["FK8sScaleNode"]
         GAS["GitHubAppTokenService"]
         GHS["GitHubAuthService"]
     end
@@ -53,9 +56,11 @@ graph TB
     %% Function internal flow
     FB -->|validate token| GHS
     GHS -->|"GET /user + team membership"| GH_AUTH
-    FB --> CNF & RNF & CAT
+    FB --> CNF & RNF & SNDF & SNTF & CAT
     CNF --> CN
     RNF --> RN
+    SNDF --> SN
+    SNTF --> SN
 
     %% CN operations
     CN -->|"check image exists"| ACR
@@ -71,7 +76,7 @@ graph TB
     GH_ACTIONS -->|"upload .bak"| DBS
 
     %% Identity
-    MI -.->|"auth"| CN & RN
+    MI -.->|"auth"| CN & RN & SN
     MI -.->|"AKS Contributor"| BC
     MI -.->|"Blob Data Contributor"| DBS
     MI -.->|"AcrPull"| ACR
@@ -81,7 +86,7 @@ graph TB
     LB -->|"ports 80,443,7047-7049"| BC
 
     %% Monitoring
-    CN & RN -.-> LOGS
+    CN & RN & SN -.-> LOGS
     FB -.-> LOGS
 ```
 
@@ -92,7 +97,7 @@ graph TB
 | Component | Path | Description |
 |-----------|------|-------------|
 | **VS Code Extension** | `fk8s-vsix/` | Registers commands to create/remove nodes. Uses VS Code's built-in GitHub auth to obtain a Bearer token and calls the Function App API. Fetches the function catalog for dynamic parameter prompts. |
-| **CLI Tool** | `fk8s-cli/` | Standalone .NET executable. Reads GitHub token from `GH_TOKEN`, `GITHUB_TOKEN`, or `gh auth token`. Interactively prompts for parameters with masked password input. |
+| **CLI Tool** | `fk8s-cli/` | Standalone .NET executable (`fk8s.exe`). Reads GitHub token from `GH_TOKEN`, `GITHUB_TOKEN`, or `gh auth token`. Interactively prompts for parameters with masked password input. |
 
 ### Azure Functions Backend
 
@@ -102,7 +107,8 @@ graph TB
 | **GitHubAuthService** | `fk8s-functions/Services/GitHubAuthService.cs` | Calls `GET /user` and `GET /orgs/{org}/teams/{team}/memberships/{username}` to authenticate and authorize requests. Allowed org/team pairs loaded from `ALLOWED_ORG_TEAMS` env var. |
 | **GitHubAppTokenService** | `fk8s-functions/Services/GitHubAppTokenService.cs` | Creates JWTs signed with the GitHub App private key, exchanges for installation access tokens, and dispatches the `createImages` workflow when an image is missing from ACR. |
 | **FK8sCreateNode** | `fk8s-functions/Services/FK8sCreateNode.cs` | Orchestrates node creation: ACR image check → database backup SAS URL → k8s exec to download and restore database → create K8s deployment, service, and secret. |
-| **FK8sRemoveNode** | `fk8s-functions/Services/FK8sRemoveNode.cs` | Removes Kubernetes resources for a given node. |
+| **FK8sRemoveNode** | `fk8s-functions/Services/FK8sRemoveNode.cs` | Removes Kubernetes resources (deployment, service, secret) and drops the database for a given node. |
+| **FK8sScaleNode** | `fk8s-functions/Services/FK8sScaleNode.cs` | Scales a node's deployment: StopNode sets replicas to 0, StartNode sets replicas to 1. Database is preserved across stop/start. |
 | **FK8sServiceBase** | `fk8s-functions/Services/FK8sServiceBase.cs` | Shared base class with AKS/ACR/Storage config, Kubernetes client creation via managed identity, and k8s exec helpers (`FindMssqlPodAsync`, `ExecInMssqlPodAsync`). |
 
 ### Infrastructure (Terraform)

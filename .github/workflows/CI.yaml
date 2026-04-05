@@ -55,6 +55,7 @@ jobs:
           --configuration Release
           --runtime linux-x64
           --self-contained true
+          -p:PublishSingleFile=true
           --output ../artifacts/cli/linux-x64
 
       - name: Publish CLI (win-x64)
@@ -64,6 +65,7 @@ jobs:
           --configuration Release
           --runtime win-x64
           --self-contained true
+          -p:PublishSingleFile=true
           --output ../artifacts/cli/win-x64
 
       - name: Publish CLI (osx-x64)
@@ -73,6 +75,7 @@ jobs:
           --configuration Release
           --runtime osx-x64
           --self-contained true
+          -p:PublishSingleFile=true
           --output ../artifacts/cli/osx-x64
 
       - name: Publish CLI (osx-arm64)
@@ -82,10 +85,11 @@ jobs:
           --configuration Release
           --runtime osx-arm64
           --self-contained true
+          -p:PublishSingleFile=true
           --output ../artifacts/cli/osx-arm64
 
       - name: Upload CLI artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: fk8s-cli
+          name: fk8s
           path: artifacts/cli/

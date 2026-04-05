@@ -6,7 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>fk8s</ToolCommandName>
-    <PackageId>fk8s-cli</PackageId>
+    <AssemblyName>fk8s</AssemblyName>
+    <PackageId>fk8s</PackageId>
     <Version>0.1.0</Version>
     <Authors>Freddy DK</Authors>
     <Description>FK8s command line client</Description>

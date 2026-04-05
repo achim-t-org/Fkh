@@ -130,7 +130,7 @@ Run from the publish folder (or add it to PATH):
 
 ```powershell
 cd .\dist
-.fk8s.exe createnode
+.\fk8s.exe createnode
 ```
 
 Set the function base URL:
@@ -147,13 +147,17 @@ Run commands:
 ```powershell
 fk8s.exe createnode
 fk8s.exe removenode
+fk8s.exe stopnode
+fk8s.exe startnode
 ```
 
 Pass optional payload parameters:
 
 ```powershell
-fk8s.exe createnode --artifactUrl "https://example/artifact.zip" --adminUsername "admin" --adminPassword "P@ssword1"
-fk8s.exe removenode --NodeUrl "https://node01.example.com"
+fk8s.exe createnode --name bcserver --artifactUrl "https://example/artifact.zip" --adminUsername "admin" --adminPassword "P@ssword1"
+fk8s.exe removenode --name bcserver
+fk8s.exe stopnode --name bcserver
+fk8s.exe startnode --name bcserver
 ```
 
 ---
@@ -168,5 +172,5 @@ terraform/               Terraform configuration
   checkGitHubTeam.ps1    Imports existing GitHub team into Terraform state
 fk8s-functions/          Azure Function source (C#, .NET 8, isolated worker)
 fk8s-vsix/              VS Code extension source (TypeScript)
-fk8s-cli/               C#/.NET command line interface
+fk8s-cli/               C#/.NET command line interface (builds as fk8s.exe)
 ```
