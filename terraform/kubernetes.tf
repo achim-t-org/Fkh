@@ -198,7 +198,7 @@ resource "kubernetes_deployment" "mssql" {
           resources {
             requests = {
               memory = "2Gi"
-              cpu    = "1"
+              cpu    = "500m"
             }
             limits = {
               memory = "4Gi"
