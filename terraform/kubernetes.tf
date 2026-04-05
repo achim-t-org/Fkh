@@ -282,7 +282,7 @@ resource "kubernetes_network_policy" "mssql_allow_windows_app_only" {
       from {
         pod_selector {
           match_labels = {
-            app = "windows-app"
+            "app-type" = "windows-servicetier"
           }
         }
       }

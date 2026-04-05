@@ -2,6 +2,7 @@ using Azure.Identity;
 using Azure.ResourceManager;
 using Azure.ResourceManager.ContainerService;
 using k8s;
+using k8s.Models;
 using Microsoft.Extensions.Logging;
 
 namespace FK8s.Services;
@@ -16,6 +17,7 @@ public abstract class FK8sServiceBase
     protected readonly string BaseImage;
     protected readonly string AksLocation;
     protected readonly string ContactEmail;
+    protected readonly string DbsStorageAccountName;
     protected readonly ILogger Logger;
 
     protected const string Namespace = "app";
@@ -41,6 +43,8 @@ public abstract class FK8sServiceBase
             ?? throw new InvalidOperationException("AKS_LOCATION is not configured.");
         ContactEmail = Environment.GetEnvironmentVariable("CONTACT_EMAIL_FOR_LETSENCRYPT")
             ?? throw new InvalidOperationException("CONTACT_EMAIL_FOR_LETSENCRYPT is not configured.");
+        DbsStorageAccountName = Environment.GetEnvironmentVariable("DBS_STORAGE_ACCOUNT_NAME")
+            ?? throw new InvalidOperationException("DBS_STORAGE_ACCOUNT_NAME is not configured.");
     }
 
     protected string AcrLoginServer => $"{AcrName}.azurecr.io";
@@ -74,5 +78,44 @@ public abstract class FK8sServiceBase
         var appName = $"bc-{imageTag}".Replace('.', '-');
         if (appName.Length > 63) appName = appName[..63];
         return appName.TrimEnd('-');
+    }
+
+    protected const string SqlcmdPath = "/opt/mssql-tools18/bin/sqlcmd";
+
+    protected async Task<string> FindMssqlPodAsync(Kubernetes client)
+    {
+        var pods = await client.ListNamespacedPodAsync(Namespace, labelSelector: "app=mssql");
+        var pod = pods.Items.FirstOrDefault(p => p.Status?.Phase == "Running")
+            ?? throw new InvalidOperationException($"No running MSSQL pod found in namespace '{Namespace}'.");
+        return pod.Metadata.Name;
+    }
+
+    protected async Task<string> ExecInMssqlPodAsync(Kubernetes client, string podName, string bashScript)
+    {
+        var command = new[] { "/bin/bash", "-c", bashScript };
+        var ws = await client.WebSocketNamespacedPodExecAsync(
+            podName, Namespace, command, "mssql",
+            stderr: true, stdin: false, stdout: true, tty: false);
+
+        using var demux = new StreamDemuxer(ws);
+        demux.Start();
+
+        var stdoutStream = demux.GetStream(1, null);
+        var stderrStream = demux.GetStream(2, null);
+
+        using var stdoutReader = new StreamReader(stdoutStream);
+        using var stderrReader = new StreamReader(stderrStream);
+
+        var stdoutTask = stdoutReader.ReadToEndAsync();
+        var stderrTask = stderrReader.ReadToEndAsync();
+        await Task.WhenAll(stdoutTask, stderrTask);
+
+        var stderr = stderrTask.Result;
+        if (!string.IsNullOrWhiteSpace(stderr))
+        {
+            Logger.LogWarning("MSSQL pod exec stderr: {StdErr}", stderr);
+        }
+
+        return stdoutTask.Result;
     }
 }

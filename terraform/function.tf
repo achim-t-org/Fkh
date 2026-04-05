@@ -71,6 +71,7 @@ resource "azurerm_windows_function_app" "this" {
     GITHUB_APP_INSTALLATION_ID               = var.github_app_installation_id
     GITHUB_REPO_OWNER                        = var.github_org
     GITHUB_REPO_NAME                         = var.github_repo
+    DBS_STORAGE_ACCOUNT_NAME                 = azurerm_storage_account.dbs.name
     APPINSIGHTS_INSTRUMENTATIONKEY          = azurerm_application_insights.this.instrumentation_key
     APPLICATIONINSIGHTS_CONNECTION_STRING   = azurerm_application_insights.this.connection_string
   }

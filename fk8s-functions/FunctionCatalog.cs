@@ -15,6 +15,14 @@ public static class FunctionCatalog
             {
                 new()
                 {
+                    Name = "name",
+                    Type = "string",
+                    Description = "Name for the node. Combined with the GitHub username to form the container name.",
+                    Required = true,
+                    DefaultValue = null
+                },
+                new()
+                {
                     Name = "artifactUrl",
                     Type = "string",
                     Description = "Artifact URL used by the node provisioning workflow.",

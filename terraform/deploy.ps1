@@ -280,7 +280,8 @@ $bootstrapArgs = @(
     "-target=azurerm_service_plan.function",
     "-target=azurerm_windows_function_app.this",
     "-target=azurerm_user_assigned_identity.function",
-    "-target=azurerm_role_assignment.function_aks"
+    "-target=azurerm_role_assignment.function_aks",
+    "-target=azurerm_role_assignment.function_dbs_storage"
 )
 if ($AutoApprove) { $bootstrapArgs += "-auto-approve" }
 

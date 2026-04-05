@@ -75,7 +75,8 @@ public abstract class FunctionBase
         {
             return Respond(req, HttpStatusCode.BadRequest, parametersResult.ErrorMessage!);
         }
-
+        // Inject the authenticated GitHub username so services can use it
+        parametersResult.Parameters!["_githubUsername"] = username;
         // ── Step 5: Execute AKS operation ────────────────────────────────────────────
         try
         {
