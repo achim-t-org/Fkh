@@ -91,6 +91,17 @@ public class FK8sListNodes : FK8sServiceBase
             sb.Append($"\n    Status: {status} ({readyReplicas}/{replicas} ready)");
             sb.Append($"\n    Image:  {shortImage}");
 
+            // Auto-stop time
+            if (deployment.Metadata.Annotations?.TryGetValue("fk8s/auto-stop-at", out var stopAtStr) == true
+                && DateTimeOffset.TryParse(stopAtStr, out var stopAt))
+            {
+                var remaining = stopAt - DateTimeOffset.UtcNow;
+                var timeLeft = remaining.TotalMinutes > 0
+                    ? $"in {remaining.Hours}h{remaining.Minutes:D2}m"
+                    : "overdue";
+                sb.Append($"\n    AutoStop: {stopAt:yyyy-MM-dd HH:mm} UTC ({timeLeft})");
+            }
+
             // Web client URL from service FQDN
             if (serviceMap.TryGetValue(appLabel, out var svc))
             {
@@ -106,8 +117,22 @@ public class FK8sListNodes : FK8sServiceBase
                 var containerMetrics = metrics.Containers?.FirstOrDefault();
                 if (containerMetrics?.Usage != null)
                 {
-                    var cpu = containerMetrics.Usage.TryGetValue("cpu", out var cpuVal) ? cpuVal.ToString() : "n/a";
-                    sb.Append($"\n    CPU:    {cpu}");
+                    if (containerMetrics.Usage.TryGetValue("cpu", out var cpuVal))
+                    {
+                        var usedCores = cpuVal.ToDouble();
+                        var limitCores = container?.Resources?.Limits?.TryGetValue("cpu", out var cpuLim) == true
+                            ? cpuLim.ToDouble() : 0;
+                        if (limitCores > 0)
+                        {
+                            var pct = usedCores / limitCores * 100;
+                            sb.Append($"\n    CPU:    {pct:F0}% (of {limitCores:G} cores)");
+                        }
+                        else
+                        {
+                            var milliCores = usedCores * 1000;
+                            sb.Append($"\n    CPU:    {milliCores:F0}m");
+                        }
+                    }
 
                     if (containerMetrics.Usage.TryGetValue("memory", out var memVal))
                     {

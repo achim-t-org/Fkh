@@ -63,10 +63,19 @@ public class FK8sCreateNode : FK8sServiceBase
         await CreateDeploymentAsync(client, deploymentName, appName, fullImage, adminUsername, secretName, publicDnsName, databaseName);
         await CreateLoadBalancerServiceAsync(client, serviceName, appName, dnsLabel);
 
+        // Set auto-stop annotation if requested
+        var autoStopInfo = "";
+        if (parameters.TryGetValue("autostop", out var autoStopHours) && double.TryParse(autoStopHours, out var hours) && hours > 0)
+        {
+            var stopAt = DateTimeOffset.UtcNow.AddHours(hours);
+            await SetAutoStopAnnotationAsync(client, deploymentName, stopAt);
+            autoStopInfo = $"\n  AutoStop: {stopAt:yyyy-MM-dd HH:mm} UTC ({hours}h)";
+        }
+
         Logger.LogInformation("Deployment {Deployment} and service {Service} created in namespace {Namespace}",
             deploymentName, serviceName, Namespace);
 
-        return $"Node created.\n  Deployment: {deploymentName}\n  Service: {serviceName}\n  Image: {fullImage}\n  FQDN: {publicDnsName}\n  WebClient: {publicDnsName}/BC?tenant=default\n  Database: {databaseName}\n  SQL Disk: {diskInfo}";
+        return $"Node created.\n  Deployment: {deploymentName}\n  Service: {serviceName}\n  Image: {fullImage}\n  FQDN: {publicDnsName}\n  WebClient: {publicDnsName}/BC?tenant=default\n  Database: {databaseName}\n  SQL Disk: {diskInfo}{autoStopInfo}";
     }
 
     private async Task EnsureDeploymentDoesNotExistAsync(Kubernetes client, string deploymentName)

@@ -124,4 +124,25 @@ public abstract class FK8sServiceBase
 
         return new ExecResult(stdoutTask.Result, stderr);
     }
+
+    protected const string AutoStopAnnotation = "fk8s/auto-stop-at";
+
+    protected async Task SetAutoStopAnnotationAsync(Kubernetes client, string deploymentName, DateTimeOffset stopAt)
+    {
+        var deployment = await client.ReadNamespacedDeploymentAsync(deploymentName, Namespace);
+        deployment.Metadata.Annotations ??= new Dictionary<string, string>();
+        deployment.Metadata.Annotations[AutoStopAnnotation] = stopAt.UtcDateTime.ToString("o");
+        await client.ReplaceNamespacedDeploymentAsync(deployment, deploymentName, Namespace);
+        Logger.LogInformation("Set auto-stop annotation on '{Deployment}' to {StopAt}", deploymentName, stopAt);
+    }
+
+    protected async Task ClearAutoStopAnnotationAsync(Kubernetes client, string deploymentName)
+    {
+        var deployment = await client.ReadNamespacedDeploymentAsync(deploymentName, Namespace);
+        if (deployment.Metadata.Annotations?.Remove(AutoStopAnnotation) == true)
+        {
+            await client.ReplaceNamespacedDeploymentAsync(deployment, deploymentName, Namespace);
+            Logger.LogInformation("Cleared auto-stop annotation on '{Deployment}'.", deploymentName);
+        }
+    }
 }

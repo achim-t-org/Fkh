@@ -44,6 +44,14 @@ public static class FunctionCatalog
                     Description = "Administrator password for the node/workload.",
                     Required = true,
                     DefaultValue = null
+                },
+                new()
+                {
+                    Name = "autostop",
+                    Type = "string",
+                    Description = "Hours after which the node automatically stops (e.g. '2' for 2 hours). Leave empty for no auto-stop.",
+                    Required = false,
+                    DefaultValue = null
                 }
             }
         },
@@ -94,6 +102,14 @@ public static class FunctionCatalog
                     Type = "string",
                     Description = "Name of the node to start (same name used when creating it).",
                     Required = true,
+                    DefaultValue = null
+                },
+                new()
+                {
+                    Name = "autostop",
+                    Type = "string",
+                    Description = "Hours after which the node automatically stops (e.g. '2' for 2 hours). Leave empty for no auto-stop.",
+                    Required = false,
                     DefaultValue = null
                 }
             }

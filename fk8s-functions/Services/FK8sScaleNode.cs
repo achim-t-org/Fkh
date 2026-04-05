@@ -10,12 +10,37 @@ public class FK8sScaleNode : FK8sServiceBase
 
     public async Task<string> StopNodeAsync(Dictionary<string, string> parameters)
     {
-        return await ScaleAsync(parameters, 0);
+        var result = await ScaleAsync(parameters, 0);
+        // Clear auto-stop annotation when manually stopping
+        var name = parameters["name"];
+        var githubUsername = parameters["_githubUsername"];
+        var appName = SanitizeAppName($"{githubUsername}-{name}");
+        var deploymentName = $"{appName}-deployment";
+        var client = await GetKubernetesClientAsync();
+        await ClearAutoStopAnnotationAsync(client, deploymentName);
+        return result;
     }
 
     public async Task<string> StartNodeAsync(Dictionary<string, string> parameters)
     {
-        return await ScaleAsync(parameters, 1);
+        var result = await ScaleAsync(parameters, 1);
+
+        // Set auto-stop annotation if requested
+        var name = parameters["name"];
+        var githubUsername = parameters["_githubUsername"];
+        var appName = SanitizeAppName($"{githubUsername}-{name}");
+        var deploymentName = $"{appName}-deployment";
+        var autoStopInfo = "";
+
+        if (parameters.TryGetValue("autostop", out var autoStopHours) && double.TryParse(autoStopHours, out var hours) && hours > 0)
+        {
+            var stopAt = DateTimeOffset.UtcNow.AddHours(hours);
+            var client = await GetKubernetesClientAsync();
+            await SetAutoStopAnnotationAsync(client, deploymentName, stopAt);
+            autoStopInfo = $"\n  AutoStop: {stopAt:yyyy-MM-dd HH:mm} UTC ({hours}h)";
+        }
+
+        return result + autoStopInfo;
     }
 
     private async Task<string> ScaleAsync(Dictionary<string, string> parameters, int replicas)
