@@ -73,9 +73,9 @@ public abstract class FK8sServiceBase
         return uri.AbsolutePath.Replace('/', '-').TrimStart('-').ToLowerInvariant();
     }
 
-    protected static string SanitizeAppName(string imageTag)
+    protected static string SanitizeAppName(string name)
     {
-        var appName = $"bc-{imageTag}".Replace('.', '-');
+        var appName = name.Replace('.', '-').Replace('_', '-').ToLowerInvariant();
         if (appName.Length > 63) appName = appName[..63];
         return appName.TrimEnd('-');
     }
@@ -90,7 +90,13 @@ public abstract class FK8sServiceBase
         return pod.Metadata.Name;
     }
 
-    protected async Task<string> ExecInMssqlPodAsync(Kubernetes client, string podName, string bashScript)
+    protected record ExecResult(string Stdout, string Stderr)
+    {
+        public override string ToString() =>
+            string.IsNullOrWhiteSpace(Stderr) ? Stdout : $"{Stdout}\n[stderr]: {Stderr}";
+    }
+
+    protected async Task<ExecResult> ExecInMssqlPodAsync(Kubernetes client, string podName, string bashScript)
     {
         var command = new[] { "/bin/bash", "-c", bashScript };
         var ws = await client.WebSocketNamespacedPodExecAsync(
@@ -116,6 +122,6 @@ public abstract class FK8sServiceBase
             Logger.LogWarning("MSSQL pod exec stderr: {StdErr}", stderr);
         }
 
-        return stdoutTask.Result;
+        return new ExecResult(stdoutTask.Result, stderr);
     }
 }

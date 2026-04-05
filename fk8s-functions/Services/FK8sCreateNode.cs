@@ -27,7 +27,7 @@ public class FK8sCreateNode : FK8sServiceBase
 
         var imageTag = GetImageTag(artifactUrl);
         var fullImage = $"{AcrLoginServer}/{AcrRepository}:{imageTag}";
-        var appName = SanitizeAppName($"{githubUsername}_{name}");
+        var appName = SanitizeAppName($"{githubUsername}-{name}");
         var databaseName = appName;
 
         if (!Regex.IsMatch(databaseName, @"^[a-zA-Z0-9_-]+$"))
@@ -51,6 +51,9 @@ public class FK8sCreateNode : FK8sServiceBase
         await EnsureDatabaseDoesNotExistAsync(client, databaseName);
         await RestoreDatabaseViaExecAsync(client, sasUrl, databaseName);
 
+        // ── Get SQL disk usage after restore ─────────────────────────────────
+        var diskInfo = await GetSqlDiskUsageAsync(client);
+
         // ── Create Kubernetes resources ──────────────────────────────────────
         await CreateAdminSecretAsync(client, secretName, adminPassword);
 
@@ -63,7 +66,7 @@ public class FK8sCreateNode : FK8sServiceBase
         Logger.LogInformation("Deployment {Deployment} and service {Service} created in namespace {Namespace}",
             deploymentName, serviceName, Namespace);
 
-        return $"Node created. Deployment: {deploymentName}, Service: {serviceName}, Image: {fullImage}, FQDN: {publicDnsName}, Database: {databaseName}";
+        return $"Node created.\n  Deployment: {deploymentName}\n  Service: {serviceName}\n  Image: {fullImage}\n  FQDN: {publicDnsName}\n  Database: {databaseName}\n  SQL Disk: {diskInfo}";
     }
 
     private async Task EnsureDeploymentDoesNotExistAsync(Kubernetes client, string deploymentName)
@@ -85,8 +88,8 @@ public class FK8sCreateNode : FK8sServiceBase
         var podName = await FindMssqlPodAsync(client);
         var script = $"{SqlcmdPath} -S localhost -U sa -P \"$MSSQL_SA_PASSWORD\" -C -h -1 -W " +
             $"-Q \"SET NOCOUNT ON; IF DB_ID(N'{databaseName}') IS NOT NULL PRINT N'EXISTS' ELSE PRINT N'NOTEXISTS'\"";
-        var output = await ExecInMssqlPodAsync(client, podName, script);
-        if (output.Contains("EXISTS") && !output.Contains("NOTEXISTS"))
+        var result = await ExecInMssqlPodAsync(client, podName, script);
+        if (result.Stdout.Contains("EXISTS") && !result.Stdout.Contains("NOTEXISTS"))
         {
             throw new InvalidOperationException(
                 $"A database named '{databaseName}' already exists on the SQL server. Please choose a different name or remove the existing node first.");
@@ -138,10 +141,10 @@ public class FK8sCreateNode : FK8sServiceBase
 
         // Step 1: Download the backup file into the mssql pod
         Logger.LogInformation("Downloading database backup to MSSQL pod...");
-        var downloadScript = $"curl -sfS -o '/var/opt/mssql/data/{databaseName}.bak' '{sasUrl}' && echo 'DOWNLOAD_OK'";
-        var downloadOutput = await ExecInMssqlPodAsync(client, podName, downloadScript);
-        if (!downloadOutput.Contains("DOWNLOAD_OK"))
-            throw new InvalidOperationException($"Failed to download database backup for '{databaseName}'. Output: {downloadOutput}");
+        var downloadScript = $"wget -O '/var/opt/mssql/data/{databaseName}.bak' '{sasUrl}' 2>&1 && echo 'DOWNLOAD_OK'";
+        var downloadResult = await ExecInMssqlPodAsync(client, podName, downloadScript);
+        if (!downloadResult.Stdout.Contains("DOWNLOAD_OK"))
+            throw new InvalidOperationException($"Failed to download database backup for '{databaseName}'. {downloadResult}");
 
         // Step 2: Restore database (get logical file names + restore in one T-SQL batch via dynamic SQL)
         Logger.LogInformation("Restoring database from backup file...");
@@ -169,13 +172,28 @@ public class FK8sCreateNode : FK8sServiceBase
             "PRINT N'RESTORE_COMPLETE'"
         );
         var restoreScript = $"{SqlcmdPath} -S localhost -U sa -P \"$MSSQL_SA_PASSWORD\" -C -b -Q \"{restoreSql}\"";
-        var restoreOutput = await ExecInMssqlPodAsync(client, podName, restoreScript);
-        if (!restoreOutput.Contains("RESTORE_COMPLETE"))
-            throw new InvalidOperationException($"Failed to restore database '{databaseName}'. Output: {restoreOutput}");
+        var restoreResult = await ExecInMssqlPodAsync(client, podName, restoreScript);
+        if (!restoreResult.Stdout.Contains("RESTORE_COMPLETE"))
+            throw new InvalidOperationException($"Failed to restore database '{databaseName}'. {restoreResult}");
 
         // Step 3: Clean up the backup file
         await ExecInMssqlPodAsync(client, podName, $"rm -f '/var/opt/mssql/data/{databaseName}.bak'");
         Logger.LogInformation("Database '{DatabaseName}' restored successfully.", databaseName);
+    }
+
+    private async Task<string> GetSqlDiskUsageAsync(Kubernetes client)
+    {
+        try
+        {
+            var podName = await FindMssqlPodAsync(client);
+            var result = await ExecInMssqlPodAsync(client, podName, "df -h /var/opt/mssql/data | tail -1 | awk '{print $3 \" used / \" $2 \" total (\" $5 \" full)\"}'");
+            var info = result.Stdout.Trim();
+            return string.IsNullOrEmpty(info) ? "unknown" : info;
+        }
+        catch
+        {
+            return "unknown";
+        }
     }
 
     private async Task EnsureImageExistsAsync(string tag, string fullImage, string artifactUrl)

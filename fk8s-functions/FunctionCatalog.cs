@@ -50,15 +50,15 @@ public static class FunctionCatalog
         new FunctionDefinition
         {
             Name = "RemoveNode",
-            Description = "Removes a node identified by URL.",
+            Description = "Removes a node and its database. The full resource name is derived from your GitHub username and the name you provide.",
             Route = "RemoveNode",
             Parameters = new List<FunctionParameterDefinition>
             {
                 new()
                 {
-                    Name = "NodeUrl",
+                    Name = "name",
                     Type = "string",
-                    Description = "Node URL to remove.",
+                    Description = "Name of the node to remove (same name used when creating it).",
                     Required = true,
                     DefaultValue = null
                 }
