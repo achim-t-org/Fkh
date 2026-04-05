@@ -77,3 +77,8 @@ output "acr_name" {
   description = "Name of the Azure Container Registry."
   value       = azurerm_container_registry.this.name
 }
+
+output "dbs_storage_account_name" {
+  description = "Name of the storage account for database backups."
+  value       = azurerm_storage_account.dbs.name
+}

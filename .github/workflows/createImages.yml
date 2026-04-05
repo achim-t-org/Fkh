@@ -60,6 +60,7 @@ jobs:
         shell: pwsh
         env:
           ARTIFACT_URL: ${{ matrix.artifactUrl }}
+          DBS_STORAGE_ACCOUNT: ${{ secrets.DBS_STORAGE_ACCOUNT }}
         run: |
           $ErrorActionPreference = "Stop"
           $artifactUrl = $env:ARTIFACT_URL
@@ -73,7 +74,27 @@ jobs:
           $appUri = [Uri]::new($artifactUrl)
           $imageTag = "$($appUri.AbsolutePath.Replace('/','-').TrimStart('-'))".ToLowerInvariant()
           $imageName = "my:$imageTag"
-          New-BcImage -artifactUrl $artifactUrl -imageName $imageName -multitenant -baseImage $baseImage
+          $artifactPath = Download-Artifact -artifactUrl $artifactUrl -includePlatform
+          $manifest = Get-Content -Path (Join-Path $artifactPath[0] "manifest.json") | ConvertFrom-Json
+          $bakFile = Join-Path $artifactPath[0] $manifest.database
+          if (!(Test-Path $bakFile)) {
+              throw "Unable to locate database backup in artifacts"
+          }
+          # Upload the BAK file to the dbs storage account (if it doesn't already exist)
+          $storageAccount = $env:DBS_STORAGE_ACCOUNT
+          $containerName = "cronus"
+          $blobName = $imageTag
+          $existingBlob = az storage blob show --account-name $storageAccount --container-name $containerName --name $blobName --auth-mode login 2>&1
+          if ($LASTEXITCODE -ne 0) {
+              Write-Host "Blob '$blobName' not found in container '$containerName'. Uploading..."
+              az storage container create --account-name $storageAccount --name $containerName --auth-mode login | Out-Null
+              az storage blob upload --account-name $storageAccount --container-name $containerName --name $blobName --file $bakFile --auth-mode login --overwrite false
+              if ($LASTEXITCODE -ne 0) { throw "Failed to upload database backup to storage account" }
+              Write-Host "Upload complete."
+          } else {
+              Write-Host "Blob '$blobName' already exists in container '$containerName'. Skipping upload."
+          }
+          New-BcImage -artifactUrl $artifactUrl -imageName $imageName -baseImage $baseImage
           docker tag $imageName "$env:ACR_LOGIN_SERVER/businesscentral:$imageTag"
           docker push "$env:ACR_LOGIN_SERVER/businesscentral:$imageTag"
           docker tag $imageName "$env:ACR_LOGIN_SERVER/businesscentral-$($osversion):$imageTag"

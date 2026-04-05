@@ -1,3 +1,15 @@
+# ── Storage Account (database backups) ────────────────────────────────────────
+
+resource "azurerm_storage_account" "dbs" {
+  name                     = local.dbs_storage_name
+  resource_group_name      = azurerm_resource_group.this.name
+  location                 = azurerm_resource_group.this.location
+  account_tier             = "Standard"
+  account_replication_type = "LRS"
+
+  tags = azurerm_resource_group.this.tags
+}
+
 # ── Storage Account (required by Azure Functions runtime) ─────────────────────
 
 resource "azurerm_storage_account" "function" {
@@ -52,6 +64,13 @@ resource "azurerm_windows_function_app" "this" {
     ACR_NAME                                = azurerm_container_registry.this.name
     BASE_IMAGE                              = var.base_image
     ALLOWED_ORG_TEAMS                       = jsonencode(var.allowed_org_teams)
+    AKS_LOCATION                             = var.location
+    CONTACT_EMAIL_FOR_LETSENCRYPT             = var.contact_email_for_letsencrypt
+    GITHUB_APP_ID                            = var.github_app_id
+    GITHUB_APP_PRIVATE_KEY                   = var.github_app_private_key
+    GITHUB_APP_INSTALLATION_ID               = var.github_app_installation_id
+    GITHUB_REPO_OWNER                        = var.github_org
+    GITHUB_REPO_NAME                         = var.github_repo
     APPINSIGHTS_INSTRUMENTATIONKEY          = azurerm_application_insights.this.instrumentation_key
     APPLICATIONINSIGHTS_CONNECTION_STRING   = azurerm_application_insights.this.connection_string
   }

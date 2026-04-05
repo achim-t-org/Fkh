@@ -15,3 +15,6 @@ fk8s-functions/local.settings.json
 terraform/.terraform/
 terraform/terraform.tfstate
 terraform/terraform.tfstate.backup
+
+# Private keys
+*.pem

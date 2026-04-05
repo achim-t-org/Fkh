@@ -36,3 +36,11 @@ allowed_org_teams = [
   { org = "my-company",     team = "FK8s-members" },
   { org = "customer-a-org", team = "FK8s-members" }
 ]
+
+# Contact email for Let's Encrypt
+contact_email_for_letsencrypt = "admin@example.com"
+
+# GitHub App — triggers image-build workflows
+github_app_id              = ""  # paste your App ID here
+# github_app_private_key   = ""  # set via TF_VAR_github_app_private_key environment variable
+github_app_installation_id = ""  # paste your Installation ID here

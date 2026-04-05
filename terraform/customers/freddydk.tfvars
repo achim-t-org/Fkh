@@ -36,3 +36,11 @@ github_team_members = [
 allowed_org_teams = [
   { org = "Freddy-DK",     team = "FK8s-members" }
 ]
+
+# Contact email for Let's Encrypt
+contact_email_for_letsencrypt = "fk@freddy.dk"
+
+# GitHub App — triggers image-build workflows
+github_app_id              = ""  # paste your App ID here
+# github_app_private_key   = ""  # set via TF_VAR_github_app_private_key environment variable
+github_app_installation_id = ""  # paste your Installation ID here

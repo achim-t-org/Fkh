@@ -8,7 +8,12 @@ namespace FK8s.Services;
 
 public class FK8sCreateNode : FK8sServiceBase
 {
-    public FK8sCreateNode(ILogger<FK8sCreateNode> logger) : base(logger) { }
+    private readonly GitHubAppTokenService _gitHubAppTokenService;
+
+    public FK8sCreateNode(ILogger<FK8sCreateNode> logger, GitHubAppTokenService gitHubAppTokenService) : base(logger)
+    {
+        _gitHubAppTokenService = gitHubAppTokenService;
+    }
 
     public async Task<string> CreateNodeAsync(Dictionary<string, string> parameters)
     {
@@ -31,13 +36,17 @@ public class FK8sCreateNode : FK8sServiceBase
         var serviceName = $"{appName}-service";
 
         await CreateAdminSecretAsync(client, secretName, adminPassword);
-        await CreateDeploymentAsync(client, deploymentName, appName, fullImage, adminUsername, secretName);
-        await CreateLoadBalancerServiceAsync(client, serviceName, appName);
+
+        var dnsLabel = appName;
+        var publicDnsName = $"{dnsLabel}.{AksLocation}.cloudapp.azure.com";
+
+        await CreateDeploymentAsync(client, deploymentName, appName, fullImage, adminUsername, secretName, publicDnsName);
+        await CreateLoadBalancerServiceAsync(client, serviceName, appName, dnsLabel);
 
         Logger.LogInformation("Deployment {Deployment} and service {Service} created in namespace {Namespace}",
             deploymentName, serviceName, Namespace);
 
-        return $"Node created. Deployment: {deploymentName}, Service: {serviceName}, Image: {fullImage}";
+        return $"Node created. Deployment: {deploymentName}, Service: {serviceName}, Image: {fullImage}, FQDN: {publicDnsName}";
     }
 
     private async Task EnsureImageExistsAsync(string tag, string fullImage, string artifactUrl)
@@ -54,8 +63,11 @@ public class FK8sCreateNode : FK8sServiceBase
         }
         catch (Azure.RequestFailedException ex) when (ex.Status == 404)
         {
+            Logger.LogInformation("Image not found in ACR. Triggering createImages workflow for {ArtifactUrl}...", artifactUrl);
+            await _gitHubAppTokenService.TriggerCreateImagesWorkflowAsync(artifactUrl);
             throw new InvalidOperationException(
-                $"Image does not exist: {fullImage}. Run the CreateImages workflow first with artifactUrl: {artifactUrl}");
+                $"Image does not exist yet: {fullImage}. The createImages workflow has been triggered automatically. " +
+                $"Please retry in a few minutes once the image is built.");
         }
     }
 
@@ -77,7 +89,7 @@ public class FK8sCreateNode : FK8sServiceBase
 
     private async Task CreateDeploymentAsync(
         Kubernetes client, string deploymentName, string appName, string fullImage,
-        string adminUsername, string secretName)
+        string adminUsername, string secretName, string publicDnsName)
     {
         var deployment = new V1Deployment
         {
@@ -115,7 +127,7 @@ public class FK8sCreateNode : FK8sServiceBase
                                 {
                                     new(80), new(443), new(7047), new(7048), new(7049),
                                 },
-                                Env = BuildEnvVars(adminUsername, secretName)
+                                Env = BuildEnvVars(adminUsername, secretName, publicDnsName)
                             }
                         }
                     }
@@ -127,7 +139,7 @@ public class FK8sCreateNode : FK8sServiceBase
         await client.CreateNamespacedDeploymentAsync(deployment, Namespace);
     }
 
-    private static List<V1EnvVar> BuildEnvVars(string adminUsername, string secretName)
+    private List<V1EnvVar> BuildEnvVars(string adminUsername, string secretName, string publicDnsName)
     {
         return new List<V1EnvVar>
         {
@@ -140,7 +152,10 @@ public class FK8sCreateNode : FK8sServiceBase
                 {
                     SecretKeyRef = new V1SecretKeySelector { Name = secretName, Key = "password" }
                 }
-            }
+            },
+            new() { Name = "publicDnsName", Value = publicDnsName },
+            new() { Name = "contactEMailForLetsEncrypt", Value = ContactEmail },
+            new() { Name = "folders", Value = FoldersValue },
             //,
             // new()
             // {
@@ -156,11 +171,19 @@ public class FK8sCreateNode : FK8sServiceBase
         };
     }
 
-    private async Task CreateLoadBalancerServiceAsync(Kubernetes client, string serviceName, string appName)
+    private async Task CreateLoadBalancerServiceAsync(Kubernetes client, string serviceName, string appName, string dnsLabel)
     {
         var service = new V1Service
         {
-            Metadata = new V1ObjectMeta { Name = serviceName, NamespaceProperty = Namespace },
+            Metadata = new V1ObjectMeta
+            {
+                Name = serviceName,
+                NamespaceProperty = Namespace,
+                Annotations = new Dictionary<string, string>
+                {
+                    ["service.beta.kubernetes.io/azure-dns-label-name"] = dnsLabel
+                }
+            },
             Spec = new V1ServiceSpec
             {
                 Type = "LoadBalancer",

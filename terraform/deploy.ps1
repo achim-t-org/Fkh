@@ -9,14 +9,6 @@
     GitHub personal access token with read:org scope.
     Defaults to the TF_VAR_github_token environment variable.
 
-.PARAMETER SqlSaPassword
-    SQL SA password.
-    Defaults to the TF_VAR_sql_sa_password environment variable; if not set,
-    the script prompts for it securely.
-
-.PARAMETER FunctionProjectPath
-    Path to the Azure Function project folder. Defaults to ../fk8s-functions relative to this script.
-
 .PARAMETER AutoApprove
     If specified, passes -auto-approve to terraform apply (no interactive prompt).
 
@@ -30,12 +22,6 @@ param(
 
     [Parameter(Mandatory = $false)]
     [string] $GithubToken = $env:TF_VAR_github_token,
-
-    [Parameter(Mandatory = $false)]
-    [SecureString] $SqlSaPassword,
-
-    [Parameter(Mandatory = $false)]
-    [string] $FunctionProjectPath = "",
 
     [Parameter(Mandatory = $false)]
     [switch] $AutoApprove
@@ -60,27 +46,6 @@ if ([string]::IsNullOrWhiteSpace($GithubToken)) {
 
     $env:TF_VAR_github_token = $GithubToken
     Write-Host "TF_VAR_github_token has been set from GitHub CLI authentication." -ForegroundColor Green
-}
-
-if ([string]::IsNullOrWhiteSpace($env:TF_VAR_sql_sa_password)) {
-    if (-not $SqlSaPassword) {
-        $SqlSaPassword = Read-Host "Enter SQL SA password" -AsSecureString
-    }
-
-    $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SqlSaPassword)
-    try {
-        $plainSqlSaPassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-    }
-    finally {
-        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
-    }
-
-    if ([string]::IsNullOrWhiteSpace($plainSqlSaPassword)) {
-        throw "SQL SA password is required. Pass -SqlSaPassword, set TF_VAR_sql_sa_password, or enter it when prompted."
-    }
-
-    $env:TF_VAR_sql_sa_password = $plainSqlSaPassword
-    Write-Host "TF_VAR_sql_sa_password has been set for this session." -ForegroundColor Green
 }
 
 function Show-KubernetesDiagnostics {
@@ -130,9 +95,7 @@ function Show-KubernetesDiagnostics {
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $checkScript = Join-Path $scriptDir "checkGitHubTeam.ps1"
 
-if ([string]::IsNullOrWhiteSpace($FunctionProjectPath)) {
-    $FunctionProjectPath = Join-Path $scriptDir ".." "fk8s-functions"
-}
+$FunctionProjectPath = Join-Path $scriptDir ".." "fk8s-functions"
 $FunctionProjectPath = Resolve-Path $FunctionProjectPath
 
 if (-not (Test-Path $FunctionProjectPath)) {
@@ -221,6 +184,74 @@ terraform init -reconfigure `
     -backend-config="use_azuread_auth=true"
 if ($LASTEXITCODE -ne 0) { throw "Terraform init failed." }
 
+# ── Recover secrets from existing state (avoids re-prompting on redeploys) ────
+
+if ([string]::IsNullOrWhiteSpace($env:TF_VAR_sql_sa_password) -or [string]::IsNullOrWhiteSpace($env:TF_VAR_github_app_private_key)) {
+    Write-Host "Checking Terraform state for existing secrets..." -ForegroundColor Cyan
+    try {
+        $stateJson = terraform state pull 2>$null | ConvertFrom-Json
+        if ($stateJson -and $stateJson.resources) {
+            if ([string]::IsNullOrWhiteSpace($env:TF_VAR_sql_sa_password)) {
+                $mssqlSecret = $stateJson.resources |
+                    Where-Object { $_.type -eq "kubernetes_secret" -and $_.name -eq "mssql" } |
+                    Select-Object -First 1
+                $saPassword = $mssqlSecret.instances[0].attributes.data.'sa-password'
+                if (-not [string]::IsNullOrWhiteSpace($saPassword)) {
+                    $env:TF_VAR_sql_sa_password = $saPassword
+                    Write-Host "TF_VAR_sql_sa_password restored from Terraform state." -ForegroundColor Green
+                }
+            }
+
+            if ([string]::IsNullOrWhiteSpace($env:TF_VAR_github_app_private_key)) {
+                $functionApp = $stateJson.resources |
+                    Where-Object { $_.type -eq "azurerm_windows_function_app" -and $_.name -eq "this" } |
+                    Select-Object -First 1
+                $privateKey = $functionApp.instances[0].attributes.app_settings.GITHUB_APP_PRIVATE_KEY
+                if (-not [string]::IsNullOrWhiteSpace($privateKey)) {
+                    $env:TF_VAR_github_app_private_key = $privateKey
+                    Write-Host "TF_VAR_github_app_private_key restored from Terraform state." -ForegroundColor Green
+                }
+            }
+        }
+    }
+    catch {
+        Write-Host "Could not read secrets from state (may be a fresh deploy)." -ForegroundColor Yellow
+    }
+}
+
+# ── Prompt for any secrets still missing ──────────────────────────────────────
+
+if ([string]::IsNullOrWhiteSpace($env:TF_VAR_sql_sa_password)) {
+    $SqlSaPassword = Read-Host "Enter SQL SA password" -AsSecureString
+
+    $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SqlSaPassword)
+    try {
+        $plainSqlSaPassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+    }
+    finally {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+    }
+
+    if ([string]::IsNullOrWhiteSpace($plainSqlSaPassword)) {
+        throw "SQL SA password is required. Set TF_VAR_sql_sa_password or enter it when prompted."
+    }
+
+    $env:TF_VAR_sql_sa_password = $plainSqlSaPassword
+    Write-Host "TF_VAR_sql_sa_password has been set for this session." -ForegroundColor Green
+}
+
+if ([string]::IsNullOrWhiteSpace($env:TF_VAR_github_app_private_key)) {
+    $pemPath = Read-Host "Enter path to GitHub App private key (.pem file)"
+    $pemPath = $pemPath.Trim('"', "'", ' ')
+
+    if (-not (Test-Path $pemPath)) {
+        throw "File not found: $pemPath"
+    }
+
+    $env:TF_VAR_github_app_private_key = Get-Content $pemPath -Raw
+    Write-Host "TF_VAR_github_app_private_key has been set from $pemPath." -ForegroundColor Green
+}
+
 # ── Step 2: Bootstrap Azure infrastructure ────────────────────────────────────
 # The Kubernetes provider depends on AKS kubeconfig values. On a fresh deploy
 # AKS doesn't exist yet, so we must create it first with a targeted apply
@@ -245,6 +276,7 @@ $bootstrapArgs = @(
     "-target=azurerm_kubernetes_cluster.this",
     "-target=azurerm_kubernetes_cluster_node_pool.win",
     "-target=azurerm_storage_account.function",
+    "-target=azurerm_storage_account.dbs",
     "-target=azurerm_service_plan.function",
     "-target=azurerm_windows_function_app.this",
     "-target=azurerm_user_assigned_identity.function",
@@ -331,6 +363,7 @@ if ($ghCommand) {
         AZURE_TENANT_ID        = terraform output -raw tenant_id
         AZURE_SUBSCRIPTION_ID  = terraform output -raw subscription_id
         ACR_LOGIN_SERVER       = terraform output -raw acr_login_server
+        DBS_STORAGE_ACCOUNT    = terraform output -raw dbs_storage_account_name
     }
 
     $repo = terraform output -raw github_repo

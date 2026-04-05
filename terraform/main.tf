@@ -48,6 +48,7 @@ locals {
   function_app_name      = "${local.product_prefix}-${var.customer_name}-functions"
   function_identity_name = "${local.product_prefix}-${var.customer_name}-identity"
   function_storage_name  = "${local.product_prefix}${local.storage_account_customer_id}func"
+  dbs_storage_name       = "${local.product_prefix}${local.storage_account_customer_id}dbs"
 }
 
 # ============================================================================

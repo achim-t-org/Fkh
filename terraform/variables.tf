@@ -118,3 +118,26 @@ variable "base_image" {
   type        = string
   default     = "mcr.microsoft.com/businesscentral:ltsc2022"
 }
+
+# ── GitHub App (per-customer, triggers image builds) ─────────────────────────
+
+variable "github_app_id" {
+  description = "GitHub App ID for triggering image-build workflows."
+  type        = string
+}
+
+variable "github_app_private_key" {
+  description = "PEM-encoded private key of the GitHub App. Set via TF_VAR_github_app_private_key, never in tfvars files."
+  type        = string
+  sensitive   = true
+}
+
+variable "github_app_installation_id" {
+  description = "Installation ID of the GitHub App on the target repository."
+  type        = string
+}
+
+variable "contact_email_for_letsencrypt" {
+  description = "Contact email for Let's Encrypt certificate generation."
+  type        = string
+}

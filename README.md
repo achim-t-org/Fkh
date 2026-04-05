@@ -52,6 +52,7 @@ And the following accounts / permissions:
 | Azure subscription | Target for all infrastructure (AKS, Function App, storage, identity) |
 | Azure account with **Contributor** role on the subscription | Terraform creates resource groups, AKS clusters, Function Apps |
 | GitHub **Personal Access Token** with `admin:org` scope | Terraform creates and manages the GitHub team |
+| **GitHub App** per customer ([setup guide](docs/github-app-setup.md)) | Function App triggers image-build workflows automatically |
 
 ### Developers — working on the VS Code extension
 
@@ -67,8 +68,9 @@ And the following accounts / permissions:
 Never commit secrets to source control. Set these as environment variables before deploying:
 
 ```powershell
-$env:TF_VAR_github_token  = "<your-github-pat>"
-$env:TF_VAR_sql_sa_password = "<your-sql-sa-password>"
+$env:TF_VAR_github_token          = "<your-github-pat>"
+$env:TF_VAR_sql_sa_password        = "<your-sql-sa-password>"
+$env:TF_VAR_github_app_private_key = Get-Content "<path-to>.pem" -Raw
 ```
 
 Then log in to Azure:

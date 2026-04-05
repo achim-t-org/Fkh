@@ -14,10 +14,13 @@ public abstract class FK8sServiceBase
     protected readonly string AcrName;
     protected readonly string ClientId;
     protected readonly string BaseImage;
+    protected readonly string AksLocation;
+    protected readonly string ContactEmail;
     protected readonly ILogger Logger;
 
     protected const string Namespace = "app";
     protected const string AcrRepository = "businesscentral";
+    protected const string FoldersValue = @"c:\run\my=https://github.com/Freddy-DK/ContainerScripts/archive/refs/heads/main.zip\ContainerScripts-main";
 
     protected FK8sServiceBase(ILogger logger)
     {
@@ -34,6 +37,10 @@ public abstract class FK8sServiceBase
             ?? throw new InvalidOperationException("AZURE_CLIENT_ID is not configured.");
         BaseImage = Environment.GetEnvironmentVariable("BASE_IMAGE")
             ?? throw new InvalidOperationException("BASE_IMAGE is not configured.");
+        AksLocation = Environment.GetEnvironmentVariable("AKS_LOCATION")
+            ?? throw new InvalidOperationException("AKS_LOCATION is not configured.");
+        ContactEmail = Environment.GetEnvironmentVariable("CONTACT_EMAIL_FOR_LETSENCRYPT")
+            ?? throw new InvalidOperationException("CONTACT_EMAIL_FOR_LETSENCRYPT is not configured.");
     }
 
     protected string AcrLoginServer => $"{AcrName}.azurecr.io";
