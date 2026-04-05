@@ -1,8 +1,14 @@
 # FK8s Cheat Sheet
 
-## Create & Remove Nodes (via CLI)
+## Manage Nodes (via CLI)
 
 ```powershell
+# List your nodes
+.\fk8s.exe listnodes
+
+# List all nodes
+.\fk8s.exe listnodes --all
+
 # Create a node
 .\fk8s.exe createnode --name bcserver --artifactUrl 'https://...' --adminUsername 'admin' --adminPassword 'P@ssword1'
 

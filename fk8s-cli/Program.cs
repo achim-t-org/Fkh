@@ -116,6 +116,11 @@ static ParsedArgs ParseArgs(string[] args, FunctionCatalogResponse catalog)
 
     var parsed = new ParsedArgs { Command = function.Name };
 
+    // Build a set of boolean parameter names for this function (flags, no value needed)
+    var booleanParams = new HashSet<string>(
+        function.Parameters.Where(p => string.Equals(p.Type, "boolean", StringComparison.OrdinalIgnoreCase)).Select(p => p.Name),
+        StringComparer.OrdinalIgnoreCase);
+
     for (var i = 1; i < args.Length; i++)
     {
         var arg = args[i];
@@ -130,13 +135,21 @@ static ParsedArgs ParseArgs(string[] args, FunctionCatalogResponse catalog)
             throw new InvalidOperationException("Parameter name cannot be empty after '--'.");
         }
 
-        i++;
-        if (i >= args.Length)
+        if (booleanParams.Contains(key))
         {
-            throw new InvalidOperationException($"Missing value for --{key}");
+            // Boolean flag — presence means true, no value expected
+            parsed.Parameters[key] = "true";
         }
+        else
+        {
+            i++;
+            if (i >= args.Length)
+            {
+                throw new InvalidOperationException($"Missing value for --{key}");
+            }
 
-        parsed.Parameters[key] = args[i];
+            parsed.Parameters[key] = args[i];
+        }
     }
 
     return parsed;

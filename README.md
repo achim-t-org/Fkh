@@ -145,6 +145,7 @@ Set the function base URL:
 Run commands:
 
 ```powershell
+fk8s.exe listnodes
 fk8s.exe createnode
 fk8s.exe removenode
 fk8s.exe stopnode
@@ -154,6 +155,7 @@ fk8s.exe startnode
 Pass optional payload parameters:
 
 ```powershell
+fk8s.exe listnodes --all
 fk8s.exe createnode --name bcserver --artifactUrl "https://example/artifact.zip" --adminUsername "admin" --adminPassword "P@ssword1"
 fk8s.exe removenode --name bcserver
 fk8s.exe stopnode --name bcserver

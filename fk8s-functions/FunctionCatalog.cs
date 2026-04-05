@@ -97,6 +97,23 @@ public static class FunctionCatalog
                     DefaultValue = null
                 }
             }
+        },
+        new FunctionDefinition
+        {
+            Name = "ListNodes",
+            Description = "Lists nodes. By default lists only your own nodes. Set 'all' to 'true' to list all nodes.",
+            Route = "ListNodes",
+            Parameters = new List<FunctionParameterDefinition>
+            {
+                new()
+                {
+                    Name = "all",
+                    Type = "boolean",
+                    Description = "List all nodes instead of only your own.",
+                    Required = false,
+                    DefaultValue = "false"
+                }
+            }
         }
     };
 

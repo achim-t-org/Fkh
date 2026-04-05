@@ -17,6 +17,7 @@ var host = new HostBuilder()
         services.AddSingleton<FK8sCreateNode>();
         services.AddSingleton<FK8sRemoveNode>();
         services.AddSingleton<FK8sScaleNode>();
+        services.AddSingleton<FK8sListNodes>();
     })
     .Build();
 

@@ -23,10 +23,12 @@ graph TB
         RNF["RemoveNodeFunction"]
         SNDF["StopNodeFunction"]
         SNTF["StartNodeFunction"]
+        LNF["ListNodesFunction"]
         CAT["GetFunctionCatalog"]
         CN["FK8sCreateNode"]
         RN["FK8sRemoveNode"]
         SN["FK8sScaleNode"]
+        LN["FK8sListNodes"]
         GAS["GitHubAppTokenService"]
         GHS["GitHubAuthService"]
     end
@@ -56,11 +58,12 @@ graph TB
     %% Function internal flow
     FB -->|validate token| GHS
     GHS -->|"GET /user + team membership"| GH_AUTH
-    FB --> CNF & RNF & SNDF & SNTF & CAT
+    FB --> CNF & RNF & SNDF & SNTF & LNF & CAT
     CNF --> CN
     RNF --> RN
     SNDF --> SN
     SNTF --> SN
+    LNF --> LN
 
     %% CN operations
     CN -->|"check image exists"| ACR
@@ -76,7 +79,7 @@ graph TB
     GH_ACTIONS -->|"upload .bak"| DBS
 
     %% Identity
-    MI -.->|"auth"| CN & RN & SN
+    MI -.->|"auth"| CN & RN & SN & LN
     MI -.->|"AKS Contributor"| BC
     MI -.->|"Blob Data Contributor"| DBS
     MI -.->|"AcrPull"| ACR
@@ -86,7 +89,7 @@ graph TB
     LB -->|"ports 80,443,7047-7049"| BC
 
     %% Monitoring
-    CN & RN & SN -.-> LOGS
+    CN & RN & SN & LN -.-> LOGS
     FB -.-> LOGS
 ```
 
@@ -109,6 +112,7 @@ graph TB
 | **FK8sCreateNode** | `fk8s-functions/Services/FK8sCreateNode.cs` | Orchestrates node creation: ACR image check → database backup SAS URL → k8s exec to download and restore database → create K8s deployment, service, and secret. |
 | **FK8sRemoveNode** | `fk8s-functions/Services/FK8sRemoveNode.cs` | Removes Kubernetes resources (deployment, service, secret) and drops the database for a given node. |
 | **FK8sScaleNode** | `fk8s-functions/Services/FK8sScaleNode.cs` | Scales a node's deployment: StopNode sets replicas to 0, StartNode sets replicas to 1. Database is preserved across stop/start. |
+| **FK8sListNodes** | `fk8s-functions/Services/FK8sListNodes.cs` | Lists nodes filtered by user (or all). Shows status, image, web client URL, and CPU/memory usage via the metrics API. |
 | **FK8sServiceBase** | `fk8s-functions/Services/FK8sServiceBase.cs` | Shared base class with AKS/ACR/Storage config, Kubernetes client creation via managed identity, and k8s exec helpers (`FindMssqlPodAsync`, `ExecInMssqlPodAsync`). |
 
 ### Infrastructure (Terraform)
