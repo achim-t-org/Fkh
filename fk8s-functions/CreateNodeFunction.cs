@@ -9,17 +9,17 @@ public class CreateNodeFunction : FunctionBase
 {
     private readonly ILogger<CreateNodeFunction> _logger;
     private readonly GitHubAuthService _gitHub;
-    private readonly FK8sService _aks;
+    private readonly FK8sCreateNode _createNode;
 
-    public CreateNodeFunction(ILogger<CreateNodeFunction> logger, GitHubAuthService gitHub, FK8sService aks)
+    public CreateNodeFunction(ILogger<CreateNodeFunction> logger, GitHubAuthService gitHub, FK8sCreateNode createNode)
     {
         _logger = logger;
         _gitHub = gitHub;
-        _aks = aks;
+        _createNode = createNode;
     }
 
     [Function("CreateNode")]
     public Task<HttpResponseData> RunAsync(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "CreateNode")] HttpRequestData req)
-        => ExecuteAsync(req, _logger, _gitHub, "CreateNode", _aks.CreateNodeAsync);
+        => ExecuteAsync(req, _logger, _gitHub, "CreateNode", _createNode.CreateNodeAsync);
 }

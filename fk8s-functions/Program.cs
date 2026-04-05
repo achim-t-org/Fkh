@@ -10,8 +10,9 @@ var host = new HostBuilder()
         // Register GitHubAuthService with a named HttpClient
         services.AddHttpClient<GitHubAuthService>();
 
-        // Register FK8sService
-        services.AddSingleton<FK8sService>();
+        // Register AKS operation services
+        services.AddSingleton<FK8sCreateNode>();
+        services.AddSingleton<FK8sRemoveNode>();
     })
     .Build();
 
