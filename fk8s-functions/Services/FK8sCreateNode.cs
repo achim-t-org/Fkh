@@ -264,6 +264,26 @@ public class FK8sCreateNode : FK8sServiceBase
                         {
                             ["kubernetes.io/os"] = "windows"
                         },
+                        Affinity = new V1Affinity
+                        {
+                            PodAntiAffinity = new V1PodAntiAffinity
+                            {
+                                RequiredDuringSchedulingIgnoredDuringExecution = new List<V1PodAffinityTerm>
+                                {
+                                    new()
+                                    {
+                                        LabelSelector = new V1LabelSelector
+                                        {
+                                            MatchLabels = new Dictionary<string, string>
+                                            {
+                                                ["app-type"] = "windows-servicetier"
+                                            }
+                                        },
+                                        TopologyKey = "kubernetes.io/hostname"
+                                    }
+                                }
+                            }
+                        },
                         Containers = new List<V1Container>
                         {
                             new()
