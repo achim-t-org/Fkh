@@ -1,12 +1,16 @@
+using System.Text.Json;
 using FK8s.Services;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
+var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
 var host = new HostBuilder()
     .ConfigureFunctionsWorkerDefaults()
     .ConfigureServices(services =>
     {
+        services.AddSingleton(jsonOptions);
         // Register GitHubAuthService with a named HttpClient
         services.AddHttpClient<GitHubAuthService>();
 

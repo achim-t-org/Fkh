@@ -31,7 +31,6 @@ resource "azurerm_role_assignment" "function_dbs_storage" {
 
 resource "azurerm_federated_identity_credential" "github_actions" {
   name                = "github-actions-createimages"
-  resource_group_name = azurerm_resource_group.this.name
   parent_id           = azurerm_user_assigned_identity.function.id
   audience            = ["api://AzureADTokenExchange"]
   issuer              = "https://token.actions.githubusercontent.com"

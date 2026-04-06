@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 
 let functionCatalog: FunctionCatalogResponse | undefined;
+let outputChannel: vscode.OutputChannel;
 
 function getBaseUrl(): string | undefined {
   const url = vscode.workspace.getConfiguration('fk8s').get<string>('baseUrl', '').trim();
@@ -19,7 +20,9 @@ function getBaseUrl(): string | undefined {
 }
 
 export function activate(context: vscode.ExtensionContext) {
+  outputChannel = vscode.window.createOutputChannel('FK8s');
   context.subscriptions.push(
+    outputChannel,
     vscode.commands.registerCommand('fk8s.run', async () => {
       const catalog = await getFunctionCatalog();
       if (!catalog) { return; }
@@ -189,7 +192,8 @@ async function invokeFunctionByName(functionName: string, prefilled: Record<stri
 
         if (response.ok) {
           const result = await response.json() as { message: string };
-          vscode.window.showInformationMessage(`✅ ${result.message}`);
+          outputChannel.appendLine(`[${definition.name}] ${result.message}`);
+          outputChannel.show(true);
         } else if (response.status === 401 || response.status === 403) {
           vscode.window.showErrorMessage(
             'Access denied. Make sure your GitHub account is a member of an authorized team.'
