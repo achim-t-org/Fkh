@@ -156,10 +156,12 @@ public class FK8sAllowSqlAccess : FK8sServiceBase
             // Create or update the server-level login
             var loginScript = $"{SqlcmdPath} -S localhost -U sa -P \"$MSSQL_SA_PASSWORD\" -C -b -Q " +
                 $"\"IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = '{sqlLogin}') " +
-                $"CREATE LOGIN [{sqlLogin}] WITH PASSWORD = '{escapedPassword}'; " +
-                $"ELSE ALTER LOGIN [{sqlLogin}] WITH PASSWORD = '{escapedPassword}';\"";
-            await ExecInMssqlPodAsync(client, podName, loginScript);
-            Logger.LogInformation("Created/updated SQL login '{Login}'.", sqlLogin);
+                $"BEGIN CREATE LOGIN [{sqlLogin}] WITH PASSWORD = '{escapedPassword}', CHECK_POLICY = OFF; END " +
+                $"ELSE BEGIN ALTER LOGIN [{sqlLogin}] WITH PASSWORD = '{escapedPassword}'; END; " +
+                $"GRANT VIEW ANY DATABASE TO [{sqlLogin}]; " +
+                $"GRANT CONNECT SQL TO [{sqlLogin}];\"";
+            var loginResult = await ExecInMssqlPodAsync(client, podName, loginScript);
+            Logger.LogInformation("Created/updated SQL login '{Login}'. Output: {Output}", sqlLogin, loginResult);
 
             // Find all databases matching <username>_*
             var listDbScript = $"{SqlcmdPath} -S localhost -U sa -P \"$MSSQL_SA_PASSWORD\" -C -h -1 -W " +
@@ -176,9 +178,8 @@ public class FK8sAllowSqlAccess : FK8sServiceBase
                 var userScript = $"{SqlcmdPath} -S localhost -U sa -P \"$MSSQL_SA_PASSWORD\" -C -b -Q " +
                     $"\"USE [{safeDb}]; " +
                     $"IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = '{sqlLogin}') " +
-                    $"CREATE USER [{sqlLogin}] FOR LOGIN [{sqlLogin}]; " +
-                    $"ALTER ROLE [db_owner] ADD MEMBER [{sqlLogin}];\"";
-                await ExecInMssqlPodAsync(client, podName, userScript);
+                    $"BEGIN CREATE USER [{sqlLogin}] FOR LOGIN [{sqlLogin}]; END; " +
+                    $"ALTER ROLE [db_owner] ADD MEMBER [{sqlLogin}];\"";                await ExecInMssqlPodAsync(client, podName, userScript);
                 Logger.LogInformation("Granted db_owner on '{Database}' to '{Login}'.", db, sqlLogin);
             }
 
