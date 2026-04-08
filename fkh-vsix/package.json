@@ -3,7 +3,7 @@
   "displayName": "Freddy's Kubernetes Helper",
   "description": "Provision AKS nodes via authenticated Azure Function",
   "version": "0.0.1",
-  "publisher": "Freddy.DK ApS",
+  "publisher": "Freddy-DK",
   "icon": "images/icon.png",
   "repository": {
     "type": "git",
@@ -14,7 +14,7 @@
   },
   "extensionKind": [
     "workspace",
-    "web"
+    "ui"
   ],
   "categories": [
     "Other"
