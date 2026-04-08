@@ -4,8 +4,10 @@ fkh-functions/obj/
 fkh-cli/bin/
 fkh-cli/obj/
 
-# VSIX extension dependencies and package output
+# VSIX extension dependencies, build output, and package output
 fkh-vsix/node_modules/
+fkh-vsix/out/
+fkh-vsix/dist/
 fkh-vsix/*.vsix
 
 # Azure Functions local config
