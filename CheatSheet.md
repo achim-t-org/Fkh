@@ -1,4 +1,4 @@
-# FKH Cheat Sheet
+# Fkh Cheat Sheet
 
 ## Manage Nodes (via CLI)
 
@@ -111,7 +111,7 @@ kubectl exec -n app -l app=mssql -- /opt/mssql-tools18/bin/sqlcmd -S localhost -
 .\deploy.ps1 -CustomerFile customers\freddydk.tfvars
 
 # Publish function code only
-cd ..\fkh-functions
+cd ..\fkh-backend
 dotnet publish -c Release -o bin\publish
 az functionapp deployment source config-zip -g fkh-freddydk -n fkh-freddydk-functions --src bin\publish.zip
 ```

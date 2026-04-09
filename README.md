@@ -1,6 +1,6 @@
-# FKH — Freddys Kubernetes Helper
+# Fkh — Freddys Kubernetes Helper
 
-FKH lets authorised GitHub users provision AKS Windows nodes on demand directly
+Fkh lets authorised GitHub users provision AKS Windows nodes on demand directly
 from VS Code. A GitHub-authenticated Azure Function acts as the provisioning gate;
 Terraform manages all Azure and GitHub infrastructure.
 
@@ -12,7 +12,7 @@ Requirements depend on what you are doing.
 
 ### End users — provisioning nodes via VS Code
 
-Just [VS Code](https://code.visualstudio.com) with the FKH extension installed.
+Just [VS Code](https://code.visualstudio.com) with the Fkh extension installed.
 Authentication is handled automatically via VS Code's built-in GitHub sign-in.
 No Azure CLI, no Terraform, nothing else.
 
@@ -117,7 +117,7 @@ cd terraform
 
 ---
 
-## Using the FKH CLI
+## Using the Fkh CLI
 
 Publish the executable from the repository root:
 
@@ -207,7 +207,7 @@ terraform/               Terraform configuration
    deploy.ps1             Full environment deploy (GitHub check + terraform apply + function publish)
    deploy-functionupdate.ps1 Function code publish only
   checkGitHubTeam.ps1    Imports existing GitHub team into Terraform state
-fkh-functions/          Azure Function source (C#, .NET 8, isolated worker)
+fkh-backend/            FKH backend source (C#, .NET 8, isolated worker)
 fkh-vsix/              VS Code extension source (TypeScript)
 fkh-cli/               C#/.NET command line interface (builds as fkh.exe)
 ```

@@ -1,6 +1,6 @@
-# FKH Architecture
+# Fkh Architecture
 
-FKH is a **GitHub-authenticated AKS node provisioner** that allows authorized GitHub team members to create on-demand Business Central environments on Azure Kubernetes Service — directly from VS Code or a CLI — without requiring Azure credentials.
+Fkh is a **GitHub-authenticated AKS node provisioner** that allows authorized GitHub team members to create on-demand Business Central environments on Azure Kubernetes Service — directly from VS Code or a CLI — without requiring Azure credentials.
 
 ## High-Level Overview
 
@@ -118,15 +118,15 @@ graph TB
 
 | Component | Path | Description |
 |-----------|------|-------------|
-| **FunctionBase** | `fkh-functions/FunctionBase.cs` | Base class for all HTTP functions. Extracts Bearer token, validates it against GitHub API, checks team membership, parses and validates parameters against the function catalog, and injects the GitHub username. |
-| **GitHubAuthService** | `fkh-functions/Services/GitHubAuthService.cs` | Calls `GET /user` and `GET /orgs/{org}/teams/{team}/memberships/{username}` to authenticate and authorize requests. Allowed org/team pairs loaded from `ALLOWED_ORG_TEAMS` env var. |
-| **GitHubAppTokenService** | `fkh-functions/Services/GitHubAppTokenService.cs` | Creates JWTs signed with the GitHub App private key, exchanges for installation access tokens, and dispatches the `createImages` workflow when an image is missing from ACR. |
-| **FKHCreateNode** | `fkh-functions/Services/FKHCreateNode.cs` | Orchestrates node creation: ACR image check → database backup SAS URL → k8s exec to download and restore database → create K8s deployment, service, and secret. |
-| **FKHRemoveNode** | `fkh-functions/Services/FKHRemoveNode.cs` | Removes Kubernetes resources (deployment, service, secret) and drops the database for a given node. |
-| **FKHScaleNode** | `fkh-functions/Services/FKHScaleNode.cs` | Scales a node's deployment: StopNode sets replicas to 0, StartNode sets replicas to 1. Database is preserved across stop/start. |
-| **FKHListNodes** | `fkh-functions/Services/FKHListNodes.cs` | Lists nodes filtered by user (or all). Shows status, image, web client URL, and CPU/memory usage via the metrics API. |
-| **FKHAllowSqlAccess** | `fkh-functions/Services/FKHAllowSqlAccess.cs` | Manages temporary external SQL Server access. Creates a per-user LoadBalancer service (IP-restricted via `loadBalancerSourceRanges`) and a NetworkPolicy allowing the user's IP through to the MSSQL pod. Auto-revokes expired grants via the timer-triggered AutoStop function. |
-| **FKHServiceBase** | `fkh-functions/Services/FKHServiceBase.cs` | Shared base class with AKS/ACR/Storage config, Kubernetes client creation via managed identity, and k8s exec helpers (`FindMssqlPodAsync`, `ExecInMssqlPodAsync`). |
+| **FunctionBase** | `fkh-backend/FunctionBase.cs` | Base class for all HTTP functions. Extracts Bearer token, validates it against GitHub API, checks team membership, parses and validates parameters against the function catalog, and injects the GitHub username. |
+| **GitHubAuthService** | `fkh-backend/Services/GitHubAuthService.cs` | Calls `GET /user` and `GET /orgs/{org}/teams/{team}/memberships/{username}` to authenticate and authorize requests. Allowed org/team pairs loaded from `ALLOWED_ORG_TEAMS` env var. |
+| **GitHubAppTokenService** | `fkh-backend/Services/GitHubAppTokenService.cs` | Creates JWTs signed with the GitHub App private key, exchanges for installation access tokens, and dispatches the `createImages` workflow when an image is missing from ACR. |
+| **FkhCreateNode** | `fkh-backend/Services/FkhCreateNode.cs` | Orchestrates node creation: ACR image check → database backup SAS URL → k8s exec to download and restore database → create K8s deployment, service, and secret. |
+| **FkhRemoveNode** | `fkh-backend/Services/FkhRemoveNode.cs` | Removes Kubernetes resources (deployment, service, secret) and drops the database for a given node. |
+| **FkhScaleNode** | `fkh-backend/Services/FkhScaleNode.cs` | Scales a node's deployment: StopNode sets replicas to 0, StartNode sets replicas to 1. Database is preserved across stop/start. |
+| **FkhListNodes** | `fkh-backend/Services/FkhListNodes.cs` | Lists nodes filtered by user (or all). Shows status, image, web client URL, and CPU/memory usage via the metrics API. |
+| **FkhAllowSqlAccess** | `fkh-backend/Services/FkhAllowSqlAccess.cs` | Manages temporary external SQL Server access. Creates a per-user LoadBalancer service (IP-restricted via `loadBalancerSourceRanges`) and a NetworkPolicy allowing the user's IP through to the MSSQL pod. Auto-revokes expired grants via the timer-triggered AutoStop function. |
+| **FkhServiceBase** | `fkh-backend/Services/FkhServiceBase.cs` | Shared base class with AKS/ACR/Storage config, Kubernetes client creation via managed identity, and k8s exec helpers (`FindMssqlPodAsync`, `ExecInMssqlPodAsync`). |
 
 ### Infrastructure (Terraform)
 

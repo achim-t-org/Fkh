@@ -12,7 +12,7 @@ From the `terraform/` directory:
 
 This script:
 1. Reads `function_app_name` and `resource_group_name` from Terraform output
-2. Builds the `fkh-functions` project
+2. Builds the `fkh-backend` project
 3. Publishes it to the Function App via `func azure functionapp publish`
 
 You can also specify explicitly:
@@ -36,7 +36,7 @@ You should see a JSON response listing all available functions (CreatePod, ListP
 ## When to Re-publish
 
 Re-run `deploy-functionupdate.ps1` whenever you:
-- Change code in `fkh-functions/`
+- Change code in `fkh-backend/`
 - Pull updates from upstream
 - Fix bugs in the backend
 

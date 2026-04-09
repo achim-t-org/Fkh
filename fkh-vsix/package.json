@@ -7,7 +7,7 @@
   "icon": "images/icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Freddy-DK/FKH"
+    "url": "https://github.com/Freddy-DK/Fkh"
   },
   "engines": {
     "vscode": "^1.85.0"
@@ -26,30 +26,30 @@
     "commands": [
       {
         "command": "fkh.run",
-        "title": "FKH: Run Command"
+        "title": "Fkh: Run Command"
       },
       {
         "command": "fkh.createPod",
-        "title": "FKH: Create Pod"
+        "title": "Fkh: Create Pod"
       },
       {
         "command": "fkh.refreshProjects",
-        "title": "FKH: Refresh Projects",
+        "title": "Fkh: Refresh Projects",
         "icon": "$(refresh)"
       },
       {
         "command": "fkh.refreshPods",
-        "title": "FKH: Refresh Pods",
+        "title": "Fkh: Refresh Pods",
         "icon": "$(refresh)"
       },
       {
         "command": "fkh.refreshImages",
-        "title": "FKH: Refresh Images",
+        "title": "Fkh: Refresh Images",
         "icon": "$(refresh)"
       },
       {
         "command": "fkh.refreshNodes",
-        "title": "FKH: Refresh Nodes",
+        "title": "Fkh: Refresh Nodes",
         "icon": "$(refresh)"
       },
       {
@@ -77,7 +77,7 @@
       "activitybar": [
         {
           "id": "fkh-explorer",
-          "title": "FKH",
+          "title": "Fkh",
           "icon": "images/icon.svg"
         }
       ]
@@ -178,12 +178,12 @@
       ]
     },
     "configuration": {
-      "title": "FKH",
+      "title": "Fkh",
       "properties": {
         "fkh.baseUrl": {
           "type": "string",
           "default": "",
-          "description": "Base URL of the FKH Azure Function app, e.g. https://<app>.azurewebsites.net/api"
+          "description": "Base URL of the Fkh backend, e.g. https://<app>.azurewebsites.net/api"
         }
       }
     }

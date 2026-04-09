@@ -2,7 +2,7 @@
 
 | Feature | Free | Essential | Advanced | Enterprise |
 |---|---|---|---|---|
-| GitHub based AL-Go & FKH support | ✅ Community | ✅ | ✅ | ✅ Prioritized |
+| GitHub based AL-Go & Fkh support | ✅ Community | ✅ | ✅ | ✅ Prioritized |
 | Newsletter | ✅ (signup) | ✅ | ✅ | ✅ |
 | Assisted bug reporting to Microsoft | ❌ | ✅ | ✅ | ✅ |
 | Onboarding + report (not included in subscription) | ❌ | ✅ (optional) | ✅ (required) | ✅ (required) |
@@ -11,7 +11,7 @@
 | Roadmap influence | Contribute via community | Suggestions welcome | Suggestions reviewed | Suggestions prioritized |
 | Repository access | ❌ | ✅ (if needed) | ✅ (monitoring) | ✅ (active) |
 | SLA | ❌ | ❌ | 48 hours | 24 hours |
-| FKH installation & maintenance | ❌ | ❌ | ✅ | ✅ |
+| Fkh installation & maintenance | ❌ | ❌ | ✅ | ✅ |
 | Recurring status meetings | ❌ | ❌ | Every 4 weeks | Weekly |
 | Ongoing status reports | ❌ | ❌ | Weekly | Weekly |
 | We will create a PR on your repository | ❌ | ❌ | ❌ | ✅ |

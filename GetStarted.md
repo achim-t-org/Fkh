@@ -1,6 +1,6 @@
-# Getting Started with FKH
+# Getting Started with Fkh
 
-FKH lets authorized GitHub users provision Business Central environments on AKS — directly from VS Code or CLI — without Azure credentials.
+Fkh lets authorized GitHub users provision Business Central environments on AKS — directly from VS Code or CLI — without Azure credentials.
 
 ## Steps
 
@@ -12,7 +12,7 @@ FKH lets authorized GitHub users provision Business Central environments on AKS 
 | 4 | [Create the GitHub App](docs/04-github-app.md) | Ops | 10 min |
 | 5 | [Configure Your Environment](docs/05-configure-environment.md) | Ops | 10 min |
 | 6 | [Deploy with Terraform](docs/06-deploy.md) | Ops | 20 min |
-| 7 | [Publish the FKH Backend](docs/07-publish-function.md) | Ops | 5 min |
+| 7 | [Publish the Fkh Backend](docs/07-publish-function.md) | Ops | 5 min |
 | 8 | [Set Up End Users](docs/08-end-user-setup.md) | Users | 5 min |
 
 ## Architecture Overview
@@ -21,7 +21,7 @@ FKH lets authorized GitHub users provision Business Central environments on AKS 
 User (VS Code / CLI)
   │
   ▼  POST /api/* (GitHub Bearer token)
-FKH backend (auth gate)
+Fkh backend (auth gate)
   │
   ▼  Managed Identity
 AKS Cluster
@@ -29,7 +29,7 @@ AKS Cluster
   └── Windows pool: Business Central pods
 ```
 
-The FKH backend validates GitHub team membership, then provisions Kubernetes resources using a managed identity. No Azure credentials leave the server.
+The Fkh backend validates GitHub team membership, then provisions Kubernetes resources using a managed identity. No Azure credentials leave the server.
 
 ## What Gets Created
 

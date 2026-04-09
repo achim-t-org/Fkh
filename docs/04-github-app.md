@@ -1,6 +1,6 @@
 # Step 4: Create the GitHub App
 
-The GitHub App lets the FKH backend automatically trigger image-build workflows when a BC image is missing from ACR.
+The GitHub App lets the Fkh backend automatically trigger image-build workflows when a BC image is missing from ACR.
 
 ## Required GitHub Permissions
 
@@ -13,7 +13,7 @@ The person creating the app needs **Owner** access on the GitHub organization (o
 
 | Field | Value |
 |-------|-------|
-| **App name** | `FKH-<your-customer-name>` (must be globally unique) |
+| **App name** | `Fkh-<your-customer-name>` (must be globally unique) |
 | **Homepage URL** | `https://github.com/<your-org>/Fkh` |
 | **Webhook → Active** | **Uncheck** this |
 
@@ -40,7 +40,7 @@ No other permissions needed. No org permissions, no user permissions.
 
 1. On the App page → **Install App** (left sidebar)
 2. Select your organization
-3. Choose **Only select repositories** → pick your FKH fork
+3. Choose **Only select repositories** → pick your Fkh fork
 4. Click **Install**
 5. **Save the Installation ID** from the URL: `https://github.com/settings/installations/<ID>`
 

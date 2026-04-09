@@ -95,7 +95,7 @@ function Show-KubernetesDiagnostics {
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $checkScript = Join-Path $scriptDir "checkGitHubTeam.ps1"
 
-$FunctionProjectPath = Join-Path $scriptDir ".." "fkh-functions"
+$FunctionProjectPath = Join-Path $scriptDir ".." "fkh-backend"
 $FunctionProjectPath = Resolve-Path $FunctionProjectPath
 
 if (-not (Test-Path $FunctionProjectPath)) {

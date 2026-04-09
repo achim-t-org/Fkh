@@ -14,7 +14,7 @@ function getBaseUrl(): string | undefined {
   const url = vscode.workspace.getConfiguration('fkh').get<string>('baseUrl', '').trim();
   if (!url) {
     vscode.window.showErrorMessage(
-      'FKH: Base URL is not configured. Set "fkh.baseUrl" in your settings.',
+      'Fkh: Base URL is not configured. Set "fkh.baseUrl" in your settings.',
       'Open Settings'
     ).then((action: string | undefined) => {
       if (action === 'Open Settings') {
@@ -27,7 +27,7 @@ function getBaseUrl(): string | undefined {
 }
 
 export function activate(context: vscode.ExtensionContext) {
-  outputChannel = vscode.window.createOutputChannel('FKH');
+  outputChannel = vscode.window.createOutputChannel('Fkh');
 
   projectsProvider = new ProjectsTreeProvider(getRepoName, () => podsProvider.getPods());
   const projectsView = vscode.window.createTreeView('fkhProjects', {
@@ -100,7 +100,7 @@ export function activate(context: vscode.ExtensionContext) {
       if (!catalog) { return; }
 
       const items = catalog.functions.map(f => ({
-        label: `FKH: ${f.name}`,
+        label: `Fkh: ${f.name}`,
         description: f.description,
         functionName: f.name,
       }));
@@ -393,7 +393,7 @@ async function createPod(project?: string): Promise<void> {
   const options = await createReadSettingsOptions(session.accessToken, project);
   if (!options) { return; }
   if (!options.baseFolder) {
-    vscode.window.showErrorMessage('FKH: No Git repository found in the current workspace.');
+    vscode.window.showErrorMessage('Fkh: No Git repository found in the current workspace.');
     return;
   }
 
@@ -401,7 +401,7 @@ async function createPod(project?: string): Promise<void> {
   try {
     settings = await readSettings(options);
   } catch (err) {
-    vscode.window.showErrorMessage(`FKH: Failed to read AL-Go settings: ${err instanceof Error ? err.message : String(err)}`);
+    vscode.window.showErrorMessage(`Fkh: Failed to read AL-Go settings: ${err instanceof Error ? err.message : String(err)}`);
     return;
   }
 
@@ -427,7 +427,7 @@ async function createPod(project?: string): Promise<void> {
   outputChannel.show(true);
 
   if (!artifact) {
-    vscode.window.showWarningMessage('FKH: No artifact setting found in AL-Go settings.');
+    vscode.window.showWarningMessage('Fkh: No artifact setting found in AL-Go settings.');
     return;
   }
 
@@ -437,7 +437,7 @@ async function createPod(project?: string): Promise<void> {
     outputChannel.appendLine(`  ArtifactUrl: ${artifactUrl}`);
     outputChannel.show(true);
   } catch (err) {
-    vscode.window.showErrorMessage(`FKH: Failed to resolve artifact URL: ${err instanceof Error ? err.message : String(err)}`);
+    vscode.window.showErrorMessage(`Fkh: Failed to resolve artifact URL: ${err instanceof Error ? err.message : String(err)}`);
     return;
   }
 

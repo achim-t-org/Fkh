@@ -7,7 +7,7 @@
       "request": "launch",
       "args": [
         "${workspaceFolder}/debug.code-workspace",
-        "--extensionDevelopmentPath=c:\\src\\GitHub\\Freddy-DK\\FKH\\fkh-vsix"
+        "--extensionDevelopmentPath=c:\\src\\GitHub\\Freddy-DK\\Fkh\\fkh-vsix"
       ],
       "outFiles": ["${workspaceFolder}/dist/**/*.js"],
       "preLaunchTask": "build-fkh-vsix"

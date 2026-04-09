@@ -9,7 +9,7 @@ Each customer gets their own fork. This keeps:
 
 ## Steps
 
-1. Go to the FKH repository on GitHub
+1. Go to the Fkh repository on GitHub
 2. Click **Fork** → Create fork under your organization
 3. Clone your fork locally:
 
@@ -28,7 +28,7 @@ code fkh.code-workspace
 
 ```
 Fkh/
-├── fkh-functions/   # FKH backend (Azure Function, .NET 8)
+├── fkh-backend/    # Fkh backend (Azure Function, .NET 8)
 ├── fkh-vsix/        # VS Code extension
 ├── fkh-cli/         # CLI tool (.NET 8)
 ├── terraform/       # All infrastructure

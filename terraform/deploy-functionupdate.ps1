@@ -9,7 +9,7 @@
     Name of the Azure resource group containing the Function App. If omitted, read from Terraform output 'resource_group_name'.
 
 .PARAMETER FunctionProjectPath
-    Path to the Azure Function project folder. Defaults to ../fkh-functions relative to this script.
+    Path to the FKH backend project folder. Defaults to ../fkh-backend relative to this script.
 
 .EXAMPLE
     .\deploy-functionupdate.ps1
@@ -31,7 +31,7 @@ $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 if ([string]::IsNullOrWhiteSpace($FunctionProjectPath)) {
-    $FunctionProjectPath = Join-Path $scriptDir ".." "fkh-functions"
+    $FunctionProjectPath = Join-Path $scriptDir ".." "fkh-backend"
 }
 $FunctionProjectPath = Resolve-Path $FunctionProjectPath
 

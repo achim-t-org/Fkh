@@ -287,7 +287,7 @@ export class PodsTreeProvider implements vscode.TreeDataProvider<PodTreeItem> {
 
   private parsePodsMessage(message: string): PodInfo[] {
     const pods: PodInfo[] = [];
-    const lines = message.split('\n');
+    const lines = message.split(/\r?\n/);
 
     let current: PodInfo | undefined;
 
@@ -614,7 +614,7 @@ export class NodesTreeProvider implements vscode.TreeDataProvider<NodeTreeItem> 
 
   private parseNodesMessage(message: string): NodeInfo[] {
     const nodes: NodeInfo[] = [];
-    const lines = message.split('\n');
+    const lines = message.split(/\r?\n/);
 
     let current: NodeInfo | undefined;
 

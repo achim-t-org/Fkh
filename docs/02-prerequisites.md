@@ -18,7 +18,7 @@ npm install -g azure-functions-core-tools@4
 | Terraform | 1.7.0 | Provisions all Azure + GitHub infrastructure |
 | Azure CLI | 2.59.0 | Authentication to Azure for Terraform |
 | PowerShell | 7.4 | Deployment scripts |
-| .NET SDK | 8.0 | Building the FKH backend |
+| .NET SDK | 8.0 | Building the Fkh backend |
 | GitHub CLI | latest | GitHub token management |
 | Azure Functions Core Tools | 4.x | Publishing the Function App |
 
@@ -35,7 +35,7 @@ func --version
 
 ## For End Users (VS Code only)
 
-Just VS Code with the FKH extension. Nothing else needed.
+Just VS Code with the Fkh extension. Nothing else needed.
 
 ```powershell
 winget install Microsoft.VisualStudioCode
