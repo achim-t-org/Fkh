@@ -343,12 +343,12 @@ resource "kubernetes_daemonset" "image_prepull" {
 
             resources {
               requests = {
-                cpu    = "10m"
-                memory = "32Mi"
+                cpu    = "500m"
+                memory = "1Gi"
               }
               limits = {
-                cpu    = "10m"
-                memory = "32Mi"
+                cpu    = "500m"
+                memory = "1Gi"
               }
             }
           }

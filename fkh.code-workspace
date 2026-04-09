@@ -1,0 +1,19 @@
+{
+  "folders": [
+    {
+      "path": "fkh-vsix"
+    },
+    {
+      "path": "fkh-functions"
+    },
+    {
+      "path": "fkh-cli"
+    },
+    {
+      "path": "terraform"
+    },
+    {
+      "path": "."
+    }
+  ]
+}

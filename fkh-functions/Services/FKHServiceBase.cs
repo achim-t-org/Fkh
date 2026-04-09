@@ -132,8 +132,15 @@ public abstract class FkhServiceBase
         }
 
         // Check that CNS is running on at least one Ready Windows node
-        var cnsPods = await client.ListNamespacedPodAsync("kube-system",
-            labelSelector: "k8s-app=azure-cns");
+        // Note: Windows CNS pods may use different labels than Linux ones (k8s-app=azure-cns),
+        // so we match by pod name prefix instead.
+        var allKubeSystemPods = await client.ListNamespacedPodAsync("kube-system");
+        var cnsPods = new k8s.Models.V1PodList
+        {
+            Items = allKubeSystemPods.Items
+                .Where(p => p.Metadata.Name.StartsWith("azure-cns", StringComparison.OrdinalIgnoreCase))
+                .ToList()
+        };
         var readyNodeNames = readyWindowsNodes.Select(n => n.Metadata.Name).ToHashSet();
         var cnsOnWindows = cnsPods.Items
             .Where(p => p.Spec.NodeName != null
