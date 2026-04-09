@@ -26,7 +26,8 @@ Fkh backend (auth gate)
   ▼  Managed Identity
 AKS Cluster
   ├── Linux pool: SQL Server
-  └── Windows pool: Business Central pods
+  ├── Windows pool: Business Central pods
+  └── Windows Spot pool (optional): lower-cost BC pods (can be evicted)
 ```
 
 The Fkh backend validates GitHub team membership, then provisions Kubernetes resources using a managed identity. No Azure credentials leave the server.
@@ -36,7 +37,7 @@ The Fkh backend validates GitHub team membership, then provisions Kubernetes res
 Terraform provisions:
 
 - **Resource Group** — `fkh-<org>`
-- **AKS Cluster** — Linux system pool + Windows autoscale pool
+- **AKS Cluster** — Linux system pool + Windows autoscale pool + optional Windows Spot pool (cheaper, preemptible)
 - **Azure Function App** — Consumption plan, .NET 8 isolated worker
 - **Container Registry** — Stores BC container images
 - **Storage Accounts** — Database backups + Function runtime state

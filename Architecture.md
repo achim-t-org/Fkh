@@ -5,104 +5,69 @@ Fkh is a **GitHub-authenticated AKS node provisioner** that allows authorized Gi
 ## High-Level Overview
 
 ```mermaid
+graph LR
+    subgraph Clients
+        VSIX["VS Code Extension"]
+        CLI["CLI Tool"]
+    end
+
+    FUNC["Fkh Backend<br/>(Azure Function)"]
+    GH["GitHub API"]
+
+    subgraph AKS["AKS Cluster"]
+        direction TB
+        SQL["SQL Server<br/>(Linux)"]
+        BC["BC Pods<br/>(Windows)"]
+        SPOT["BC Pods<br/>(Windows Spot)"]
+    end
+
+    ACR["Container<br/>Registry"]
+    BLOB["Blob Storage<br/>(.bak files)"]
+
+    VSIX & CLI -->|"GitHub token"| FUNC
+    FUNC -->|"validate user"| GH
+    FUNC -->|"manage pods"| AKS
+    FUNC -->|"check/pull images"| ACR
+    FUNC -->|"database backups"| BLOB
+    BC & SPOT -->|"TCP 1433"| SQL
+```
+
+## Request Flow
+
+```mermaid
+graph LR
+    A["User"] -->|"POST /api/CreatePod<br/>Bearer: github_token"| B["FunctionBase<br/>(auth + validate)"]
+    B -->|"GET /user"| C["GitHub API"]
+    B --> D["FkhCreatePod"]
+    D --> E["Check ACR image"]
+    D --> F["Restore DB"]
+    D --> G["Create K8s resources"]
+    E -->|"missing?"| H["Trigger GitHub Actions<br/>(build image)"]
+```
+
+## Infrastructure Layout
+
+```mermaid
 graph TB
-    subgraph "User Interfaces"
-        VSIX["VS Code Extension<br/>(fkh-vsix)"]
-        CLI["CLI Tool<br/>(fkh)"]
-    end
-
-    subgraph "GitHub"
-        GH_AUTH["GitHub API<br/>(User Auth + Team Check)"]
-        GH_APP["GitHub App<br/>(Workflow Trigger)"]
-        GH_ACTIONS["GitHub Actions<br/>(CreateImages Workflow)"]
-    end
-
-    subgraph "Azure Functions (Consumption Plan)"
-        FB["FunctionBase<br/>Auth & Parameter Validation"]
-        CNF["CreateNodeFunction"]
-        RNF["RemoveNodeFunction"]
-        SNDF["StopNodeFunction"]
-        SNTF["StartNodeFunction"]
-        LNF["ListNodesFunction"]
-        ASAF["AllowSqlAccessFunction"]
-        RSAF["RevokeSqlAccessFunction"]
-        CAT["GetFunctionCatalog"]
-        CN["FKHCreateNode"]
-        RN["FKHRemoveNode"]
-        SN["FKHScaleNode"]
-        LN["FKHListNodes"]
-        SA["FKHAllowSqlAccess"]
-        GAS["GitHubAppTokenService"]
-        GHS["GitHubAuthService"]
-    end
-
-    subgraph "Azure Kubernetes Service"
-        subgraph "Namespace: app"
-            MSSQL["SQL Server 2022<br/>(Linux Pod)"]
-            BC["Business Central<br/>(Windows Pod)"]
-            LB["LoadBalancer Service<br/>(Public IP + DNS)"]
-            SQL_LB["SQL LoadBalancer Service<br/>(Temporary, per-user IP)"]
-            NP["NetworkPolicy<br/>(per-user IP allow)"]
-            SEC["Kubernetes Secrets"]
+    subgraph RG["Resource Group: fkh-&lt;org&gt;"]
+        subgraph AKS["AKS Cluster"]
+            LP["Linux Pool<br/>(system)"]
+            WP["Windows Pool<br/>(BC pods)"]
+            SP["Windows Spot Pool<br/>(optional, cheaper)"]
         end
+        FA["Function App<br/>(Consumption)"]
+        ACR["Container Registry"]
+        MI["Managed Identity"]
+        DBS["Storage: DBS<br/>(database backups)"]
+        FST["Storage: Func<br/>(runtime state)"]
+        MON["Log Analytics<br/>+ App Insights"]
     end
 
-    subgraph "Azure Storage"
-        DBS["DBS Storage Account<br/>(cronus container — .bak files)"]
-        FUNC_ST["Function Storage Account<br/>(runtime state)"]
-    end
+    GH["GitHub<br/>(Teams + App)"]
 
-    ACR["Azure Container Registry"]
-    MI["Managed Identity"]
-    LOGS["Log Analytics<br/>+ App Insights"]
-
-    %% User → Function
-    VSIX -->|"POST /api/* (GitHub Bearer token)"| FB
-    CLI -->|"POST /api/* (GitHub Bearer token)"| FB
-
-    %% Function internal flow
-    FB -->|validate token| GHS
-    GHS -->|"GET /user + team membership"| GH_AUTH
-    FB --> CNF & RNF & SNDF & SNTF & LNF & ASAF & RSAF & CAT
-    CNF --> CN
-    RNF --> RN
-    SNDF --> SN
-    SNTF --> SN
-    LNF --> LN
-    ASAF --> SA
-    RSAF --> SA
-
-    %% CN operations
-    CN -->|"check image exists"| ACR
-    CN -->|"generate SAS URL"| DBS
-    CN -->|"k8s exec: download .bak + sqlcmd restore"| MSSQL
-    CN -->|"create deployment, service, secret"| BC & LB & SEC
-    CN -->|"trigger workflow (if image missing)"| GAS
-    GAS -->|"JWT → installation token → dispatch"| GH_APP
-
-    %% GitHub Actions
-    GH_APP -->|"workflow_dispatch"| GH_ACTIONS
-    GH_ACTIONS -->|"OIDC → push image"| ACR
-    GH_ACTIONS -->|"upload .bak"| DBS
-
-    %% Identity
-    MI -.->|"auth"| CN & RN & SN & LN & SA
-    MI -.->|"AKS Contributor"| BC
-    MI -.->|"Blob Data Contributor"| DBS
-    MI -.->|"AcrPull"| ACR
-
-    %% BC → SQL
-    BC -->|"TCP 1433"| MSSQL
-    LB -->|"ports 80,443,7047-7049"| BC
-
-    %% SQL external access
-    SA -->|"create/delete service + policy"| SQL_LB & NP
-    SQL_LB -->|"TCP 1433 (IP-restricted)"| MSSQL
-    NP -.->|"allow CIDR"| MSSQL
-
-    %% Monitoring
-    CN & RN & SN & LN & SA -.-> LOGS
-    FB -.-> LOGS
+    FA -->|"Managed Identity"| AKS & ACR & DBS
+    MI -.-> FA
+    GH -.->|"auth"| FA
 ```
 
 ## Component Descriptions
@@ -149,6 +114,32 @@ graph TB
 | **CreateImages** | `workflow_dispatch` (artifactUrls) | Downloads BC artifacts via `BcContainerHelper`, extracts and uploads the `.bak` database backup to blob storage, builds the container image with `New-BcImage`, and pushes to ACR. Authenticates to Azure via OIDC federated identity. |
 
 ## Authentication Flow
+
+There are two authentication paths: **user requests** (GitHub token → Function App → AKS) and **CI/CD** (GitHub Actions OIDC → Azure).
+
+```mermaid
+graph LR
+    subgraph "User Auth"
+        U["User<br/>(VS Code / CLI)"] -->|"GitHub PAT"| FB["FunctionBase"]
+        FB -->|"GET /user"| GH["GitHub API"]
+        FB -->|"GET /teams/.../memberships"| GH
+        GH -->|"username + team ✓"| FB
+    end
+
+    subgraph "Function → Azure"
+        FB -->|"Managed Identity"| AKS["AKS<br/>(k8s API)"]
+        FB -->|"Managed Identity"| ACR["Container<br/>Registry"]
+        FB -->|"Managed Identity"| BLOB["Blob<br/>Storage"]
+    end
+
+    subgraph "CI/CD Auth"
+        GA["GitHub Actions"] -->|"OIDC token"| AAD["Azure AD"]
+        AAD -->|"federated credential"| ACR2["ACR<br/>(AcrPush)"]
+        AAD -->|"federated credential"| BLOB2["Blob Storage<br/>(upload .bak)"]
+    end
+```
+
+### Detailed Sequence
 
 ```mermaid
 sequenceDiagram

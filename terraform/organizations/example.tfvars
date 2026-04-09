@@ -21,7 +21,7 @@ windows_min_node_count = 0  # Set to 1 to keep a warm Windows node (~$70-100/mo)
 windows_max_node_count = 10 # Maximum Windows nodes the autoscaler can scale to
 windows_overprovision  = false  # Set to true to keep spare capacity for instant pod scheduling
 windows_spot_enabled        = false  # Set to true to add a Spot pricing Windows pool for lower cost
-windows_spot_vm_size        = "Standard_D2ds_v6"  # VM size for spot nodes
+windows_spot_vm_size        = "Standard_D2ds_v5"  # VM size for spot nodes
 windows_spot_min_node_count = 0      # Minimum spot nodes (0 = scale to zero when idle)
 windows_spot_max_node_count = 10     # Maximum spot nodes the autoscaler can scale to
 windows_prepull_images = [  # Images to pre-pull on Windows nodes (speeds up container creation)
