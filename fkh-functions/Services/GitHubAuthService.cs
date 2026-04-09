@@ -1,8 +1,8 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
-using FKH.Models;
+using Fkh.Models;
 
-namespace FKH.Services;
+namespace Fkh.Services;
 
 public class GitHubAuthService
 {

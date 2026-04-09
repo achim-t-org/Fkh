@@ -1,10 +1,10 @@
 using System.Text.Json;
-using FKH.Models;
+using Fkh.Models;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using System.Net;
 
-namespace FKH;
+namespace Fkh;
 
 public class GetFunctionCatalog
 {

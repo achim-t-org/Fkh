@@ -1,12 +1,12 @@
 import * as vscode from 'vscode';
 import { createReadSettingsOptions, readSettings } from './readALGoSettings';
 import { determineArtifactUrl } from './bcArtifactHelper';
-import { ProjectsTreeProvider, ProjectTreeItem, ContainersTreeProvider, ContainerTreeItem, ImagesTreeProvider } from './nodesTreeProvider';
+import { ProjectsTreeProvider, ProjectTreeItem, PodsTreeProvider, PodTreeItem, ImagesTreeProvider } from './podsTreeProvider';
 
 let functionCatalog: FunctionCatalogResponse | undefined;
 let outputChannel: vscode.OutputChannel;
 let projectsProvider: ProjectsTreeProvider;
-let containersProvider: ContainersTreeProvider;
+let podsProvider: PodsTreeProvider;
 let imagesProvider: ImagesTreeProvider;
 
 function getBaseUrl(): string | undefined {
@@ -33,9 +33,9 @@ export function activate(context: vscode.ExtensionContext) {
     treeDataProvider: projectsProvider,
   });
 
-  containersProvider = new ContainersTreeProvider(getBaseUrl, getGitHubSession);
-  const containersView = vscode.window.createTreeView('fkhContainers', {
-    treeDataProvider: containersProvider,
+  podsProvider = new PodsTreeProvider(getBaseUrl, getGitHubSession);
+  const podsView = vscode.window.createTreeView('fkhPods', {
+    treeDataProvider: podsProvider,
     showCollapseAll: true,
   });
 
@@ -48,35 +48,35 @@ export function activate(context: vscode.ExtensionContext) {
   // Delay initial population to let the extension host settle
   setTimeout(() => {
     projectsProvider.refresh();
-    containersProvider.refresh();
+    podsProvider.refresh();
     imagesProvider.refresh();
   }, 5000);
 
   context.subscriptions.push(
     outputChannel,
     projectsView,
-    containersView,
+    podsView,
     imagesView,
     vscode.commands.registerCommand('fkh.refreshProjects', () => projectsProvider.refresh()),
-    vscode.commands.registerCommand('fkh.refreshContainers', () => containersProvider.refresh()),
+    vscode.commands.registerCommand('fkh.refreshPods', () => podsProvider.refresh()),
     vscode.commands.registerCommand('fkh.refreshImages', () => imagesProvider.refresh()),
-    vscode.commands.registerCommand('fkh.startNode', async (item: ContainerTreeItem) => {
-      if (!item.nodeInfo) { return; }
-      await invokeNodeAction('StartNode', item.nodeInfo.name);
+    vscode.commands.registerCommand('fkh.startPod', async (item: PodTreeItem) => {
+      if (!item.podInfo) { return; }
+      await invokePodAction('StartPod', item.podInfo.name);
     }),
-    vscode.commands.registerCommand('fkh.stopNode', async (item: ContainerTreeItem) => {
-      if (!item.nodeInfo) { return; }
-      await invokeNodeAction('StopNode', item.nodeInfo.name);
+    vscode.commands.registerCommand('fkh.stopPod', async (item: PodTreeItem) => {
+      if (!item.podInfo) { return; }
+      await invokePodAction('StopPod', item.podInfo.name);
     }),
-    vscode.commands.registerCommand('fkh.removeNode', async (item: ContainerTreeItem) => {
-      if (!item.nodeInfo) { return; }
+    vscode.commands.registerCommand('fkh.removePod', async (item: PodTreeItem) => {
+      if (!item.podInfo) { return; }
       const confirm = await vscode.window.showWarningMessage(
-        `Are you sure you want to remove '${item.nodeInfo.name}'? This will delete the node and its database.`,
+        `Are you sure you want to remove '${item.podInfo.name}'? This will delete the pod and its database.`,
         { modal: true },
         'Remove'
       );
       if (confirm !== 'Remove') { return; }
-      await invokeNodeAction('RemoveNode', item.nodeInfo.name);
+      await invokePodAction('RemovePod', item.podInfo.name);
     }),
     vscode.commands.registerCommand('fkh.run', async () => {
       const catalog = await getFunctionCatalog();
@@ -95,10 +95,10 @@ export function activate(context: vscode.ExtensionContext) {
 
       await invokeFunctionByName(picked.functionName);
     }),
-    vscode.commands.registerCommand('fkh.createContainer', () => createContainer()),
-    vscode.commands.registerCommand('fkh.createContainerForProject', async (item: ProjectTreeItem) => {
+    vscode.commands.registerCommand('fkh.createPod', () => createPod()),
+    vscode.commands.registerCommand('fkh.createPodForProject', async (item: ProjectTreeItem) => {
       if (!item.projectName) { return; }
-      await createContainer(item.projectName);
+      await createPod(item.projectName);
     })
   );
 }
@@ -315,14 +315,14 @@ async function invokeFunctionByName(functionName: string, prefilled: Record<stri
         logOutput(`[${definition.name}] Could not reach the provisioning service: ${err instanceof Error ? err.message : String(err)}`, true);
       }
 
-      await containersProvider.refresh();
+      await podsProvider.refresh();
     }
   );
 }
 
-async function invokeNodeAction(
+async function invokePodAction(
   functionName: string,
-  nodeName: string,
+  podName: string,
 ): Promise<void> {
   const baseUrl = getBaseUrl();
   if (!baseUrl) { return; }
@@ -333,12 +333,12 @@ async function invokeNodeAction(
   await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
-      title: `${functionName}: ${nodeName}`,
+      title: `${functionName}: ${podName}`,
       cancellable: false,
     },
     async () => {
       try {
-        const body: FunctionInvokeRequest = { parameters: { name: nodeName } };
+        const body: FunctionInvokeRequest = { parameters: { name: podName } };
 
         const response = await fetch(`${baseUrl}/${functionName}`, {
           method: 'POST',
@@ -362,12 +362,12 @@ async function invokeNodeAction(
         logOutput(`[${functionName}] Could not reach the provisioning service: ${err instanceof Error ? err.message : String(err)}`, true);
       }
 
-      await containersProvider.refresh();
+      await podsProvider.refresh();
     }
   );
 }
 
-async function createContainer(project?: string): Promise<void> {
+async function createPod(project?: string): Promise<void> {
   const session = await getGitHubSession();
   if (!session) { return; }
 
@@ -422,7 +422,7 @@ async function createContainer(project?: string): Promise<void> {
     return;
   }
 
-  await invokeFunctionByName('CreateNode', { artifactUrl, repo: options.repoName, project: options.project || '' });
+  await invokeFunctionByName('CreatePod', { artifactUrl, repo: options.repoName, project: options.project || '' });
 }
 
 export function deactivate() {}

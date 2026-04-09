@@ -1,4 +1,4 @@
-namespace FKH.Models;
+namespace Fkh.Models;
 
 public record GitHubUser(string Login);
 

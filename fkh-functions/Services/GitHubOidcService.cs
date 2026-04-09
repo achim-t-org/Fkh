@@ -4,7 +4,7 @@ using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
 
-namespace FKH.Services;
+namespace Fkh.Services;
 
 /// <summary>
 /// Validates GitHub Actions OIDC tokens and extracts the repository identity.

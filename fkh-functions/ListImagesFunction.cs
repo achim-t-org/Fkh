@@ -1,17 +1,17 @@
-using FKH.Services;
+using Fkh.Services;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 
-namespace FKH;
+namespace Fkh;
 
 public class ListImagesFunction : FunctionBase
 {
     private readonly ILogger<ListImagesFunction> _logger;
     private readonly GitHubAuthService _gitHub;
-    private readonly FKHListImages _listImages;
+    private readonly FkhListImages _listImages;
 
-    public ListImagesFunction(ILogger<ListImagesFunction> logger, GitHubAuthService gitHub, FKHListImages listImages)
+    public ListImagesFunction(ILogger<ListImagesFunction> logger, GitHubAuthService gitHub, FkhListImages listImages)
     {
         _logger = logger;
         _gitHub = gitHub;

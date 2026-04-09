@@ -2,23 +2,23 @@ using System.Text.RegularExpressions;
 using Azure.Containers.ContainerRegistry;
 using Azure.Identity;
 using Azure.Storage.Blobs;
-using FKH.Models;
+using Fkh.Models;
 using k8s;
 using k8s.Models;
 using Microsoft.Extensions.Logging;
 
-namespace FKH.Services;
+namespace Fkh.Services;
 
-public class FKHCreateNode : FKHServiceBase
+public class FkhCreatePod : FkhServiceBase
 {
     private readonly GitHubAppTokenService _gitHubAppTokenService;
 
-    public FKHCreateNode(ILogger<FKHCreateNode> logger, GitHubAppTokenService gitHubAppTokenService) : base(logger)
+    public FkhCreatePod(ILogger<FkhCreatePod> logger, GitHubAppTokenService gitHubAppTokenService) : base(logger)
     {
         _gitHubAppTokenService = gitHubAppTokenService;
     }
 
-    public async Task<string> CreateNodeAsync(Dictionary<string, string> parameters)
+    public async Task<string> CreatePodAsync(Dictionary<string, string> parameters)
     {
         var name = parameters["name"];
         var artifactUrl = parameters["artifactUrl"];
@@ -84,7 +84,7 @@ public class FKHCreateNode : FKHServiceBase
         Logger.LogInformation("Deployment {Deployment} and service {Service} created in namespace {Namespace}",
             deploymentName, serviceName, Namespace);
 
-        return $"Node created.\n  Deployment: {deploymentName}\n  Service: {serviceName}\n  Image: {fullImage}\n  FQDN: {publicDnsName}\n  WebClient: {publicDnsName}/BC?tenant=default\n  Database: {databaseName}\n  SQL Disk: {diskInfo}{autoStopInfo}";
+        return $"Pod created.\n  Deployment: {deploymentName}\n  Service: {serviceName}\n  Image: {fullImage}\n  FQDN: {publicDnsName}\n  WebClient: {publicDnsName}/BC?tenant=default\n  Database: {databaseName}\n  SQL Disk: {diskInfo}{autoStopInfo}";
     }
 
     private async Task EnsureDeploymentDoesNotExistAsync(Kubernetes client, string deploymentName)
@@ -93,7 +93,7 @@ public class FKHCreateNode : FKHServiceBase
         {
             await client.ReadNamespacedDeploymentAsync(deploymentName, Namespace);
             throw new InvalidOperationException(
-                $"A deployment named '{deploymentName}' already exists in namespace '{Namespace}'. Please choose a different name or remove the existing node first.");
+                $"A deployment named '{deploymentName}' already exists in namespace '{Namespace}'. Please choose a different name or remove the existing pod first.");
         }
         catch (k8s.Autorest.HttpOperationException ex) when (ex.Response.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
@@ -110,7 +110,7 @@ public class FKHCreateNode : FKHServiceBase
         if (result.Stdout.Contains("EXISTS") && !result.Stdout.Contains("NOTEXISTS"))
         {
             throw new InvalidOperationException(
-                $"A database named '{databaseName}' already exists on the SQL server. Please choose a different name or remove the existing node first.");
+                $"A database named '{databaseName}' already exists on the SQL server. Please choose a different name or remove the existing pod first.");
         }
     }
 

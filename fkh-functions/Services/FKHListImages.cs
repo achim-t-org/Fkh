@@ -5,11 +5,11 @@ using Azure.Monitor.Query.Models;
 using Microsoft.Extensions.Logging;
 using System.Text;
 
-namespace FKH.Services;
+namespace Fkh.Services;
 
-public class FKHListImages : FKHServiceBase
+public class FkhListImages : FkhServiceBase
 {
-    public FKHListImages(ILogger<FKHListImages> logger) : base(logger) { }
+    public FkhListImages(ILogger<FkhListImages> logger) : base(logger) { }
 
     public async Task<string> ListImagesAsync(Dictionary<string, string> parameters)
     {

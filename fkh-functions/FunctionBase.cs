@@ -1,12 +1,12 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Text.Json;
-using FKH.Models;
-using FKH.Services;
+using Fkh.Models;
+using Fkh.Services;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 
-namespace FKH;
+namespace Fkh;
 
 /// <summary>
 /// Base class for all FKH Azure Functions.

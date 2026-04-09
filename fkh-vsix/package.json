@@ -1,7 +1,7 @@
 {
   "name": "fkh",
   "displayName": "Freddy's Kubernetes Helper",
-  "description": "Provision AKS nodes via authenticated Azure Function",
+  "description": "Provision AKS pods via authenticated Azure Function",
   "version": "0.0.1",
   "publisher": "Freddy-DK",
   "icon": "images/icon.png",
@@ -29,8 +29,8 @@
         "title": "FKH: Run Command"
       },
       {
-        "command": "fkh.createContainer",
-        "title": "FKH: Create Container"
+        "command": "fkh.createPod",
+        "title": "FKH: Create Pod"
       },
       {
         "command": "fkh.refreshProjects",
@@ -38,8 +38,8 @@
         "icon": "$(refresh)"
       },
       {
-        "command": "fkh.refreshContainers",
-        "title": "FKH: Refresh Containers",
+        "command": "fkh.refreshPods",
+        "title": "FKH: Refresh Pods",
         "icon": "$(refresh)"
       },
       {
@@ -48,23 +48,23 @@
         "icon": "$(refresh)"
       },
       {
-        "command": "fkh.startNode",
+        "command": "fkh.startPod",
         "title": "Start",
         "icon": "$(debug-start)"
       },
       {
-        "command": "fkh.stopNode",
+        "command": "fkh.stopPod",
         "title": "Stop",
         "icon": "$(debug-stop)"
       },
       {
-        "command": "fkh.removeNode",
+        "command": "fkh.removePod",
         "title": "Remove",
         "icon": "$(trash)"
       },
       {
-        "command": "fkh.createContainerForProject",
-        "title": "Create Container",
+        "command": "fkh.createPodForProject",
+        "title": "Create Pod",
         "icon": "$(vm)"
       }
     ],
@@ -85,8 +85,8 @@
           "icon": "$(project)"
         },
         {
-          "id": "fkhContainers",
-          "name": "Containers",
+          "id": "fkhPods",
+          "name": "Pods",
           "icon": "$(server)"
         },
         {
@@ -104,8 +104,8 @@
           "group": "navigation"
         },
         {
-          "command": "fkh.refreshContainers",
-          "when": "view == fkhContainers",
+          "command": "fkh.refreshPods",
+          "when": "view == fkhPods",
           "group": "navigation"
         },
         {
@@ -116,43 +116,43 @@
       ],
       "view/item/context": [
         {
-          "command": "fkh.createContainerForProject",
+          "command": "fkh.createPodForProject",
           "when": "view == fkhProjects && viewItem == algoProject",
           "group": "inline"
         },
         {
-          "command": "fkh.createContainerForProject",
+          "command": "fkh.createPodForProject",
           "when": "view == fkhProjects && viewItem == algoProject",
           "group": "1_actions"
         },
         {
-          "command": "fkh.startNode",
-          "when": "view == fkhContainers && viewItem == node-stopped",
+          "command": "fkh.startPod",
+          "when": "view == fkhPods && viewItem == pod-stopped",
           "group": "inline"
         },
         {
-          "command": "fkh.stopNode",
-          "when": "view == fkhContainers && viewItem =~ /node-(running|starting)/",
+          "command": "fkh.stopPod",
+          "when": "view == fkhPods && viewItem =~ /pod-(running|starting)/",
           "group": "inline"
         },
         {
-          "command": "fkh.removeNode",
-          "when": "view == fkhContainers && viewItem =~ /^node-/",
+          "command": "fkh.removePod",
+          "when": "view == fkhPods && viewItem =~ /^pod-/",
           "group": "inline"
         },
         {
-          "command": "fkh.startNode",
-          "when": "view == fkhContainers && viewItem == node-stopped",
+          "command": "fkh.startPod",
+          "when": "view == fkhPods && viewItem == pod-stopped",
           "group": "1_actions"
         },
         {
-          "command": "fkh.stopNode",
-          "when": "view == fkhContainers && viewItem =~ /node-(running|starting)/",
+          "command": "fkh.stopPod",
+          "when": "view == fkhPods && viewItem =~ /pod-(running|starting)/",
           "group": "1_actions"
         },
         {
-          "command": "fkh.removeNode",
-          "when": "view == fkhContainers && viewItem =~ /^node-/",
+          "command": "fkh.removePod",
+          "when": "view == fkhPods && viewItem =~ /^pod-/",
           "group": "2_destructive"
         }
       ]

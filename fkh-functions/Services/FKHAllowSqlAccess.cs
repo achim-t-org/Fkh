@@ -2,15 +2,15 @@ using k8s;
 using k8s.Models;
 using Microsoft.Extensions.Logging;
 
-namespace FKH.Services;
+namespace Fkh.Services;
 
-public class FKHAllowSqlAccess : FKHServiceBase
+public class FkhAllowSqlAccess : FkhServiceBase
 {
     public const string ServicePrefix = "mssql-ext-";
     public const string PolicyPrefix = "mssql-allow-ip-";
     public const string AutoRevokeAnnotation = "fkh/sql-access-revoke-at";
 
-    public FKHAllowSqlAccess(ILogger<FKHAllowSqlAccess> logger) : base(logger) { }
+    public FkhAllowSqlAccess(ILogger<FkhAllowSqlAccess> logger) : base(logger) { }
 
     public async Task<string> AllowSqlAccessAsync(Dictionary<string, string> parameters)
     {

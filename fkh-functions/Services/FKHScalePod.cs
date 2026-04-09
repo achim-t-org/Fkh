@@ -2,13 +2,13 @@ using k8s;
 using k8s.Models;
 using Microsoft.Extensions.Logging;
 
-namespace FKH.Services;
+namespace Fkh.Services;
 
-public class FKHScaleNode : FKHServiceBase
+public class FkhScalePod : FkhServiceBase
 {
-    public FKHScaleNode(ILogger<FKHScaleNode> logger) : base(logger) { }
+    public FkhScalePod(ILogger<FkhScalePod> logger) : base(logger) { }
 
-    public async Task<string> StopNodeAsync(Dictionary<string, string> parameters)
+    public async Task<string> StopPodAsync(Dictionary<string, string> parameters)
     {
         var result = await ScaleAsync(parameters, 0);
         // Clear auto-stop annotation when manually stopping
@@ -21,7 +21,7 @@ public class FKHScaleNode : FKHServiceBase
         return result;
     }
 
-    public async Task<string> StartNodeAsync(Dictionary<string, string> parameters)
+    public async Task<string> StartPodAsync(Dictionary<string, string> parameters)
     {
         // Ensure a Windows node with healthy CNS is available before scaling up
         var client = await GetKubernetesClientAsync();
@@ -63,6 +63,6 @@ public class FKHScaleNode : FKHServiceBase
 
         var action = replicas == 0 ? "Stopped" : "Started";
         Logger.LogInformation("{Action} deployment '{Deployment}'.", action, deploymentName);
-        return $"{action} node '{appName}'.\n  Deployment: {deploymentName}\n  Replicas: {replicas}";
+        return $"{action} pod '{appName}'.\n  Deployment: {deploymentName}\n  Replicas: {replicas}";
     }
 }

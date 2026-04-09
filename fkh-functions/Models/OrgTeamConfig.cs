@@ -1,4 +1,4 @@
-namespace FKH.Models;
+namespace Fkh.Models;
 
 /// <summary>
 /// Represents one org/team pair from configuration.

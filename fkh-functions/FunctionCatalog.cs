@@ -1,6 +1,6 @@
-using FKH.Models;
+using Fkh.Models;
 
-namespace FKH;
+namespace Fkh;
 
 public static class FunctionCatalog
 {
@@ -8,16 +8,16 @@ public static class FunctionCatalog
     {
         new FunctionDefinition
         {
-            Name = "CreateNode",
-            Description = "Creates a node using the provided artifact and admin credentials.",
-            Route = "CreateNode",
+            Name = "CreatePod",
+            Description = "Creates a pod using the provided artifact and admin credentials.",
+            Route = "CreatePod",
             Parameters = new List<FunctionParameterDefinition>
             {
                 new()
                 {
                     Name = "name",
                     Type = "string",
-                    Description = "Name for the node. Combined with the GitHub username to form the container name.",
+                    Description = "Name for the pod. Combined with the GitHub username to form the pod name.",
                     Required = true,
                     DefaultValue = null
                 },
@@ -25,7 +25,7 @@ public static class FunctionCatalog
                 {
                     Name = "artifactUrl",
                     Type = "string",
-                    Description = "Artifact URL used by the node provisioning workflow.",
+                    Description = "Artifact URL used by the pod provisioning workflow.",
                     Required = true,
                     DefaultValue = null
                 },
@@ -33,7 +33,7 @@ public static class FunctionCatalog
                 {
                     Name = "adminUsername",
                     Type = "string",
-                    Description = "Administrator username for the node/workload.",
+                    Description = "Administrator username for the pod.",
                     Required = true,
                     DefaultValue = null
                 },
@@ -41,7 +41,7 @@ public static class FunctionCatalog
                 {
                     Name = "adminPassword",
                     Type = "string",
-                    Description = "Administrator password for the node/workload.",
+                    Description = "Administrator password for the pod.",
                     Required = true,
                     DefaultValue = null
                 },
@@ -49,7 +49,7 @@ public static class FunctionCatalog
                 {
                     Name = "autostop",
                     Type = "string",
-                    Description = "Hours after which the node automatically stops (e.g. '2' for 2 hours). Leave empty for no auto-stop.",
+                    Description = "Hours after which the pod automatically stops (e.g. '2' for 2 hours). Leave empty for no auto-stop.",
                     Required = false,
                     DefaultValue = null
                 },
@@ -57,7 +57,7 @@ public static class FunctionCatalog
                 {
                     Name = "cpu",
                     Type = "string",
-                    Description = "CPU cores to request for the container (e.g. '1', '0.5', '2').",
+                    Description = "CPU cores to request for the pod (e.g. '1', '0.5', '2').",
                     Required = false,
                     DefaultValue = "1"
                 },
@@ -65,7 +65,7 @@ public static class FunctionCatalog
                 {
                     Name = "memory",
                     Type = "string",
-                    Description = "Memory to request for the container (e.g. '4Gi', '8Gi').",
+                    Description = "Memory to request for the pod (e.g. '4Gi', '8Gi').",
                     Required = false,
                     DefaultValue = "4Gi"
                 },
@@ -73,7 +73,7 @@ public static class FunctionCatalog
                 {
                     Name = "repo",
                     Type = "string",
-                    Description = "Source repository (e.g. 'org/repo'). Stored as metadata on the container.",
+                    Description = "Source repository (e.g. 'org/repo'). Stored as metadata on the pod.",
                     Required = false,
                     DefaultValue = null
                 },
@@ -81,7 +81,7 @@ public static class FunctionCatalog
                 {
                     Name = "project",
                     Type = "string",
-                    Description = "AL-Go project name. Stored as metadata on the container.",
+                    Description = "AL-Go project name. Stored as metadata on the pod.",
                     Required = false,
                     DefaultValue = null
                 }
@@ -89,16 +89,16 @@ public static class FunctionCatalog
         },
         new FunctionDefinition
         {
-            Name = "RemoveNode",
-            Description = "Removes a node and its database. The full resource name is derived from your GitHub username and the name you provide.",
-            Route = "RemoveNode",
+            Name = "RemovePod",
+            Description = "Removes a pod and its database. The full resource name is derived from your GitHub username and the name you provide.",
+            Route = "RemovePod",
             Parameters = new List<FunctionParameterDefinition>
             {
                 new()
                 {
                     Name = "name",
                     Type = "string",
-                    Description = "Name of the node to remove (same name used when creating it).",
+                    Description = "Name of the pod to remove (same name used when creating it).",
                     Required = true,
                     DefaultValue = null
                 }
@@ -106,16 +106,16 @@ public static class FunctionCatalog
         },
         new FunctionDefinition
         {
-            Name = "StopNode",
-            Description = "Stops a node by scaling its deployment to 0 replicas.",
-            Route = "StopNode",
+            Name = "StopPod",
+            Description = "Stops a pod by scaling its deployment to 0 replicas.",
+            Route = "StopPod",
             Parameters = new List<FunctionParameterDefinition>
             {
                 new()
                 {
                     Name = "name",
                     Type = "string",
-                    Description = "Name of the node to stop (same name used when creating it).",
+                    Description = "Name of the pod to stop (same name used when creating it).",
                     Required = true,
                     DefaultValue = null
                 }
@@ -123,16 +123,16 @@ public static class FunctionCatalog
         },
         new FunctionDefinition
         {
-            Name = "StartNode",
-            Description = "Starts a previously stopped node by scaling its deployment to 1 replica.",
-            Route = "StartNode",
+            Name = "StartPod",
+            Description = "Starts a previously stopped pod by scaling its deployment to 1 replica.",
+            Route = "StartPod",
             Parameters = new List<FunctionParameterDefinition>
             {
                 new()
                 {
                     Name = "name",
                     Type = "string",
-                    Description = "Name of the node to start (same name used when creating it).",
+                    Description = "Name of the pod to start (same name used when creating it).",
                     Required = true,
                     DefaultValue = null
                 },
@@ -140,7 +140,7 @@ public static class FunctionCatalog
                 {
                     Name = "autostop",
                     Type = "string",
-                    Description = "Hours after which the node automatically stops (e.g. '2' for 2 hours). Leave empty for no auto-stop.",
+                    Description = "Hours after which the pod automatically stops (e.g. '2' for 2 hours). Leave empty for no auto-stop.",
                     Required = false,
                     DefaultValue = null
                 }
@@ -148,16 +148,16 @@ public static class FunctionCatalog
         },
         new FunctionDefinition
         {
-            Name = "ListNodes",
-            Description = "Lists nodes. By default lists only your own nodes. Set 'all' to 'true' to list all nodes.",
-            Route = "ListNodes",
+            Name = "ListPods",
+            Description = "Lists pods. By default lists only your own pods. Set 'all' to 'true' to list all pods.",
+            Route = "ListPods",
             Parameters = new List<FunctionParameterDefinition>
             {
                 new()
                 {
                     Name = "all",
                     Type = "boolean",
-                    Description = "List all nodes instead of only your own.",
+                    Description = "List all pods instead of only your own.",
                     Required = false,
                     DefaultValue = "false"
                 }

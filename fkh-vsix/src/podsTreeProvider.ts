@@ -49,30 +49,30 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<ProjectTree
   }
 }
 
-// ── Containers tree ──────────────────────────────────────────────────────────
+// ── Pods tree ──────────────────────────────────────────────────────────
 
-export interface NodeInfo {
+export interface PodInfo {
   appLabel: string;
   name: string;
   status: string;
   properties: { label: string; value: string }[];
 }
 
-export class ContainerTreeItem extends vscode.TreeItem {
+export class PodTreeItem extends vscode.TreeItem {
   constructor(
     public readonly label: string,
     public readonly collapsibleState: vscode.TreeItemCollapsibleState,
-    public readonly nodeInfo?: NodeInfo,
+    public readonly podInfo?: PodInfo,
   ) {
     super(label, collapsibleState);
   }
 }
 
-export class ContainersTreeProvider implements vscode.TreeDataProvider<ContainerTreeItem> {
-  private _onDidChangeTreeData = new vscode.EventEmitter<ContainerTreeItem | undefined>();
+export class PodsTreeProvider implements vscode.TreeDataProvider<PodTreeItem> {
+  private _onDidChangeTreeData = new vscode.EventEmitter<PodTreeItem | undefined>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-  private nodes: NodeInfo[] = [];
+  private pods: PodInfo[] = [];
   private initialized = false;
   private _getBaseUrl: () => string | undefined;
   private _getGitHubSession: () => Promise<vscode.AuthenticationSession | undefined>;
@@ -86,46 +86,46 @@ export class ContainersTreeProvider implements vscode.TreeDataProvider<Container
   }
 
   async refresh(): Promise<void> {
-    this.nodes = await this.fetchNodes();
+    this.pods = await this.fetchPods();
     this.initialized = true;
     this._onDidChangeTreeData.fire(undefined);
   }
 
-  getTreeItem(element: ContainerTreeItem): vscode.TreeItem {
+  getTreeItem(element: PodTreeItem): vscode.TreeItem {
     return element;
   }
 
-  getChildren(element?: ContainerTreeItem): ContainerTreeItem[] {
+  getChildren(element?: PodTreeItem): PodTreeItem[] {
     if (!element) {
       if (!this.initialized) { return []; }
-      if (this.nodes.length === 0) {
-        const empty = new ContainerTreeItem('No containers', vscode.TreeItemCollapsibleState.None);
+      if (this.pods.length === 0) {
+        const empty = new PodTreeItem('No pods', vscode.TreeItemCollapsibleState.None);
         empty.iconPath = new vscode.ThemeIcon('info');
         return [empty];
       }
-      return this.nodes.map(node => {
-        const statusLower = node.status.toLowerCase();
+      return this.pods.map(pod => {
+        const statusLower = pod.status.toLowerCase();
         const icon = statusLower.startsWith('running')
           ? new vscode.ThemeIcon('vm-running', new vscode.ThemeColor('testing.iconPassed'))
           : statusLower.startsWith('starting')
             ? new vscode.ThemeIcon('sync~spin', new vscode.ThemeColor('testing.iconQueued'))
             : new vscode.ThemeIcon('vm', new vscode.ThemeColor('testing.iconSkipped'));
 
-        const item = new ContainerTreeItem(
-          `${node.name} (${node.status})`,
+        const item = new PodTreeItem(
+          `${pod.name} (${pod.status})`,
           vscode.TreeItemCollapsibleState.Collapsed,
-          node
+          pod
         );
         item.iconPath = icon;
-        item.tooltip = `${node.appLabel}\nStatus: ${node.status}`;
-        item.contextValue = `node-${node.status.toLowerCase()}`;
+        item.tooltip = `${pod.appLabel}\nStatus: ${pod.status}`;
+        item.contextValue = `pod-${pod.status.toLowerCase()}`;
         return item;
       });
     }
 
-    if (element.nodeInfo) {
-      return element.nodeInfo.properties.map(prop => {
-        const child = new ContainerTreeItem(
+    if (element.podInfo) {
+      return element.podInfo.properties.map(prop => {
+        const child = new PodTreeItem(
           `${prop.label}: ${prop.value}`,
           vscode.TreeItemCollapsibleState.None
         );
@@ -161,7 +161,7 @@ export class ContainersTreeProvider implements vscode.TreeDataProvider<Container
     return [];
   }
 
-  private async fetchNodes(): Promise<NodeInfo[]> {
+  private async fetchPods(): Promise<PodInfo[]> {
     const baseUrl = this._getBaseUrl();
     if (!baseUrl) { return []; }
 
@@ -169,7 +169,7 @@ export class ContainersTreeProvider implements vscode.TreeDataProvider<Container
     if (!session) { return []; }
 
     try {
-      const response = await fetch(`${baseUrl}/ListNodes`, {
+      const response = await fetch(`${baseUrl}/ListPods`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -181,22 +181,22 @@ export class ContainersTreeProvider implements vscode.TreeDataProvider<Container
       if (!response.ok) { return []; }
 
       const result = await response.json() as { message: string };
-      return this.parseNodesMessage(result.message);
+      return this.parsePodsMessage(result.message);
     } catch {
       return [];
     }
   }
 
-  private parseNodesMessage(message: string): NodeInfo[] {
-    const nodes: NodeInfo[] = [];
+  private parsePodsMessage(message: string): PodInfo[] {
+    const pods: PodInfo[] = [];
     const lines = message.split('\n');
 
-    let current: NodeInfo | undefined;
+    let current: PodInfo | undefined;
 
     for (const line of lines) {
       const headerMatch = line.match(/^  (\S+)\s*$/);
       if (headerMatch) {
-        if (current) { nodes.push(current); }
+        if (current) { pods.push(current); }
         current = {
           appLabel: headerMatch[1],
           name: headerMatch[1],
@@ -225,8 +225,8 @@ export class ContainersTreeProvider implements vscode.TreeDataProvider<Container
       }
     }
 
-    if (current) { nodes.push(current); }
-    return nodes;
+    if (current) { pods.push(current); }
+    return pods;
   }
 }
 

@@ -1,16 +1,16 @@
 using Azure.Identity;
 using Azure.ResourceManager;
 using Azure.ResourceManager.ContainerService;
-using FKH.Models;
+using Fkh.Models;
 using k8s;
 using k8s.KubeConfigModels;
 using k8s.Models;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography.X509Certificates;
 
-namespace FKH.Services;
+namespace Fkh.Services;
 
-public abstract class FKHServiceBase
+public abstract class FkhServiceBase
 {
     protected readonly string ResourceGroup;
     protected readonly string ClusterName;
@@ -28,7 +28,7 @@ public abstract class FKHServiceBase
     protected const string AcrRepository = "businesscentral";
     protected const string FoldersValue = @"c:\run\my=https://github.com/Freddy-DK/ContainerScripts/archive/refs/heads/main.zip\ContainerScripts-main";
 
-    protected FKHServiceBase(ILogger logger)
+    protected FkhServiceBase(ILogger logger)
     {
         Logger = logger;
         SubscriptionId = Environment.GetEnvironmentVariable("AKS_SUBSCRIPTION_ID")

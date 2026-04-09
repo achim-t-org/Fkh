@@ -1,16 +1,16 @@
-using FKH.Services;
+using Fkh.Services;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 
-namespace FKH;
+namespace Fkh;
 
 public class AutoStopFunction
 {
     private readonly ILogger<AutoStopFunction> _logger;
-    private readonly FKHAutoStop _autoStop;
-    private readonly FKHAllowSqlAccess _sqlAccess;
+    private readonly FkhAutoStop _autoStop;
+    private readonly FkhAllowSqlAccess _sqlAccess;
 
-    public AutoStopFunction(ILogger<AutoStopFunction> logger, FKHAutoStop autoStop, FKHAllowSqlAccess sqlAccess)
+    public AutoStopFunction(ILogger<AutoStopFunction> logger, FkhAutoStop autoStop, FkhAllowSqlAccess sqlAccess)
     {
         _logger = logger;
         _autoStop = autoStop;
@@ -22,7 +22,7 @@ public class AutoStopFunction
     {
         try
         {
-            await _autoStop.CheckAndStopExpiredNodesAsync();
+            await _autoStop.CheckAndStopExpiredPodsAsync();
         }
         catch (Exception ex)
         {

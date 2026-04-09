@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 
-namespace FKH.Services;
+namespace Fkh.Services;
 
 public class GitHubAppTokenService
 {

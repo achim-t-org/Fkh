@@ -1,4 +1,4 @@
-namespace FKH.Models;
+namespace Fkh.Models;
 
 public sealed class FunctionParameterDefinition
 {

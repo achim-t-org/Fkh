@@ -3,13 +3,13 @@ using k8s;
 using k8s.Models;
 using Microsoft.Extensions.Logging;
 
-namespace FKH.Services;
+namespace Fkh.Services;
 
-public class FKHListNodes : FKHServiceBase
+public class FkhListPods : FkhServiceBase
 {
-    public FKHListNodes(ILogger<FKHListNodes> logger) : base(logger) { }
+    public FkhListPods(ILogger<FkhListPods> logger) : base(logger) { }
 
-    public async Task<string> ListNodesAsync(Dictionary<string, string> parameters)
+    public async Task<string> ListPodsAsync(Dictionary<string, string> parameters)
     {
         var githubUsername = parameters["_githubUsername"];
         var showAll = parameters.TryGetValue("all", out var allValue)
@@ -37,7 +37,7 @@ public class FKHListNodes : FKHServiceBase
 
         if (filtered.Count == 0)
         {
-            return showAll ? "No nodes found." : $"No nodes found for user '{githubUsername}'. Use --all to list all nodes.";
+            return showAll ? "No pods found." : $"No pods found for user '{githubUsername}'. Use --all to list all pods.";
         }
 
         // Get pod metrics if available
@@ -60,7 +60,7 @@ public class FKHListNodes : FKHServiceBase
         catch { /* metrics API not available */ }
 
         var sb = new StringBuilder();
-        sb.Append(showAll ? "All nodes:" : $"Nodes for '{githubUsername}':");
+        sb.Append(showAll ? "All pods:" : $"Pods for '{githubUsername}':");
 
         // Get services to resolve FQDNs
         var services = await client.ListNamespacedServiceAsync(Namespace);
@@ -83,12 +83,12 @@ public class FKHListNodes : FKHServiceBase
 
             var status = replicas == 0 ? "Stopped" : readyReplicas >= replicas ? "Running" : "Starting";
 
-            // Extract container name by stripping the "username-" prefix
-            var containerName = appLabel.Contains('-') && appLabel.IndexOf('-') < appLabel.Length - 1
+            // Extract pod name by stripping the "username-" prefix
+            var podName = appLabel.Contains('-') && appLabel.IndexOf('-') < appLabel.Length - 1
                 ? appLabel[(appLabel.IndexOf('-') + 1)..] : appLabel;
 
             sb.Append($"\n\n  {appLabel}");
-            sb.Append($"\n    Name:   {containerName}");
+            sb.Append($"\n    Name:   {podName}");
             sb.Append($"\n    Status: {status} ({readyReplicas}/{replicas} ready)");
             sb.Append($"\n    Image:  {shortImage}");
 

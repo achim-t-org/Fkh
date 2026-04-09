@@ -1,17 +1,17 @@
-using FKH.Services;
+using Fkh.Services;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 
-namespace FKH;
+namespace Fkh;
 
 public class AllowSqlAccessFunction : FunctionBase
 {
     private readonly ILogger<AllowSqlAccessFunction> _logger;
     private readonly GitHubAuthService _gitHub;
-    private readonly FKHAllowSqlAccess _sqlAccess;
+    private readonly FkhAllowSqlAccess _sqlAccess;
 
-    public AllowSqlAccessFunction(ILogger<AllowSqlAccessFunction> logger, GitHubAuthService gitHub, FKHAllowSqlAccess sqlAccess)
+    public AllowSqlAccessFunction(ILogger<AllowSqlAccessFunction> logger, GitHubAuthService gitHub, FkhAllowSqlAccess sqlAccess)
     {
         _logger = logger;
         _gitHub = gitHub;

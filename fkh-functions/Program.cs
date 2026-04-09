@@ -1,5 +1,5 @@
 using System.Text.Json;
-using FKH.Services;
+using Fkh.Services;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -18,13 +18,13 @@ var host = new HostBuilder()
         services.AddHttpClient<GitHubAppTokenService>();
 
         // Register AKS operation services
-        services.AddSingleton<FKHCreateNode>();
-        services.AddSingleton<FKHRemoveNode>();
-        services.AddSingleton<FKHScaleNode>();
-        services.AddSingleton<FKHListNodes>();
-        services.AddSingleton<FKHAutoStop>();
-        services.AddSingleton<FKHAllowSqlAccess>();
-        services.AddSingleton<FKHListImages>();
+        services.AddSingleton<FkhCreatePod>();
+        services.AddSingleton<FkhRemovePod>();
+        services.AddSingleton<FkhScalePod>();
+        services.AddSingleton<FkhListPods>();
+        services.AddSingleton<FkhAutoStop>();
+        services.AddSingleton<FkhAllowSqlAccess>();
+        services.AddSingleton<FkhListImages>();
     })
     .Build();
 

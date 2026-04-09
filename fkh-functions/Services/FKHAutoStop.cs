@@ -1,13 +1,13 @@
 using k8s;
 using Microsoft.Extensions.Logging;
 
-namespace FKH.Services;
+namespace Fkh.Services;
 
-public class FKHAutoStop : FKHServiceBase
+public class FkhAutoStop : FkhServiceBase
 {
-    public FKHAutoStop(ILogger<FKHAutoStop> logger) : base(logger) { }
+    public FkhAutoStop(ILogger<FkhAutoStop> logger) : base(logger) { }
 
-    public async Task CheckAndStopExpiredNodesAsync()
+    public async Task CheckAndStopExpiredPodsAsync()
     {
         Logger.LogInformation("Auto-stop check started at {Time} UTC", DateTimeOffset.UtcNow);
         var client = await GetKubernetesClientAsync();

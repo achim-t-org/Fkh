@@ -1,13 +1,13 @@
 using k8s;
 using Microsoft.Extensions.Logging;
 
-namespace FKH.Services;
+namespace Fkh.Services;
 
-public class FKHRemoveNode : FKHServiceBase
+public class FkhRemovePod : FkhServiceBase
 {
-    public FKHRemoveNode(ILogger<FKHRemoveNode> logger) : base(logger) { }
+    public FkhRemovePod(ILogger<FkhRemovePod> logger) : base(logger) { }
 
-    public async Task<string> RemoveNodeAsync(Dictionary<string, string> parameters)
+    public async Task<string> RemovePodAsync(Dictionary<string, string> parameters)
     {
         var name = parameters["name"];
         var githubUsername = parameters["_githubUsername"];
@@ -18,7 +18,7 @@ public class FKHRemoveNode : FKHServiceBase
         var serviceName = $"{appName}-service";
         var secretName = $"{appName}-secret";
 
-        Logger.LogInformation("Removing node '{AppName}'...", appName);
+        Logger.LogInformation("Removing pod '{AppName}'...", appName);
         var client = await GetKubernetesClientAsync();
         var results = new List<string>();
 
@@ -30,8 +30,8 @@ public class FKHRemoveNode : FKHServiceBase
         // Drop database via k8s exec (ignore if it doesn't exist)
         results.Add(await TryDropDatabaseAsync(client, databaseName));
 
-        Logger.LogInformation("Node '{AppName}' removal complete.", appName);
-        return $"Remove node '{appName}':\n  {string.Join("\n  ", results)}";
+        Logger.LogInformation("Pod '{AppName}' removal complete.", appName);
+        return $"Remove pod '{appName}':\n  {string.Join("\n  ", results)}";
     }
 
     private async Task<string> TryDeleteAsync(string resourceType, Func<Task> deleteAction)
