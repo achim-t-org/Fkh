@@ -70,28 +70,45 @@ try
 
     Console.WriteLine($"Calling {endpoint}");
 
+    using var cts = new CancellationTokenSource();
+    Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
+
     using var client = new HttpClient();
-    using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+    while (true)
     {
-        Content = new StringContent(
-            JsonSerializer.Serialize(new FunctionInvokeRequest { Parameters = parsed.Parameters }),
-            Encoding.UTF8,
-            "application/json")
-    };
-    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+        {
+            Content = new StringContent(
+                JsonSerializer.Serialize(new FunctionInvokeRequest { Parameters = parsed.Parameters }),
+                Encoding.UTF8,
+                "application/json")
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-    var response = await client.SendAsync(request);
-    var body = await response.Content.ReadAsStringAsync();
-    var message = TryGetMessage(body) ?? body;
+        var response = await client.SendAsync(request, cts.Token);
+        var body = await response.Content.ReadAsStringAsync(cts.Token);
+        var message = TryGetMessage(body) ?? body;
 
-    if (response.IsSuccessStatusCode)
-    {
-        Console.WriteLine(message);
-        return 0;
+        if (response.StatusCode == System.Net.HttpStatusCode.Accepted
+            && response.Headers.TryGetValues("Retry-After", out var retryValues)
+            && int.TryParse(retryValues.FirstOrDefault(), out var retrySeconds)
+            && retrySeconds > 0)
+        {
+            Console.WriteLine(message);
+            Console.WriteLine($"Retrying in {retrySeconds} seconds... (Ctrl+C to cancel)");
+            await Task.Delay(TimeSpan.FromSeconds(retrySeconds), cts.Token);
+            continue;
+        }
+
+        if (response.IsSuccessStatusCode)
+        {
+            Console.WriteLine(message);
+            return 0;
+        }
+
+        Console.Error.WriteLine($"Request failed ({(int)response.StatusCode}): {message}");
+        return 1;
     }
-
-    Console.Error.WriteLine($"Request failed ({(int)response.StatusCode}): {message}");
-    return 1;
 }
 catch (Exception ex)
 {

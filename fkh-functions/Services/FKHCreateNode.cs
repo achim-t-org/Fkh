@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using Azure.Containers.ContainerRegistry;
 using Azure.Identity;
 using Azure.Storage.Blobs;
+using FKH.Models;
 using k8s;
 using k8s.Models;
 using Microsoft.Extensions.Logging;
@@ -24,6 +25,8 @@ public class FKHCreateNode : FKHServiceBase
         var adminUsername = parameters["adminUsername"];
         var adminPassword = parameters["adminPassword"];
         var githubUsername = parameters["_githubUsername"];
+        var cpuRequest = parameters.TryGetValue("cpu", out var cpu) ? cpu : "1";
+        var memoryRequest = parameters.TryGetValue("memory", out var mem) ? mem : "4Gi";
 
         var imageTag = GetImageTag(artifactUrl);
         var fullImage = $"{AcrLoginServer}/{AcrRepository}:{imageTag}";
@@ -36,8 +39,12 @@ public class FKHCreateNode : FKHServiceBase
         Logger.LogInformation("Checking ACR for image {Image}", fullImage);
         await EnsureImageExistsAsync(imageTag, fullImage, artifactUrl);
 
-        Logger.LogInformation("Image found. Creating Kubernetes resources for {AppName}...", appName);
+        Logger.LogInformation("Image found. Ensuring a Windows node is ready...");
         var client = await GetKubernetesClientAsync();
+        await EnsureWindowsNodeReadyAsync(client);
+        await CleanupPlaceholderPodAsync(client);
+
+        Logger.LogInformation("Creating Kubernetes resources for {AppName}...", appName);
 
         var deploymentName = $"{appName}-deployment";
         var serviceName = $"{appName}-service";
@@ -60,7 +67,7 @@ public class FKHCreateNode : FKHServiceBase
         var dnsLabel = appName;
         var publicDnsName = $"{dnsLabel}.{AksLocation}.cloudapp.azure.com";
 
-        await CreateDeploymentAsync(client, deploymentName, appName, fullImage, adminUsername, secretName, publicDnsName, databaseName);
+        await CreateDeploymentAsync(client, deploymentName, appName, fullImage, adminUsername, secretName, publicDnsName, databaseName, cpuRequest, memoryRequest);
         await CreateLoadBalancerServiceAsync(client, serviceName, appName, dnsLabel);
 
         // Set auto-stop annotation if requested
@@ -221,9 +228,9 @@ public class FKHCreateNode : FKHServiceBase
         {
             Logger.LogInformation("Image not found in ACR. Triggering createImages workflow for {ArtifactUrl}...", artifactUrl);
             await _gitHubAppTokenService.TriggerCreateImagesWorkflowAsync(artifactUrl);
-            throw new InvalidOperationException(
-                $"Image does not exist yet: {fullImage}. The createImages workflow has been triggered automatically. " +
-                $"Please retry in ~30 minutes once the image is built.");
+            throw new RetryAfterException(
+                $"Image does not exist yet: {fullImage}. The createImages workflow has been triggered automatically.",
+                retryAfterSeconds: 300);
         }
     }
 
@@ -245,7 +252,8 @@ public class FKHCreateNode : FKHServiceBase
 
     private async Task CreateDeploymentAsync(
         Kubernetes client, string deploymentName, string appName, string fullImage,
-        string adminUsername, string secretName, string publicDnsName, string databaseName)
+        string adminUsername, string secretName, string publicDnsName, string databaseName,
+        string cpuRequest, string memoryRequest)
     {
         var deployment = new V1Deployment
         {
@@ -277,18 +285,22 @@ public class FKHCreateNode : FKHServiceBase
                         {
                             PodAntiAffinity = new V1PodAntiAffinity
                             {
-                                RequiredDuringSchedulingIgnoredDuringExecution = new List<V1PodAffinityTerm>
+                                PreferredDuringSchedulingIgnoredDuringExecution = new List<V1WeightedPodAffinityTerm>
                                 {
                                     new()
                                     {
-                                        LabelSelector = new V1LabelSelector
+                                        Weight = 100,
+                                        PodAffinityTerm = new V1PodAffinityTerm
                                         {
-                                            MatchLabels = new Dictionary<string, string>
+                                            LabelSelector = new V1LabelSelector
                                             {
-                                                ["app-type"] = "windows-servicetier"
-                                            }
-                                        },
-                                        TopologyKey = "kubernetes.io/hostname"
+                                                MatchLabels = new Dictionary<string, string>
+                                                {
+                                                    ["app-type"] = "windows-servicetier"
+                                                }
+                                            },
+                                            TopologyKey = "kubernetes.io/hostname"
+                                        }
                                     }
                                 }
                             }
@@ -303,7 +315,15 @@ public class FKHCreateNode : FKHServiceBase
                                 {
                                     new() { ContainerPort = 80 }, new() { ContainerPort = 443 }, new() { ContainerPort = 7047 }, new() { ContainerPort = 7048 }, new() { ContainerPort = 7049 },
                                 },
-                                Env = BuildEnvVars(adminUsername, secretName, publicDnsName, databaseName)
+                                Env = BuildEnvVars(adminUsername, secretName, publicDnsName, databaseName),
+                                Resources = new V1ResourceRequirements
+                                {
+                                    Requests = new Dictionary<string, ResourceQuantity>
+                                    {
+                                        ["cpu"] = new ResourceQuantity(cpuRequest),
+                                        ["memory"] = new ResourceQuantity(memoryRequest)
+                                    }
+                                }
                             }
                         }
                     }

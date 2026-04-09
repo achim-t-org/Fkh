@@ -1,6 +1,7 @@
 using Azure.Identity;
 using Azure.ResourceManager;
 using Azure.ResourceManager.ContainerService;
+using FKH.Models;
 using k8s;
 using k8s.KubeConfigModels;
 using k8s.Models;
@@ -20,6 +21,7 @@ public abstract class FKHServiceBase
     protected readonly string AksLocation;
     protected readonly string ContactEmail;
     protected readonly string DbsStorageAccountName;
+    protected readonly string? LogAnalyticsWorkspaceId;
     protected readonly ILogger Logger;
 
     protected const string Namespace = "app";
@@ -47,6 +49,7 @@ public abstract class FKHServiceBase
             ?? throw new InvalidOperationException("CONTACT_EMAIL_FOR_LETSENCRYPT is not configured.");
         DbsStorageAccountName = Environment.GetEnvironmentVariable("DBS_STORAGE_ACCOUNT_NAME")
             ?? throw new InvalidOperationException("DBS_STORAGE_ACCOUNT_NAME is not configured.");
+        LogAnalyticsWorkspaceId = Environment.GetEnvironmentVariable("LOG_ANALYTICS_WORKSPACE_ID");
     }
 
     protected string AcrLoginServer => $"{AcrName}.azurecr.io";
@@ -99,6 +102,124 @@ public abstract class FKHServiceBase
         }
 
         return new Kubernetes(config);
+    }
+
+    /// <summary>
+    /// Ensures at least one Windows node is Ready and has a running CNS pod.
+    /// If no Windows node exists, triggers the cluster autoscaler by creating a
+    /// temporary placeholder pod, then throws <see cref="RetryAfterException"/>
+    /// so the caller retries after the node is provisioned.
+    /// </summary>
+    protected async Task EnsureWindowsNodeReadyAsync(Kubernetes client)
+    {
+        // Check for Ready Windows nodes
+        var nodes = await client.ListNodeAsync();
+        var windowsNodes = nodes.Items
+            .Where(n => n.Metadata.Labels.TryGetValue("kubernetes.io/os", out var os) && os == "windows")
+            .ToList();
+
+        var readyWindowsNodes = windowsNodes
+            .Where(n => n.Status.Conditions.Any(c => c.Type == "Ready" && c.Status == "True"))
+            .ToList();
+
+        if (readyWindowsNodes.Count == 0)
+        {
+            Logger.LogInformation("No Ready Windows nodes found. Triggering autoscaler...");
+            await CreatePlaceholderPodAsync(client);
+            throw new RetryAfterException(
+                "No Windows node is available. The cluster autoscaler is provisioning one. Please retry in a few minutes.",
+                retryAfterSeconds: 120);
+        }
+
+        // Check that CNS is running on at least one Ready Windows node
+        var cnsPods = await client.ListNamespacedPodAsync("kube-system",
+            labelSelector: "k8s-app=azure-cns");
+        var readyNodeNames = readyWindowsNodes.Select(n => n.Metadata.Name).ToHashSet();
+        var cnsOnWindows = cnsPods.Items
+            .Where(p => p.Spec.NodeName != null
+                && readyNodeNames.Contains(p.Spec.NodeName)
+                && p.Status.Phase == "Running"
+                && p.Status.ContainerStatuses?.All(c => c.Ready) == true)
+            .ToList();
+
+        if (cnsOnWindows.Count == 0)
+        {
+            Logger.LogInformation("Windows nodes exist but CNS is not ready yet.");
+            throw new RetryAfterException(
+                "A Windows node is starting up but networking is not ready yet. Please retry in a couple of minutes.",
+                retryAfterSeconds: 60);
+        }
+
+        Logger.LogInformation("Windows node ready with healthy CNS on {NodeCount} node(s).", cnsOnWindows.Count);
+    }
+
+    private async Task CreatePlaceholderPodAsync(Kubernetes client)
+    {
+        const string podName = "fkh-windows-warmup";
+
+        // Check if placeholder already exists
+        try
+        {
+            await client.ReadNamespacedPodAsync(podName, Namespace);
+            Logger.LogInformation("Warmup placeholder pod already exists.");
+            return;
+        }
+        catch (k8s.Autorest.HttpOperationException ex) when (ex.Response.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            // Expected — create it
+        }
+
+        var pod = new V1Pod
+        {
+            Metadata = new V1ObjectMeta
+            {
+                Name = podName,
+                NamespaceProperty = Namespace,
+                Labels = new Dictionary<string, string> { ["fkh/purpose"] = "warmup" }
+            },
+            Spec = new V1PodSpec
+            {
+                NodeSelector = new Dictionary<string, string> { ["kubernetes.io/os"] = "windows" },
+                Containers = new List<V1Container>
+                {
+                    new()
+                    {
+                        Name = "warmup",
+                        Image = "mcr.microsoft.com/windows/nanoserver:ltsc2022",
+                        Command = new List<string> { "cmd", "/c", "echo ready && ping -n 600 127.0.0.1 > nul" },
+                        Resources = new V1ResourceRequirements
+                        {
+                            Requests = new Dictionary<string, ResourceQuantity>
+                            {
+                                ["cpu"] = new ResourceQuantity("100m"),
+                                ["memory"] = new ResourceQuantity("128Mi")
+                            }
+                        }
+                    }
+                },
+                RestartPolicy = "Never"
+            }
+        };
+
+        await client.CreateNamespacedPodAsync(pod, Namespace);
+        Logger.LogInformation("Created warmup placeholder pod to trigger Windows node autoscaling.");
+    }
+
+    /// <summary>
+    /// Cleans up the warmup placeholder pod if it exists.
+    /// Call after a Windows node is confirmed ready.
+    /// </summary>
+    protected async Task CleanupPlaceholderPodAsync(Kubernetes client)
+    {
+        try
+        {
+            await client.DeleteNamespacedPodAsync("fkh-windows-warmup", Namespace);
+            Logger.LogInformation("Cleaned up warmup placeholder pod.");
+        }
+        catch (k8s.Autorest.HttpOperationException ex) when (ex.Response.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            // Already gone
+        }
     }
 
     protected static string GetImageTag(string artifactUrl)

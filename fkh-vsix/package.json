@@ -43,6 +43,11 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "fkh.refreshImages",
+        "title": "FKH: Refresh Images",
+        "icon": "$(refresh)"
+      },
+      {
         "command": "fkh.startNode",
         "title": "Start",
         "icon": "$(debug-start)"
@@ -83,6 +88,11 @@
           "id": "fkhContainers",
           "name": "Containers",
           "icon": "$(server)"
+        },
+        {
+          "id": "fkhImages",
+          "name": "Images",
+          "icon": "$(package)"
         }
       ]
     },
@@ -96,6 +106,11 @@
         {
           "command": "fkh.refreshContainers",
           "when": "view == fkhContainers",
+          "group": "navigation"
+        },
+        {
+          "command": "fkh.refreshImages",
+          "when": "view == fkhImages",
           "group": "navigation"
         }
       ],

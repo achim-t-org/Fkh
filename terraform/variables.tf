@@ -46,6 +46,18 @@ variable "aks_sku_tier" {
   }
 }
 
+variable "windows_min_node_count" {
+  description = "Minimum number of Windows nodes to keep running (0 = scale to zero, 1 = always keep a warm node)."
+  type        = number
+  default     = 0
+}
+
+variable "windows_prepull_images" {
+  description = "List of container images to pre-pull on Windows nodes (e.g. ACR images). Empty list disables pre-pulling."
+  type        = list(string)
+  default     = []
+}
+
 # ── SQL Server ────────────────────────────────────────────────────────────────
 
 variable "sql_sa_password" {

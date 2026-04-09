@@ -225,3 +225,146 @@ export class ContainersTreeProvider implements vscode.TreeDataProvider<Container
     return nodes;
   }
 }
+
+// ── Images tree ──────────────────────────────────────────────────────────────
+
+export interface ImageInfo {
+  repository: string;
+  tags: { name: string; size: string; updated: string; lastPull: string }[];
+}
+
+export class ImageTreeItem extends vscode.TreeItem {
+  constructor(
+    public readonly label: string,
+    public readonly collapsibleState: vscode.TreeItemCollapsibleState,
+    public readonly imageInfo?: ImageInfo,
+  ) {
+    super(label, collapsibleState);
+  }
+}
+
+export class ImagesTreeProvider implements vscode.TreeDataProvider<ImageTreeItem> {
+  private _onDidChangeTreeData = new vscode.EventEmitter<ImageTreeItem | undefined>();
+  readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
+
+  private images: ImageInfo[] = [];
+  private initialized = false;
+  private _getBaseUrl: () => string | undefined;
+  private _getGitHubSession: () => Promise<vscode.AuthenticationSession | undefined>;
+
+  constructor(
+    getBaseUrl: () => string | undefined,
+    getGitHubSession: () => Promise<vscode.AuthenticationSession | undefined>
+  ) {
+    this._getBaseUrl = getBaseUrl;
+    this._getGitHubSession = getGitHubSession;
+  }
+
+  async refresh(): Promise<void> {
+    this.images = await this.fetchImages();
+    this.initialized = true;
+    this._onDidChangeTreeData.fire(undefined);
+  }
+
+  getTreeItem(element: ImageTreeItem): vscode.TreeItem {
+    return element;
+  }
+
+  getChildren(element?: ImageTreeItem): ImageTreeItem[] {
+    if (!element) {
+      if (!this.initialized) { return []; }
+      if (this.images.length === 0) {
+        const empty = new ImageTreeItem('No images found', vscode.TreeItemCollapsibleState.None);
+        empty.iconPath = new vscode.ThemeIcon('info');
+        return [empty];
+      }
+      return this.images.map(img => {
+        const item = new ImageTreeItem(
+          img.repository,
+          vscode.TreeItemCollapsibleState.Collapsed,
+          img
+        );
+        item.iconPath = new vscode.ThemeIcon('package');
+        item.tooltip = `${img.repository} (${img.tags.length} tag${img.tags.length !== 1 ? 's' : ''})`;
+        item.contextValue = 'acrRepository';
+        return item;
+      });
+    }
+
+    if (element.imageInfo) {
+      return element.imageInfo.tags.map(tag => {
+        const child = new ImageTreeItem(
+          `${tag.name}  (${tag.size}, ${tag.updated})`,
+          vscode.TreeItemCollapsibleState.None
+        );
+        child.iconPath = new vscode.ThemeIcon('tag');
+        child.tooltip = `${tag.name}\nSize: ${tag.size}\nUpdated: ${tag.updated}\nLast pulled: ${tag.lastPull}`;
+        child.description = tag.lastPull !== 'never' ? `pulled: ${tag.lastPull}` : undefined;
+        child.contextValue = 'acrTag';
+        return child;
+      });
+    }
+
+    return [];
+  }
+
+  private async fetchImages(): Promise<ImageInfo[]> {
+    const baseUrl = this._getBaseUrl();
+    if (!baseUrl) { return []; }
+
+    const session = await this._getGitHubSession();
+    if (!session) { return []; }
+
+    try {
+      const response = await fetch(`${baseUrl}/ListImages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.accessToken}`,
+        },
+        body: JSON.stringify({ parameters: {} }),
+      });
+
+      if (!response.ok) { return []; }
+
+      const result = await response.json() as { message: string };
+      return this.parseImagesMessage(result.message);
+    } catch {
+      return [];
+    }
+  }
+
+  private parseImagesMessage(message: string): ImageInfo[] {
+    const images: ImageInfo[] = [];
+    let current: ImageInfo | undefined;
+
+    const lines = message.split('\n');
+    for (const line of lines) {
+      const repoMatch = line.match(/^\s*Repository:\s*(.+)$/);
+      if (repoMatch) {
+        if (current) { images.push(current); }
+        current = { repository: repoMatch[1].trim(), tags: [] };
+        continue;
+      }
+
+      if (!current) { continue; }
+
+      // Skip the "Tags:" line
+      if (line.match(/^\s*Tags:/)) { continue; }
+
+      // Parse tag lines: "    tagname  (size, date, pulled: date)"
+      const tagMatch = line.match(/^\s{4}(\S+)\s+\(([^,]+),\s*([^,]+),\s*pulled:\s*(.+)\)$/);
+      if (tagMatch) {
+        current.tags.push({
+          name: tagMatch[1],
+          size: tagMatch[2].trim(),
+          updated: tagMatch[3].trim(),
+          lastPull: tagMatch[4].trim(),
+        });
+      }
+    }
+
+    if (current) { images.push(current); }
+    return images;
+  }
+}

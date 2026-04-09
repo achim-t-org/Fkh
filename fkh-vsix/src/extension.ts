@@ -1,12 +1,13 @@
 import * as vscode from 'vscode';
 import { createReadSettingsOptions, readSettings } from './readALGoSettings';
 import { determineArtifactUrl } from './bcArtifactHelper';
-import { ProjectsTreeProvider, ProjectTreeItem, ContainersTreeProvider, ContainerTreeItem } from './nodesTreeProvider';
+import { ProjectsTreeProvider, ProjectTreeItem, ContainersTreeProvider, ContainerTreeItem, ImagesTreeProvider } from './nodesTreeProvider';
 
 let functionCatalog: FunctionCatalogResponse | undefined;
 let outputChannel: vscode.OutputChannel;
 let projectsProvider: ProjectsTreeProvider;
 let containersProvider: ContainersTreeProvider;
+let imagesProvider: ImagesTreeProvider;
 
 function getBaseUrl(): string | undefined {
   const url = vscode.workspace.getConfiguration('fkh').get<string>('baseUrl', '').trim();
@@ -38,18 +39,27 @@ export function activate(context: vscode.ExtensionContext) {
     showCollapseAll: true,
   });
 
+  imagesProvider = new ImagesTreeProvider(getBaseUrl, getGitHubSession);
+  const imagesView = vscode.window.createTreeView('fkhImages', {
+    treeDataProvider: imagesProvider,
+    showCollapseAll: true,
+  });
+
   // Delay initial population to let the extension host settle
   setTimeout(() => {
     projectsProvider.refresh();
     containersProvider.refresh();
+    imagesProvider.refresh();
   }, 5000);
 
   context.subscriptions.push(
     outputChannel,
     projectsView,
     containersView,
+    imagesView,
     vscode.commands.registerCommand('fkh.refreshProjects', () => projectsProvider.refresh()),
     vscode.commands.registerCommand('fkh.refreshContainers', () => containersProvider.refresh()),
+    vscode.commands.registerCommand('fkh.refreshImages', () => imagesProvider.refresh()),
     vscode.commands.registerCommand('fkh.startNode', async (item: ContainerTreeItem) => {
       if (!item.nodeInfo) { return; }
       await invokeNodeAction('StartNode', item.nodeInfo.name);
@@ -254,29 +264,52 @@ async function invokeFunctionByName(functionName: string, prefilled: Record<stri
     {
       location: vscode.ProgressLocation.Notification,
       title: `${definition.name}: ${definition.description}`,
-      cancellable: false,
+      cancellable: true,
     },
-    async () => {
+    async (progress, cancelToken) => {
       try {
         const body: FunctionInvokeRequest = { parameters };
+        const url = `${getBaseUrl()}/${definition.route}`;
 
-        const response = await fetch(`${getBaseUrl()}/${definition.route}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.accessToken}`,
-          },
-          body: JSON.stringify(body),
-        });
+        while (true) {
+          if (cancelToken.isCancellationRequested) {
+            logOutput(`[${definition.name}] Cancelled by user.`);
+            return;
+          }
 
-        if (response.ok) {
-          const result = await response.json() as { message: string };
-          logOutput(`[${definition.name}] ${result.message}`);
-        } else {
-          const error = response.status === 401 || response.status === 403
-            ? `Access denied (${response.status}). Make sure your GitHub account is a member of an authorized team.`
-            : `Failed (${response.status}): ${await response.text()}`;
-          logOutput(`[${definition.name}] ${error}`, true);
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${session.accessToken}`,
+            },
+            body: JSON.stringify(body),
+          });
+
+          if (response.status === 202) {
+            const result = await response.json() as { message: string; retryAfterSeconds?: number };
+            const retrySeconds = result.retryAfterSeconds ?? parseInt(response.headers.get('Retry-After') ?? '0', 10);
+            if (retrySeconds > 0) {
+              progress.report({ message: result.message });
+              logOutput(`[${definition.name}] ${result.message} Retrying in ${retrySeconds}s...`);
+              await new Promise<void>((resolve) => {
+                const timer = setTimeout(resolve, retrySeconds * 1000);
+                cancelToken.onCancellationRequested(() => { clearTimeout(timer); resolve(); });
+              });
+              continue;
+            }
+          }
+
+          if (response.ok) {
+            const result = await response.json() as { message: string };
+            logOutput(`[${definition.name}] ${result.message}`);
+          } else {
+            const error = response.status === 401 || response.status === 403
+              ? `Access denied (${response.status}). Make sure your GitHub account is a member of an authorized team.`
+              : `Failed (${response.status}): ${await response.text()}`;
+            logOutput(`[${definition.name}] ${error}`, true);
+          }
+          break;
         }
       } catch (err) {
         logOutput(`[${definition.name}] Could not reach the provisioning service: ${err instanceof Error ? err.message : String(err)}`, true);

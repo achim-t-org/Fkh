@@ -24,6 +24,7 @@ var host = new HostBuilder()
         services.AddSingleton<FKHListNodes>();
         services.AddSingleton<FKHAutoStop>();
         services.AddSingleton<FKHAllowSqlAccess>();
+        services.AddSingleton<FKHListImages>();
     })
     .Build();
 

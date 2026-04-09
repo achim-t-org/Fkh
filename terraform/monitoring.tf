@@ -25,3 +25,15 @@ resource "azurerm_application_insights" "this" {
 # ── Container Insights for AKS ──────────────────────────────────────────────
 # The ContainerInsights solution is automatically deployed by the AKS oms_agent
 # block in main.tf. No separate azurerm_log_analytics_solution resource needed.
+
+# ── ACR Diagnostic Logging (for image pull tracking) ────────────────────────
+
+resource "azurerm_monitor_diagnostic_setting" "acr" {
+  name                       = "${local.product_prefix}-${var.customer_name}-acr-diag"
+  target_resource_id         = azurerm_container_registry.this.id
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.this.id
+
+  enabled_log {
+    category = "ContainerRegistryRepositoryEvents"
+  }
+}

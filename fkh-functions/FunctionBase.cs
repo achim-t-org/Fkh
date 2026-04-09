@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Text.Json;
 using FKH.Models;
@@ -18,6 +19,77 @@ public abstract class FunctionBase
     private static readonly List<OrgTeamConfig> AdminOrgTeams = LoadOrgTeamConfig("ADMIN_ORG_TEAMS", required: false);
     private static readonly GitHubOidcService OidcService = new();
 
+    // ── Brute-force protection ───────────────────────────────────────────────────
+    private const int MaxFailedAttempts = 3;
+    private static readonly TimeSpan BlockWindow = TimeSpan.FromMinutes(5);
+    private static readonly ConcurrentDictionary<string, FailedAttemptRecord> FailedAttempts = new();
+
+    private sealed class FailedAttemptRecord
+    {
+        public int Count;
+        public DateTime WindowStart = DateTime.UtcNow;
+    }
+
+    private static string GetClientIp(HttpRequestData req)
+    {
+        // Azure Functions behind a load balancer forwards the real IP in X-Forwarded-For
+        if (req.Headers.TryGetValues("X-Forwarded-For", out var xff))
+        {
+            var first = xff.FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(first))
+            {
+                // X-Forwarded-For can be "client, proxy1, proxy2" — take the first
+                var ip = first.Split(',')[0].Trim();
+                // Strip port if present (e.g. "1.2.3.4:12345")
+                var colonIdx = ip.LastIndexOf(':');
+                if (colonIdx > 0 && !ip.Contains(']')) // avoid stripping IPv6
+                    ip = ip[..colonIdx];
+                return ip;
+            }
+        }
+        return req.Url.Host;
+    }
+
+    private static bool IsIpBlocked(string ip)
+    {
+        if (!FailedAttempts.TryGetValue(ip, out var record))
+            return false;
+
+        // If the window has expired, reset
+        if (DateTime.UtcNow - record.WindowStart > BlockWindow)
+        {
+            FailedAttempts.TryRemove(ip, out _);
+            return false;
+        }
+
+        return record.Count >= MaxFailedAttempts;
+    }
+
+    private static void RecordFailedAttempt(string ip)
+    {
+        FailedAttempts.AddOrUpdate(ip,
+            _ => new FailedAttemptRecord { Count = 1 },
+            (_, existing) =>
+            {
+                if (DateTime.UtcNow - existing.WindowStart > BlockWindow)
+                {
+                    // Window expired — start fresh
+                    existing.Count = 1;
+                    existing.WindowStart = DateTime.UtcNow;
+                }
+                else
+                {
+                    Interlocked.Increment(ref existing.Count);
+                }
+                return existing;
+            });
+    }
+
+    private static void ClearFailedAttempts(string ip)
+    {
+        FailedAttempts.TryRemove(ip, out _);
+    }
+
     /// <summary>
     /// Authenticates the caller, authorises via GitHub team membership, then
     /// delegates to <paramref name="aksOperation"/> and returns its result as JSON.
@@ -29,16 +101,30 @@ public abstract class FunctionBase
         string operationName,
         Func<Dictionary<string, string>, Task<string>> aksOperation)
     {
-        var function = FunctionCatalog.GetRequired(operationName);
+        var clientIp = GetClientIp(req);
+
+        // ── Step 0: Check IP block list ───────────────────────────────────────────────
+        if (IsIpBlocked(clientIp))
+        {
+            logger.LogWarning("Blocked request from {IP} — too many failed auth attempts.", clientIp);
+            return Respond(req, HttpStatusCode.Forbidden, "Too many failed attempts. Try again later.");
+        }
 
         // ── Step 1: Extract Bearer token ─────────────────────────────────────────────
         if (!req.Headers.TryGetValues("Authorization", out var authValues))
+        {
+            RecordFailedAttempt(clientIp);
             return Respond(req, HttpStatusCode.Unauthorized, "Missing Authorization header.");
+        }
 
         var authHeader = authValues.FirstOrDefault();
         if (string.IsNullOrWhiteSpace(authHeader) || !authHeader.StartsWith("Bearer "))
+        {
+            RecordFailedAttempt(clientIp);
             return Respond(req, HttpStatusCode.Unauthorized, "Authorization header must be a Bearer token.");
+        }
 
+        var function = FunctionCatalog.GetRequired(operationName);
         var token = authHeader["Bearer ".Length..].Trim();
 
         // ── Step 2 & 3: Authenticate and authorize ───────────────────────────────────
@@ -52,6 +138,7 @@ public abstract class FunctionBase
             if (repository is null)
             {
                 logger.LogWarning("OIDC token validation failed or repository not in allow-list.");
+                RecordFailedAttempt(clientIp);
                 return Respond(req, HttpStatusCode.Forbidden,
                     "OIDC token invalid or repository not authorized. Check ALLOWED_OIDC_REPOS configuration.");
             }
@@ -66,6 +153,7 @@ public abstract class FunctionBase
             if (ghUsername is null)
             {
                 logger.LogWarning("Invalid or expired GitHub token received.");
+                RecordFailedAttempt(clientIp);
                 return Respond(req, HttpStatusCode.Unauthorized, "Invalid or expired GitHub token.");
             }
 
@@ -106,6 +194,7 @@ public abstract class FunctionBase
             if (!authorized)
             {
                 logger.LogWarning("User {Username} is not a member of any authorized team.", username);
+                RecordFailedAttempt(clientIp);
                 return Respond(req, HttpStatusCode.Forbidden, "You are not a member of an authorized team.");
             }
         }
@@ -116,6 +205,9 @@ public abstract class FunctionBase
         {
             return Respond(req, HttpStatusCode.BadRequest, parametersResult.ErrorMessage!);
         }
+        // Auth succeeded — clear any prior failed attempts for this IP
+        ClearFailedAttempts(clientIp);
+
         // Inject the authenticated GitHub username so services can use it
         parametersResult.Parameters!["_githubUsername"] = username;
         parametersResult.Parameters!["_isAdmin"] = isAdmin.ToString();
@@ -125,6 +217,15 @@ public abstract class FunctionBase
             var result = await aksOperation(parametersResult.Parameters!);
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new { message = result });
+            return response;
+        }
+        catch (RetryAfterException retryEx)
+        {
+            logger.LogInformation("Operation {Operation} requested retry in {Seconds}s: {Message}",
+                operationName, retryEx.RetryAfterSeconds, retryEx.Message);
+            var response = req.CreateResponse(HttpStatusCode.Accepted);
+            response.Headers.Add("Retry-After", retryEx.RetryAfterSeconds.ToString());
+            await response.WriteAsJsonAsync(new { message = retryEx.Message, retryAfterSeconds = retryEx.RetryAfterSeconds });
             return response;
         }
         catch (Exception ex)

@@ -26,3 +26,18 @@ public sealed class FunctionInvokeRequest
 {
     public Dictionary<string, string>? Parameters { get; init; }
 }
+
+/// <summary>
+/// Throw from a service operation to signal the caller should retry after a delay.
+/// FunctionBase catches this and returns HTTP 202 with a Retry-After header.
+/// </summary>
+public sealed class RetryAfterException : Exception
+{
+    public int RetryAfterSeconds { get; }
+
+    public RetryAfterException(string message, int retryAfterSeconds)
+        : base(message)
+    {
+        RetryAfterSeconds = retryAfterSeconds;
+    }
+}

@@ -23,6 +23,11 @@ public class FKHScaleNode : FKHServiceBase
 
     public async Task<string> StartNodeAsync(Dictionary<string, string> parameters)
     {
+        // Ensure a Windows node with healthy CNS is available before scaling up
+        var client = await GetKubernetesClientAsync();
+        await EnsureWindowsNodeReadyAsync(client);
+        await CleanupPlaceholderPodAsync(client);
+
         var result = await ScaleAsync(parameters, 1);
 
         // Set auto-stop annotation if requested
@@ -35,7 +40,6 @@ public class FKHScaleNode : FKHServiceBase
         if (parameters.TryGetValue("autostop", out var autoStopHours) && double.TryParse(autoStopHours, out var hours) && hours > 0)
         {
             var stopAt = DateTimeOffset.UtcNow.AddHours(hours);
-            var client = await GetKubernetesClientAsync();
             await SetAutoStopAnnotationAsync(client, deploymentName, stopAt);
             autoStopInfo = $"\n  AutoStop: {stopAt:yyyy-MM-dd HH:mm} UTC ({hours}h)";
         }

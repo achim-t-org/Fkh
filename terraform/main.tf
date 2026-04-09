@@ -109,8 +109,8 @@ resource "azurerm_kubernetes_cluster_node_pool" "win" {
   kubernetes_cluster_id = azurerm_kubernetes_cluster.this.id
   vm_size               = var.windows_vm_size
   os_type               = "Windows"
-  node_count            = 0
-  min_count             = 0
+  node_count            = var.windows_min_node_count
+  min_count             = var.windows_min_node_count
   max_count             = 10
   auto_scaling_enabled  = true
 }

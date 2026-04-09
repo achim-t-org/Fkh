@@ -294,3 +294,83 @@ resource "kubernetes_network_policy" "mssql_allow_windows_app_only" {
     }
   }
 }
+
+# ============================================================================
+# Image Pre-Pull DaemonSet (optional, runs on Windows nodes)
+# ============================================================================
+# Deploys a pause container per image on every Windows node so the image layers
+# are cached locally. This avoids the ~14-minute pull when creating a container.
+
+resource "kubernetes_daemonset" "image_prepull" {
+  count = length(var.windows_prepull_images) > 0 ? 1 : 0
+
+  metadata {
+    name      = "fkh-image-prepull"
+    namespace = kubernetes_namespace.workload.metadata[0].name
+    labels = {
+      "fkh/purpose" = "image-prepull"
+    }
+  }
+
+  spec {
+    selector {
+      match_labels = {
+        "fkh/purpose" = "image-prepull"
+      }
+    }
+
+    template {
+      metadata {
+        labels = {
+          "fkh/purpose" = "image-prepull"
+        }
+      }
+
+      spec {
+        node_selector = {
+          "kubernetes.io/os" = "windows"
+        }
+
+        # Low priority so these don't block real workloads
+        priority_class_name = "system-node-critical"
+
+        dynamic "init_container" {
+          for_each = var.windows_prepull_images
+          content {
+            name    = "prepull-${init_container.key}"
+            image   = init_container.value
+            command = ["cmd", "/c", "echo Image pulled successfully"]
+
+            resources {
+              requests = {
+                cpu    = "10m"
+                memory = "32Mi"
+              }
+              limits = {
+                cpu    = "10m"
+                memory = "32Mi"
+              }
+            }
+          }
+        }
+
+        container {
+          name    = "pause"
+          image   = "mcr.microsoft.com/oss/kubernetes/pause:3.9"
+          command = ["cmd", "/c", "ping -n 2147483647 127.0.0.1 > nul"]
+
+          resources {
+            requests = {
+              cpu    = "10m"
+              memory = "32Mi"
+            }
+            limits = {
+              cpu    = "10m"
+              memory = "32Mi"
+            }
+          }
+        }
+      }
+    }
+  }
+}

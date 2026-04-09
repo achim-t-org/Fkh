@@ -170,6 +170,13 @@ public static class FunctionCatalog
             Description = "Revokes your external SQL Server access immediately, removing the LoadBalancer service and network policy.",
             Route = "RevokeSqlAccess",
             Parameters = new List<FunctionParameterDefinition>()
+        },
+        new FunctionDefinition
+        {
+            Name = "ListImages",
+            Description = "Lists available images in the Azure Container Registry.",
+            Route = "ListImages",
+            Parameters = new List<FunctionParameterDefinition>()
         }
     };
 
