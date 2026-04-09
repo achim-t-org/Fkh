@@ -51,7 +51,7 @@ graph LR
 graph TB
     subgraph RG["Resource Group: fkh-&lt;org&gt;"]
         subgraph AKS["AKS Cluster"]
-            LP["Linux Pool<br/>(system)"]
+            LP["Linux Pool<br/>(SQL Server, persisted)"]
             WP["Windows Pool<br/>(BC pods)"]
             SP["Windows Spot Pool<br/>(optional, cheaper)"]
         end
@@ -115,12 +115,17 @@ graph TB
 
 ## Authentication Flow
 
-There are two authentication paths: **user requests** (GitHub token → Function App → AKS) and **CI/CD** (GitHub Actions OIDC → Azure).
+There are three authentication paths:
+
+1. **User requests** — VS Code / CLI sends a GitHub PAT to the Function App, which validates it against GitHub API.
+2. **GitHub Actions → Function App (OIDC)** — A GitHub Actions workflow authenticates to the Function App using an OIDC ID token. The Function App validates the token and checks the repository against the `ALLOWED_OIDC_REPOS` allow-list.
+3. **GitHub Actions → Azure (OIDC)** — GitHub Actions authenticates directly to Azure AD via a federated credential to push images to ACR and upload database backups to Blob Storage.
 
 ```mermaid
 graph LR
-    subgraph "User Auth"
+    subgraph "Auth"
         U["User<br/>(VS Code / CLI)"] -->|"GitHub PAT"| FB["FunctionBase"]
+        GA_OIDC["GitHub Actions<br/>(OIDC ID token)"] -->|"Bearer: id_token"| FB
         FB -->|"GET /user"| GH["GitHub API"]
         FB -->|"GET /teams/.../memberships"| GH
         GH -->|"username + team ✓"| FB
@@ -132,7 +137,7 @@ graph LR
         FB -->|"Managed Identity"| BLOB["Blob<br/>Storage"]
     end
 
-    subgraph "CI/CD Auth"
+    subgraph "CI/CD → Azure (direct)"
         GA["GitHub Actions"] -->|"OIDC token"| AAD["Azure AD"]
         AAD -->|"federated credential"| ACR2["ACR<br/>(AcrPush)"]
         AAD -->|"federated credential"| BLOB2["Blob Storage<br/>(upload .bak)"]
