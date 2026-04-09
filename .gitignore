@@ -1,6 +1,6 @@
 # .NET build output
-fkh-functions/bin/
-fkh-functions/obj/
+fkh-backend/bin/
+fkh-backend/obj/
 fkh-cli/bin/
 fkh-cli/obj/
 

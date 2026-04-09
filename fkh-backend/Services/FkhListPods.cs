@@ -124,23 +124,6 @@ public class FkhListPods : FkhServiceBase
                 var containerMetrics = metrics.Containers?.FirstOrDefault();
                 if (containerMetrics?.Usage != null)
                 {
-                    if (containerMetrics.Usage.TryGetValue("cpu", out var cpuVal))
-                    {
-                        var usedCores = cpuVal.ToDouble();
-                        var limitCores = container?.Resources?.Limits?.TryGetValue("cpu", out var cpuLim) == true
-                            ? cpuLim.ToDouble() : 0;
-                        if (limitCores > 0)
-                        {
-                            var pct = usedCores / limitCores * 100;
-                            sb.Append($"\n    CPU:    {pct:F0}% (of {limitCores:G} cores)");
-                        }
-                        else
-                        {
-                            var milliCores = usedCores * 1000;
-                            sb.Append($"\n    CPU:    {milliCores:F0}m");
-                        }
-                    }
-
                     if (containerMetrics.Usage.TryGetValue("memory", out var memVal))
                     {
                         var usedBytes = memVal.ToDouble();

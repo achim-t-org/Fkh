@@ -62,12 +62,16 @@ public class FkhListNodes : FkhServiceBase
                 && p.Status.ContainerStatuses?.All(c => c.Ready) == true);
 
             // Pod count on this node
-            var podCount = appPods.Items.Count(p => p.Spec.NodeName == name);
+            var nodePodLabels = appPods.Items
+                .Where(p => p.Spec.NodeName == name)
+                .Select(p => p.Metadata.Labels.TryGetValue("app", out var app) ? app : p.Metadata.Name)
+                .OrderBy(p => p)
+                .ToList();
 
             sb.AppendLine($"  {name}");
             sb.AppendLine($"    Status: {(ready ? "Ready" : "NotReady")}");
             sb.AppendLine($"    CNS: {(cnsReady ? "Ready" : "NotReady")}");
-            sb.AppendLine($"    Pods: {podCount}");
+            sb.AppendLine($"    Pods: {(nodePodLabels.Count > 0 ? string.Join(",", nodePodLabels) : "0")}");
             sb.AppendLine($"    CPU: {cpuAllocatable}/{cpuCapacity}");
             sb.AppendLine($"    Memory: {memAllocatable}/{memCapacity}");
             sb.AppendLine($"    Kubelet: {kubeletVersion}");

@@ -46,7 +46,7 @@ export function activate(context: vscode.ExtensionContext) {
     showCollapseAll: true,
   });
 
-  nodesProvider = new NodesTreeProvider(getBaseUrl, getGitHubSession);
+  nodesProvider = new NodesTreeProvider(getBaseUrl, getGitHubSession, () => podsProvider.getPods());
   const nodesView = vscode.window.createTreeView('fkhNodes', {
     treeDataProvider: nodesProvider,
     showCollapseAll: true,

@@ -109,8 +109,6 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<ProjectTree
           child.iconPath = new vscode.ThemeIcon('link-external');
         } else if (prop.label === 'Image') {
           child.iconPath = new vscode.ThemeIcon('package');
-        } else if (prop.label === 'CPU') {
-          child.iconPath = new vscode.ThemeIcon('dashboard');
         } else if (prop.label === 'Memory') {
           child.iconPath = new vscode.ThemeIcon('server-process');
         } else if (prop.label === 'AutoStop') {
@@ -238,8 +236,6 @@ export class PodsTreeProvider implements vscode.TreeDataProvider<PodTreeItem> {
           child.iconPath = new vscode.ThemeIcon('link-external');
         } else if (prop.label === 'Image') {
           child.iconPath = new vscode.ThemeIcon('package');
-        } else if (prop.label === 'CPU') {
-          child.iconPath = new vscode.ThemeIcon('dashboard');
         } else if (prop.label === 'Memory') {
           child.iconPath = new vscode.ThemeIcon('server-process');
         } else if (prop.label === 'AutoStop') {
@@ -476,6 +472,7 @@ export class ImagesTreeProvider implements vscode.TreeDataProvider<ImageTreeItem
 export interface NodeInfo {
   name: string;
   status: string;
+  podAppLabels: string[];
   properties: { label: string; value: string }[];
 }
 
@@ -484,6 +481,7 @@ export class NodeTreeItem extends vscode.TreeItem {
     public readonly label: string,
     public readonly collapsibleState: vscode.TreeItemCollapsibleState,
     public readonly nodeInfo?: NodeInfo,
+    public readonly podInfo?: PodInfo,
   ) {
     super(label, collapsibleState);
   }
@@ -498,13 +496,16 @@ export class NodesTreeProvider implements vscode.TreeDataProvider<NodeTreeItem> 
   private _visible = false;
   private _getBaseUrl: () => string | undefined;
   private _getGitHubSession: () => Promise<vscode.AuthenticationSession | undefined>;
+  private _getPods: () => PodInfo[];
 
   constructor(
     getBaseUrl: () => string | undefined,
-    getGitHubSession: () => Promise<vscode.AuthenticationSession | undefined>
+    getGitHubSession: () => Promise<vscode.AuthenticationSession | undefined>,
+    getPods: () => PodInfo[]
   ) {
     this._getBaseUrl = getBaseUrl;
     this._getGitHubSession = getGitHubSession;
+    this._getPods = getPods;
   }
 
   get visible(): boolean { return this._visible; }
@@ -543,12 +544,19 @@ export class NodesTreeProvider implements vscode.TreeDataProvider<NodeTreeItem> 
         item.iconPath = icon;
         item.tooltip = `${node.name}\nStatus: ${node.status}`;
         item.contextValue = 'windowsNode';
+        if (node.podAppLabels.length > 0) {
+          item.description = `${node.podAppLabels.length} pod${node.podAppLabels.length !== 1 ? 's' : ''}`;
+        }
         return item;
       });
     }
 
-    if (element.nodeInfo) {
-      return element.nodeInfo.properties.map(prop => {
+    // Children of a node: properties + pods
+    if (element.nodeInfo && !element.podInfo) {
+      const children: NodeTreeItem[] = [];
+
+      // Node properties
+      for (const prop of element.nodeInfo.properties) {
         const child = new NodeTreeItem(
           `${prop.label}: ${prop.value}`,
           vscode.TreeItemCollapsibleState.None
@@ -562,8 +570,6 @@ export class NodesTreeProvider implements vscode.TreeDataProvider<NodeTreeItem> 
               ? new vscode.ThemeColor('testing.iconPassed')
               : new vscode.ThemeColor('testing.iconFailed')
           );
-        } else if (prop.label === 'Pods') {
-          child.iconPath = new vscode.ThemeIcon('server');
         } else if (prop.label === 'CPU') {
           child.iconPath = new vscode.ThemeIcon('dashboard');
         } else if (prop.label === 'Memory') {
@@ -572,6 +578,66 @@ export class NodesTreeProvider implements vscode.TreeDataProvider<NodeTreeItem> 
           child.iconPath = new vscode.ThemeIcon('versions');
         } else if (prop.label === 'OS') {
           child.iconPath = new vscode.ThemeIcon('device-desktop');
+        }
+
+        children.push(child);
+      }
+
+      // Pods on this node
+      const allPods = this._getPods();
+      const nodePodLabels = new Set(element.nodeInfo.podAppLabels);
+      const nodePods = allPods.filter(p => nodePodLabels.has(p.appLabel));
+      for (const pod of nodePods) {
+        const statusLower = pod.status.toLowerCase();
+        const podIcon = statusLower.startsWith('running')
+          ? new vscode.ThemeIcon('vm-running', new vscode.ThemeColor('testing.iconPassed'))
+          : statusLower.startsWith('starting')
+            ? new vscode.ThemeIcon('sync~spin', new vscode.ThemeColor('testing.iconQueued'))
+            : new vscode.ThemeIcon('vm', new vscode.ThemeColor('testing.iconSkipped'));
+
+        const podItem = new NodeTreeItem(
+          `${pod.name} (${pod.status})`,
+          vscode.TreeItemCollapsibleState.Collapsed,
+          undefined,
+          pod
+        );
+        podItem.iconPath = podIcon;
+        podItem.tooltip = `${pod.appLabel}\nStatus: ${pod.status}`;
+        podItem.contextValue = `pod-${pod.status.toLowerCase()}`;
+        children.push(podItem);
+      }
+
+      return children;
+    }
+
+    // Children of a pod under a node: properties
+    if (element.podInfo) {
+      return element.podInfo.properties.map(prop => {
+        const child = new NodeTreeItem(
+          `${prop.label}: ${prop.value}`,
+          vscode.TreeItemCollapsibleState.None
+        );
+        child.tooltip = `${prop.label}: ${prop.value}`;
+
+        if (prop.label === 'WebClient') {
+          child.command = {
+            command: 'vscode.open',
+            title: 'Open WebClient',
+            arguments: [vscode.Uri.parse(prop.value)],
+          };
+          child.iconPath = new vscode.ThemeIcon('link-external');
+        } else if (prop.label === 'Image') {
+          child.iconPath = new vscode.ThemeIcon('package');
+        } else if (prop.label === 'Memory') {
+          child.iconPath = new vscode.ThemeIcon('server-process');
+        } else if (prop.label === 'AutoStop') {
+          child.iconPath = new vscode.ThemeIcon('watch');
+        } else if (prop.label === 'Repo') {
+          child.iconPath = new vscode.ThemeIcon('repo');
+        } else if (prop.label === 'Project') {
+          child.iconPath = new vscode.ThemeIcon('symbol-folder');
+        } else if (prop.label === 'Status') {
+          child.iconPath = new vscode.ThemeIcon('info');
         }
 
         return child;
@@ -625,6 +691,7 @@ export class NodesTreeProvider implements vscode.TreeDataProvider<NodeTreeItem> 
         current = {
           name: headerMatch[1],
           status: 'Unknown',
+          podAppLabels: [],
           properties: [],
         };
         continue;
@@ -639,6 +706,9 @@ export class NodesTreeProvider implements vscode.TreeDataProvider<NodeTreeItem> 
 
         if (key === 'Status') {
           current.status = value;
+        } else if (key === 'Pods') {
+          current.podAppLabels = value === '0' ? [] : value.split(',').map(s => s.trim());
+          continue;
         }
         current.properties.push({ label: key, value });
       }
