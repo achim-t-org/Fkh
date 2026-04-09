@@ -40,7 +40,8 @@ github_team_members = [
   "freddydk"
 ]
 allowed_org_teams = [
-  { org = "Freddy-DK",     team = "Fkh-members" }
+  { org = "Freddy-DK",     team = "Fkh-members" },
+  { org = "BUNKERHOLDINGBC", team = "Fkh-members" }
 ]
 
 # Admin teams — members get admin access (and also have normal access)
@@ -50,7 +51,8 @@ github_admin_team_members = [
   "freddydk"
 ]
 admin_org_teams = [
-  { org = "Freddy-DK",     team = "Fkh-admins" }
+  { org = "Freddy-DK", team = "Fkh-admins" },
+  { org = "BUNKERHOLDINGBC", team = "Fkh-admins" }
 ]
 
 # Repositories — GitHub repos allowed to call via OIDC from GitHub Actions
