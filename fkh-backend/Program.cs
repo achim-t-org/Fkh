@@ -26,6 +26,7 @@ var host = new HostBuilder()
         services.AddSingleton<FkhAllowSqlAccess>();
         services.AddSingleton<FkhListImages>();
         services.AddSingleton<FkhListNodes>();
+        services.AddSingleton<FkhGetPodLogs>();
     })
     .Build();
 

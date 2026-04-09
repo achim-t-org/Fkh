@@ -216,6 +216,31 @@ public static class FunctionCatalog
             Description = "Lists Windows nodes in the Kubernetes cluster. Admin only.",
             Route = "ListNodes",
             Parameters = new List<FunctionParameterDefinition>()
+        },
+        new FunctionDefinition
+        {
+            Name = "GetPodLogs",
+            Description = "Gets container logs from a pod.",
+            Route = "GetPodLogs",
+            Parameters = new List<FunctionParameterDefinition>
+            {
+                new()
+                {
+                    Name = "name",
+                    Type = "string",
+                    Description = "Name of the pod to get logs from.",
+                    Required = true,
+                    DefaultValue = null
+                },
+                new()
+                {
+                    Name = "tail",
+                    Type = "string",
+                    Description = "Number of lines to retrieve from the end of the log.",
+                    Required = false,
+                    DefaultValue = "500"
+                }
+            }
         }
     };
 

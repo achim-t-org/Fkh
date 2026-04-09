@@ -71,6 +71,11 @@
         "command": "fkh.createPodForProject",
         "title": "Create Pod",
         "icon": "$(vm)"
+      },
+      {
+        "command": "fkh.getPodLogs",
+        "title": "Get Logs",
+        "icon": "$(output)"
       }
     ],
     "viewsContainers": {
@@ -174,6 +179,16 @@
           "command": "fkh.removePod",
           "when": "(view == fkhPods || view == fkhProjects) && viewItem =~ /^pod-/",
           "group": "2_destructive"
+        },
+        {
+          "command": "fkh.getPodLogs",
+          "when": "(view == fkhPods || view == fkhProjects || view == fkhNodes) && viewItem =~ /^pod-/",
+          "group": "inline"
+        },
+        {
+          "command": "fkh.getPodLogs",
+          "when": "(view == fkhPods || view == fkhProjects || view == fkhNodes) && viewItem =~ /^pod-/",
+          "group": "1_actions"
         }
       ]
     },

@@ -482,6 +482,7 @@ export class NodeTreeItem extends vscode.TreeItem {
     public readonly collapsibleState: vscode.TreeItemCollapsibleState,
     public readonly nodeInfo?: NodeInfo,
     public readonly podInfo?: PodInfo,
+    public readonly isNodeInfoGroup?: boolean,
   ) {
     super(label, collapsibleState);
   }
@@ -544,44 +545,30 @@ export class NodesTreeProvider implements vscode.TreeDataProvider<NodeTreeItem> 
         item.iconPath = icon;
         item.tooltip = `${node.name}\nStatus: ${node.status}`;
         item.contextValue = 'windowsNode';
-        if (node.podAppLabels.length > 0) {
-          item.description = `${node.podAppLabels.length} pod${node.podAppLabels.length !== 1 ? 's' : ''}`;
+        const allPods = this._getPods();
+        const nodePodLabels = new Set(node.podAppLabels);
+        const matchedPodCount = allPods.filter(p => nodePodLabels.has(p.appLabel)).length;
+        if (matchedPodCount > 0) {
+          item.description = `${matchedPodCount} pod${matchedPodCount !== 1 ? 's' : ''}`;
         }
         return item;
       });
     }
 
-    // Children of a node: properties + pods
-    if (element.nodeInfo && !element.podInfo) {
+    // Children of a node: "Node Info" group + pods
+    if (element.nodeInfo && !element.podInfo && !element.isNodeInfoGroup) {
       const children: NodeTreeItem[] = [];
 
-      // Node properties
-      for (const prop of element.nodeInfo.properties) {
-        const child = new NodeTreeItem(
-          `${prop.label}: ${prop.value}`,
-          vscode.TreeItemCollapsibleState.None
-        );
-        child.tooltip = `${prop.label}: ${prop.value}`;
-
-        if (prop.label === 'CNS') {
-          child.iconPath = new vscode.ThemeIcon(
-            prop.value === 'Ready' ? 'pass' : 'error',
-            prop.value === 'Ready'
-              ? new vscode.ThemeColor('testing.iconPassed')
-              : new vscode.ThemeColor('testing.iconFailed')
-          );
-        } else if (prop.label === 'CPU') {
-          child.iconPath = new vscode.ThemeIcon('dashboard');
-        } else if (prop.label === 'Memory') {
-          child.iconPath = new vscode.ThemeIcon('server-process');
-        } else if (prop.label === 'Kubelet') {
-          child.iconPath = new vscode.ThemeIcon('versions');
-        } else if (prop.label === 'OS') {
-          child.iconPath = new vscode.ThemeIcon('device-desktop');
-        }
-
-        children.push(child);
-      }
+      // Collapsible "Node Info" group
+      const infoItem = new NodeTreeItem(
+        'Node Info',
+        vscode.TreeItemCollapsibleState.Collapsed,
+        element.nodeInfo,
+        undefined,
+        true
+      );
+      infoItem.iconPath = new vscode.ThemeIcon('info');
+      children.push(infoItem);
 
       // Pods on this node
       const allPods = this._getPods();
@@ -608,6 +595,36 @@ export class NodesTreeProvider implements vscode.TreeDataProvider<NodeTreeItem> 
       }
 
       return children;
+    }
+
+    // Children of the "Node Info" group: node properties
+    if (element.isNodeInfoGroup && element.nodeInfo) {
+      return element.nodeInfo.properties.map(prop => {
+        const child = new NodeTreeItem(
+          `${prop.label}: ${prop.value}`,
+          vscode.TreeItemCollapsibleState.None
+        );
+        child.tooltip = `${prop.label}: ${prop.value}`;
+
+        if (prop.label === 'CNS') {
+          child.iconPath = new vscode.ThemeIcon(
+            prop.value === 'Ready' ? 'pass' : 'error',
+            prop.value === 'Ready'
+              ? new vscode.ThemeColor('testing.iconPassed')
+              : new vscode.ThemeColor('testing.iconFailed')
+          );
+        } else if (prop.label === 'CPU') {
+          child.iconPath = new vscode.ThemeIcon('dashboard');
+        } else if (prop.label === 'Memory') {
+          child.iconPath = new vscode.ThemeIcon('server-process');
+        } else if (prop.label === 'Kubelet') {
+          child.iconPath = new vscode.ThemeIcon('versions');
+        } else if (prop.label === 'OS') {
+          child.iconPath = new vscode.ThemeIcon('device-desktop');
+        }
+
+        return child;
+      });
     }
 
     // Children of a pod under a node: properties

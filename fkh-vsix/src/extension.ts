@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { createReadSettingsOptions, readSettings, getRepoName } from './readALGoSettings';
 import { determineArtifactUrl } from './bcArtifactHelper';
-import { ProjectsTreeProvider, ProjectTreeItem, PodsTreeProvider, PodTreeItem, ImagesTreeProvider, NodesTreeProvider } from './podsTreeProvider';
+import { ProjectsTreeProvider, ProjectTreeItem, PodsTreeProvider, PodTreeItem, ImagesTreeProvider, NodesTreeProvider, NodeTreeItem } from './podsTreeProvider';
 
 let functionCatalog: FunctionCatalogResponse | undefined;
 let outputChannel: vscode.OutputChannel;
@@ -9,6 +9,13 @@ let projectsProvider: ProjectsTreeProvider;
 let podsProvider: PodsTreeProvider;
 let imagesProvider: ImagesTreeProvider;
 let nodesProvider: NodesTreeProvider;
+
+const podLogContents = new Map<string, string>();
+const podLogProvider: vscode.TextDocumentContentProvider = {
+  provideTextDocumentContent(uri: vscode.Uri): string {
+    return podLogContents.get(uri.toString()) ?? '';
+  }
+};
 
 function getBaseUrl(): string | undefined {
   const url = vscode.workspace.getConfiguration('fkh').get<string>('baseUrl', '').trim();
@@ -67,6 +74,7 @@ export function activate(context: vscode.ExtensionContext) {
     podsView,
     imagesView,
     nodesView,
+    vscode.workspace.registerTextDocumentContentProvider('fkh-log', podLogProvider),
     vscode.commands.registerCommand('fkh.refreshProjects', () => projectsProvider.refresh()),
     vscode.commands.registerCommand('fkh.refreshPods', async () => {
       await podsProvider.refresh();
@@ -76,6 +84,10 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('fkh.refreshNodes', async () => {
       await nodesProvider.refresh();
       vscode.commands.executeCommand('setContext', 'fkh.isAdmin', nodesProvider.visible);
+    }),
+    vscode.commands.registerCommand('fkh.getPodLogs', async (item: PodTreeItem | ProjectTreeItem | NodeTreeItem) => {
+      if (!item.podInfo) { return; }
+      await showPodLogs(item.podInfo.appLabel, item.podInfo.name);
     }),
     vscode.commands.registerCommand('fkh.startPod', async (item: PodTreeItem | ProjectTreeItem) => {
       if (!item.podInfo) { return; }
@@ -401,6 +413,51 @@ async function invokePodAction(
 
       await podsProvider.refresh();
       projectsProvider.refresh();
+    }
+  );
+}
+
+async function showPodLogs(appLabel: string, podName: string): Promise<void> {
+  const baseUrl = getBaseUrl();
+  if (!baseUrl) { return; }
+
+  const session = await getGitHubSession();
+  if (!session) { return; }
+
+  await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: `Fetching logs for ${podName}...`,
+      cancellable: false,
+    },
+    async () => {
+      try {
+        const body: FunctionInvokeRequest = { parameters: { name: appLabel } };
+        const response = await fetch(`${baseUrl}/GetPodLogs`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.accessToken}`,
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (response.ok) {
+          const result = await response.json() as { message: string };
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const uri = vscode.Uri.parse(`fkh-log:${podName}-${timestamp}.log`);
+          podLogContents.set(uri.toString(), result.message);
+          const doc = await vscode.workspace.openTextDocument(uri);
+          await vscode.window.showTextDocument(doc, { preview: true });
+        } else {
+          const error = response.status === 401 || response.status === 403
+            ? `Access denied (${response.status}).`
+            : `Failed (${response.status}): ${await response.text()}`;
+          logOutput(`[GetPodLogs] ${error}`, true);
+        }
+      } catch (err) {
+        logOutput(`[GetPodLogs] Could not reach the provisioning service: ${err instanceof Error ? err.message : String(err)}`, true);
+      }
     }
   );
 }
