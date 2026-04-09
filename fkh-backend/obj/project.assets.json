@@ -3500,11 +3500,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\src\\GitHub\\Freddy-DK\\Fkh\\fkh-functions\\azure-function.csproj",
+      "projectUniqueName": "C:\\src\\GitHub\\Freddy-DK\\Fkh\\fkh-backend\\azure-function.csproj",
       "projectName": "azure-function",
-      "projectPath": "C:\\src\\GitHub\\Freddy-DK\\Fkh\\fkh-functions\\azure-function.csproj",
+      "projectPath": "C:\\src\\GitHub\\Freddy-DK\\Fkh\\fkh-backend\\azure-function.csproj",
       "packagesPath": "C:\\Users\\fredd\\.nuget\\packages\\",
-      "outputPath": "C:\\src\\GitHub\\Freddy-DK\\Fkh\\fkh-functions\\obj\\",
+      "outputPath": "C:\\src\\GitHub\\Freddy-DK\\Fkh\\fkh-backend\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\fredd\\AppData\\Roaming\\NuGet\\NuGet.Config"

@@ -8,6 +8,6 @@ build_property.PlatformNeutralAssembly =
 build_property.EnforceExtendedAnalyzerRules = 
 build_property._SupportedPlatformList = Linux,macOS,Windows
 build_property.RootNamespace = WorkerExtensions
-build_property.ProjectDir = C:\src\GitHub\Freddy-DK\Fkh\fkh-functions\obj\release\net8.0\WorkerExtensions\
+build_property.ProjectDir = C:\src\GitHub\Freddy-DK\Fkh\fkh-backend\obj\release\net8.0\WorkerExtensions\
 build_property.EnableComHosting = 
 build_property.EnableGeneratedComInterfaceComImportInterop = 

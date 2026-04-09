@@ -6887,11 +6887,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\src\\GitHub\\Freddy-DK\\Fkh\\fkh-functions\\obj\\release\\net8.0\\WorkerExtensions\\WorkerExtensions.csproj",
+      "projectUniqueName": "C:\\src\\GitHub\\Freddy-DK\\Fkh\\fkh-backend\\obj\\release\\net8.0\\WorkerExtensions\\WorkerExtensions.csproj",
       "projectName": "Microsoft.Azure.Functions.Worker.Extensions",
-      "projectPath": "C:\\src\\GitHub\\Freddy-DK\\Fkh\\fkh-functions\\obj\\release\\net8.0\\WorkerExtensions\\WorkerExtensions.csproj",
+      "projectPath": "C:\\src\\GitHub\\Freddy-DK\\Fkh\\fkh-backend\\obj\\release\\net8.0\\WorkerExtensions\\WorkerExtensions.csproj",
       "packagesPath": "C:\\Users\\fredd\\.nuget\\packages\\",
-      "outputPath": "C:\\src\\GitHub\\Freddy-DK\\Fkh\\fkh-functions\\obj\\release\\net8.0\\WorkerExtensions\\obj\\",
+      "outputPath": "C:\\src\\GitHub\\Freddy-DK\\Fkh\\fkh-backend\\obj\\release\\net8.0\\WorkerExtensions\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\fredd\\AppData\\Roaming\\NuGet\\NuGet.Config"

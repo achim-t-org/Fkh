@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "JJGePgYn3Rs=",
+  "dgSpecHash": "g0N5nkf+904=",
   "success": true,
-  "projectFilePath": "C:\\src\\GitHub\\Freddy-DK\\Fkh\\fkh-functions\\azure-function.csproj",
+  "projectFilePath": "C:\\src\\GitHub\\Freddy-DK\\Fkh\\fkh-backend\\azure-function.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\fredd\\.nuget\\packages\\azure.containers.containerregistry\\1.3.0\\azure.containers.containerregistry.1.3.0.nupkg.sha512",
     "C:\\Users\\fredd\\.nuget\\packages\\azure.core\\1.52.0\\azure.core.1.52.0.nupkg.sha512",
