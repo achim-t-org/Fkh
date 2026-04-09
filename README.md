@@ -1,4 +1,4 @@
-# Fkh — Freddys Kubernetes Helper
+# Fkh — Freddy's Kubernetes Helper
 
 Fkh lets authorised GitHub users provision AKS Windows nodes on demand directly
 from VS Code. A GitHub-authenticated Azure Function acts as the provisioning gate;
