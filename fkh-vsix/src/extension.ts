@@ -155,6 +155,25 @@ async function getPublicIp(): Promise<string | undefined> {
 
 async function getGitHubSession(): Promise<vscode.AuthenticationSession | undefined> {
   try {
+    // Try to get an existing session silently first (works in vscode.dev where
+    // the user is already signed in via GitHub)
+    const existing = await vscode.authentication.getSession(
+      'github',
+      ['read:user', 'read:org'],
+      { createIfNone: false, silent: true }
+    );
+    if (existing) { return existing; }
+
+    // Fall back: try without read:org — the backend will return 403 if
+    // the token lacks permissions, but at least auth won't fail entirely
+    const fallback = await vscode.authentication.getSession(
+      'github',
+      ['read:user'],
+      { createIfNone: false, silent: true }
+    );
+    if (fallback) { return fallback; }
+
+    // No silent session — prompt interactively
     return await vscode.authentication.getSession(
       'github',
       ['read:user', 'read:org'],
