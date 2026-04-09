@@ -95,6 +95,12 @@ export async function getProjects(): Promise<string[]> {
       projects.push(name);
     }
   }
+
+  // If no subfolders have .AL-Go, check if root has one
+  if (projects.length === 0 && await uriExists(vscode.Uri.joinPath(gitRoot, ...ALGoSettingsPath))) {
+    projects.push('.');
+  }
+
   return projects;
 }
 

@@ -18,6 +18,13 @@ public class FkhListPods : FkhServiceBase
         var client = await GetKubernetesClientAsync();
         var allDeployments = await client.ListNamespacedDeploymentAsync(Namespace);
 
+        // Fetch all BC pods upfront for log checks
+        var allPods = await client.ListNamespacedPodAsync(Namespace, labelSelector: "app-type=windows-servicetier");
+        var podsByApp = allPods.Items
+            .Where(p => p.Metadata.Labels != null && p.Metadata.Labels.ContainsKey("app"))
+            .GroupBy(p => p.Metadata.Labels["app"])
+            .ToDictionary(g => g.Key, g => g.First());
+
         // Filter to BC service tier deployments (those whose pod template has app-type=windows-servicetier)
         var deployments = allDeployments.Items
             .Where(d => d.Spec.Template.Metadata.Labels != null
@@ -82,6 +89,29 @@ public class FkhListPods : FkhServiceBase
             var shortImage = image.Contains('/') ? image[(image.LastIndexOf('/') + 1)..] : image;
 
             var status = replicas == 0 ? "Stopped" : readyReplicas >= replicas ? "Running" : "Starting";
+
+            // If pod is "Running", check container logs for readiness
+            if (status == "Running" && podsByApp.TryGetValue(appLabel, out var pod))
+            {
+                try
+                {
+                    var stream = await client.ReadNamespacedPodLogAsync(
+                        pod.Metadata.Name,
+                        Namespace,
+                        container: pod.Spec.Containers[0].Name,
+                        tailLines: 100);
+                    using var reader = new StreamReader(stream);
+                    var logs = await reader.ReadToEndAsync();
+                    if (!logs.Contains("Ready for connections!"))
+                    {
+                        status = "Initializing";
+                    }
+                }
+                catch
+                {
+                    // If log read fails, keep Running status
+                }
+            }
 
             // Extract pod name by stripping the "username-" prefix
             var podName = appLabel.Contains('-') && appLabel.IndexOf('-') < appLabel.Length - 1

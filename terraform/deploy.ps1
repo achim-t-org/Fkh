@@ -275,6 +275,10 @@ $bootstrapArgs = @(
     "-target=azurerm_resource_group.this",
     "-target=azurerm_kubernetes_cluster.this",
     "-target=azurerm_kubernetes_cluster_node_pool.win",
+    "-target=azurerm_kubernetes_cluster_node_pool.winspot",
+    "-target=azurerm_container_registry.this",
+    "-target=azurerm_role_assignment.aks_acr_pull",
+    "-target=azurerm_role_assignment.function_acr_push",
     "-target=azurerm_storage_account.function",
     "-target=azurerm_storage_account.dbs",
     "-target=azurerm_service_plan.function",
@@ -282,8 +286,10 @@ $bootstrapArgs = @(
     "-target=azurerm_application_insights.this",
     "-target=azurerm_windows_function_app.this",
     "-target=azurerm_user_assigned_identity.function",
+    "-target=azurerm_federated_identity_credential.github_actions",
     "-target=azurerm_role_assignment.function_aks",
-    "-target=azurerm_role_assignment.function_dbs_storage"
+    "-target=azurerm_role_assignment.function_dbs_storage",
+    "-target=azurerm_role_assignment.function_log_analytics_reader"
 )
 if ($AutoApprove) { $bootstrapArgs += "-auto-approve" }
 

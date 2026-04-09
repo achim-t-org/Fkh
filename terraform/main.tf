@@ -76,6 +76,7 @@ resource "azurerm_kubernetes_cluster" "this" {
   resource_group_name = azurerm_resource_group.this.name
   dns_prefix          = local.aks_dns_prefix
   sku_tier            = var.aks_sku_tier
+  oidc_issuer_enabled = true
 
   default_node_pool {
     name       = "linuxpool"
