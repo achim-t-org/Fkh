@@ -39,7 +39,7 @@ resource "azurerm_role_assignment" "function_log_analytics_reader" {
 
 resource "azurerm_federated_identity_credential" "github_actions" {
   name                = "github-actions-createimages"
-  parent_id           = azurerm_user_assigned_identity.function.id
+  user_assigned_identity_id = azurerm_user_assigned_identity.function.id
   audience            = ["api://AzureADTokenExchange"]
   issuer              = "https://token.actions.githubusercontent.com"
   subject             = "repo:${var.github_org}/${var.github_repo}:ref:refs/heads/main"
