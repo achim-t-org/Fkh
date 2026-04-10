@@ -65,9 +65,9 @@ public static class FunctionCatalog
                 {
                     Name = "memory",
                     Type = "string",
-                    Description = "Memory to request for the pod (e.g. '4Gi', '8Gi').",
+                    Description = "Memory to request for the pod (e.g. '3Gi', '4Gi', '8Gi').",
                     Required = false,
-                    DefaultValue = "4Gi"
+                    DefaultValue = "3Gi"
                 },
                 new()
                 {

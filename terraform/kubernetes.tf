@@ -386,7 +386,7 @@ resource "kubernetes_daemonset" "image_prepull" {
 # ============================================================================
 # Overprovisioning: keep spare capacity for instant BC pod scheduling
 # ============================================================================
-# A low-priority placeholder pod reserves 500m CPU + 4Gi on a Windows node.
+# A low-priority placeholder pod reserves 500m CPU + 3Gi on a Windows node.
 # When a real BC pod is created, it preempts (evicts) the placeholder and
 # starts immediately. The displaced placeholder triggers the autoscaler
 # to provision a new node in the background, restoring spare capacity.
@@ -445,11 +445,11 @@ resource "kubernetes_deployment" "overprovision" {
           resources {
             requests = {
               cpu    = "500m"
-              memory = "4Gi"
+              memory = "3Gi"
             }
             limits = {
               cpu    = "500m"
-              memory = "4Gi"
+              memory = "3Gi"
             }
           }
         }

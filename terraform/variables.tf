@@ -83,7 +83,7 @@ variable "windows_spot_max_node_count" {
 }
 
 variable "windows_overprovision" {
-  description = "Keep a low-priority placeholder pod on Windows nodes to reserve room for one BC container (500m CPU + 4Gi). When a real pod is created it preempts the placeholder instantly, and the autoscaler provisions a new node in the background."
+  description = "Keep a low-priority placeholder pod on Windows nodes to reserve room for one BC container (500m CPU + 3Gi). When a real pod is created it preempts the placeholder instantly, and the autoscaler provisions a new node in the background."
   type        = bool
   default     = false
 }
