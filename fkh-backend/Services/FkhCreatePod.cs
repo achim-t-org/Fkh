@@ -45,8 +45,8 @@ public class FkhCreatePod : FkhServiceBase
 
         Logger.LogInformation("Image found. Ensuring a Windows node is ready...");
         var client = await GetKubernetesClientAsync();
-        await EnsureWindowsNodeReadyAsync(client);
-        await CleanupPlaceholderPodAsync(client);
+        await EnsureWindowsNodeReadyAsync(client, useSpot);
+        await CleanupPlaceholderPodAsync(client, useSpot);
 
         Logger.LogInformation("Creating Kubernetes resources for {AppName}...", appName);
 

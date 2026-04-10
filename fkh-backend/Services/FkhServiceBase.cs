@@ -7,6 +7,8 @@ using k8s.KubeConfigModels;
 using k8s.Models;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography.X509Certificates;
+using System.Text;
+using System.Text.Json;
 
 namespace Fkh.Services;
 
@@ -110,7 +112,7 @@ public abstract class FkhServiceBase
     /// temporary placeholder pod, then throws <see cref="RetryAfterException"/>
     /// so the caller retries after the node is provisioned.
     /// </summary>
-    protected async Task EnsureWindowsNodeReadyAsync(Kubernetes client)
+    protected async Task EnsureWindowsNodeReadyAsync(Kubernetes client, bool useSpot = false)
     {
         // Check for Ready Windows nodes
         var nodes = await client.ListNodeAsync();
@@ -118,16 +120,25 @@ public abstract class FkhServiceBase
             .Where(n => n.Metadata.Labels.TryGetValue("kubernetes.io/os", out var os) && os == "windows")
             .ToList();
 
+        // When targeting spot, only consider nodes with the spot label
+        if (useSpot)
+        {
+            windowsNodes = windowsNodes
+                .Where(n => n.Metadata.Labels.TryGetValue("kubernetes.azure.com/scalesetpriority", out var priority) && priority == "spot")
+                .ToList();
+        }
+
         var readyWindowsNodes = windowsNodes
             .Where(n => n.Status.Conditions.Any(c => c.Type == "Ready" && c.Status == "True"))
             .ToList();
 
         if (readyWindowsNodes.Count == 0)
         {
-            Logger.LogInformation("No Ready Windows nodes found. Triggering autoscaler...");
-            await CreatePlaceholderPodAsync(client);
+            var nodeType = useSpot ? "Windows Spot" : "Windows";
+            Logger.LogInformation("No Ready {NodeType} nodes found. Triggering autoscaler...", nodeType);
+            await CreatePlaceholderPodAsync(client, useSpot);
             throw new RetryAfterException(
-                "No Windows node is available. The cluster autoscaler is provisioning one. Please retry in a few minutes.",
+                $"No {nodeType} node is available. The cluster autoscaler is provisioning one. Please retry in a few minutes.",
                 retryAfterSeconds: 120);
         }
 
@@ -151,18 +162,19 @@ public abstract class FkhServiceBase
 
         if (cnsOnWindows.Count == 0)
         {
-            Logger.LogInformation("Windows nodes exist but CNS is not ready yet.");
+            var nodeType = useSpot ? "Windows Spot" : "Windows";
+            Logger.LogInformation("{NodeType} nodes exist but CNS is not ready yet.", nodeType);
             throw new RetryAfterException(
-                "A Windows node is starting up but networking is not ready yet. Please retry in a couple of minutes.",
+                $"A {nodeType} node is starting up but networking is not ready yet. Please retry in a couple of minutes.",
                 retryAfterSeconds: 60);
         }
 
         Logger.LogInformation("Windows node ready with healthy CNS on {NodeCount} node(s).", cnsOnWindows.Count);
     }
 
-    private async Task CreatePlaceholderPodAsync(Kubernetes client)
+    private async Task CreatePlaceholderPodAsync(Kubernetes client, bool useSpot = false)
     {
-        const string podName = "fkh-windows-warmup";
+        var podName = useSpot ? "fkh-windows-spot-warmup" : "fkh-windows-warmup";
 
         // Check if placeholder already exists
         try
@@ -176,6 +188,20 @@ public abstract class FkhServiceBase
             // Expected — create it
         }
 
+        var nodeSelector = new Dictionary<string, string> { ["kubernetes.io/os"] = "windows" };
+        var tolerations = new List<V1Toleration>();
+        if (useSpot)
+        {
+            nodeSelector["kubernetes.azure.com/scalesetpriority"] = "spot";
+            tolerations.Add(new V1Toleration
+            {
+                Key = "kubernetes.azure.com/scalesetpriority",
+                OperatorProperty = "Equal",
+                Value = "spot",
+                Effect = "NoSchedule"
+            });
+        }
+
         var pod = new V1Pod
         {
             Metadata = new V1ObjectMeta
@@ -186,7 +212,8 @@ public abstract class FkhServiceBase
             },
             Spec = new V1PodSpec
             {
-                NodeSelector = new Dictionary<string, string> { ["kubernetes.io/os"] = "windows" },
+                NodeSelector = nodeSelector,
+                Tolerations = tolerations.Count > 0 ? tolerations : null,
                 Containers = new List<V1Container>
                 {
                     new()
@@ -216,12 +243,13 @@ public abstract class FkhServiceBase
     /// Cleans up the warmup placeholder pod if it exists.
     /// Call after a Windows node is confirmed ready.
     /// </summary>
-    protected async Task CleanupPlaceholderPodAsync(Kubernetes client)
+    protected async Task CleanupPlaceholderPodAsync(Kubernetes client, bool useSpot = false)
     {
+        var podName = useSpot ? "fkh-windows-spot-warmup" : "fkh-windows-warmup";
         try
         {
-            await client.DeleteNamespacedPodAsync("fkh-windows-warmup", Namespace);
-            Logger.LogInformation("Cleaned up warmup placeholder pod.");
+            await client.DeleteNamespacedPodAsync(podName, Namespace);
+            Logger.LogInformation("Cleaned up warmup placeholder pod '{PodName}'.", podName);
         }
         catch (k8s.Autorest.HttpOperationException ex) when (ex.Response.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
@@ -291,20 +319,25 @@ public abstract class FkhServiceBase
 
     protected async Task SetAutoStopAnnotationAsync(Kubernetes client, string deploymentName, DateTimeOffset stopAt)
     {
-        var deployment = await client.ReadNamespacedDeploymentAsync(deploymentName, Namespace);
-        deployment.Metadata.Annotations ??= new Dictionary<string, string>();
-        deployment.Metadata.Annotations[AutoStopAnnotation] = stopAt.UtcDateTime.ToString("o");
-        await client.ReplaceNamespacedDeploymentAsync(deployment, deploymentName, Namespace);
+        var patch = new V1Patch(
+            JsonSerializer.Serialize(new
+            {
+                metadata = new { annotations = new Dictionary<string, string> { [AutoStopAnnotation] = stopAt.UtcDateTime.ToString("o") } }
+            }),
+            V1Patch.PatchType.MergePatch);
+        await client.PatchNamespacedDeploymentAsync(patch, deploymentName, Namespace);
         Logger.LogInformation("Set auto-stop annotation on '{Deployment}' to {StopAt}", deploymentName, stopAt);
     }
 
     protected async Task ClearAutoStopAnnotationAsync(Kubernetes client, string deploymentName)
     {
-        var deployment = await client.ReadNamespacedDeploymentAsync(deploymentName, Namespace);
-        if (deployment.Metadata.Annotations?.Remove(AutoStopAnnotation) == true)
-        {
-            await client.ReplaceNamespacedDeploymentAsync(deployment, deploymentName, Namespace);
-            Logger.LogInformation("Cleared auto-stop annotation on '{Deployment}'.", deploymentName);
-        }
+        var patch = new V1Patch(
+            JsonSerializer.Serialize(new
+            {
+                metadata = new { annotations = new Dictionary<string, string?> { [AutoStopAnnotation] = (string?)null } }
+            }),
+            V1Patch.PatchType.MergePatch);
+        await client.PatchNamespacedDeploymentAsync(patch, deploymentName, Namespace);
+        Logger.LogInformation("Cleared auto-stop annotation on '{Deployment}'.", deploymentName);
     }
 }

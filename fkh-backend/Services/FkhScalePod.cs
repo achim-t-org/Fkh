@@ -24,17 +24,23 @@ public class FkhScalePod : FkhServiceBase
     public async Task<string> StartPodAsync(Dictionary<string, string> parameters)
     {
         // Ensure a Windows node with healthy CNS is available before scaling up
-        var client = await GetKubernetesClientAsync();
-        await EnsureWindowsNodeReadyAsync(client);
-        await CleanupPlaceholderPodAsync(client);
-
-        var result = await ScaleAsync(parameters, 1);
-
-        // Set auto-stop annotation if requested
         var name = parameters["name"];
         var githubUsername = parameters["_githubUsername"];
         var appName = SanitizeAppName($"{githubUsername}-{name}");
         var deploymentName = $"{appName}-deployment";
+
+        var client = await GetKubernetesClientAsync();
+
+        // Check if the existing deployment targets spot nodes
+        var deployment = await client.ReadNamespacedDeploymentAsync(deploymentName, Namespace);
+        var useSpot = deployment.Spec.Template.Spec.NodeSelector != null
+            && deployment.Spec.Template.Spec.NodeSelector.TryGetValue("kubernetes.azure.com/scalesetpriority", out var priority)
+            && priority == "spot";
+
+        await EnsureWindowsNodeReadyAsync(client, useSpot);
+        await CleanupPlaceholderPodAsync(client, useSpot);
+
+        var result = await ScaleAsync(parameters, 1);
         var autoStopInfo = "";
 
         if (parameters.TryGetValue("autostop", out var autoStopHours) && double.TryParse(autoStopHours, out var hours) && hours > 0)
