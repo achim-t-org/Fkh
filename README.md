@@ -211,4 +211,3 @@ fkh-backend/            FKH backend source (C#, .NET 8, isolated worker)
 fkh-vsix/              VS Code extension source (TypeScript)
 fkh-cli/               C#/.NET command line interface (builds as fkh.exe)
 ```
-
