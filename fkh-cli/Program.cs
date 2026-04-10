@@ -8,11 +8,11 @@ const string Help = """
 FKH CLI
 
 Usage:
-        fkh <command> [--key "value" ...]
+    fkh <command> [--key "value" ...]
 
 Options:
     --key "value"       Provide a parameter value (discovered from GetFunctionCatalog)
-  -h, --help            Show help
+    -h, --help          Show help
 
 Configuration (checked in order):
   1. FKH_BACKEND_URL environment variable
