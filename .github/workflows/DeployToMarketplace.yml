@@ -86,12 +86,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Check NUGET_API_KEY
-        id: check-nuget
-        run: |
-          if [ -n "$NUGET_API_KEY" ]; then echo "available=true" >> "$GITHUB_OUTPUT"; fi
-        env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+      - name: NuGet login (OIDC trusted publishing)
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          user: ${{ secrets.NUGET_USER }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -167,5 +166,4 @@ jobs:
           path: fkh-cli/nupkg/*.nupkg
 
       - name: Publish to NuGet
-        if: steps.check-nuget.outputs.available == 'true'
-        run: dotnet nuget push ./nupkg/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: dotnet nuget push ./nupkg/*.nupkg --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
