@@ -8,8 +8,8 @@ on:
       - 'fkh-cli/**'
   workflow_dispatch:
     inputs:
-      pre-release:
-        description: 'Publish as pre-release'
+      production:
+        description: 'Publish as production release'
         type: boolean
         default: false
 
@@ -108,10 +108,10 @@ jobs:
       - name: Publish to Marketplace
         if: steps.check-vsce.outputs.available == 'true'
         run: |
-          if [[ "${{ github.event_name }}" == "push" || "${{ inputs.pre-release }}" == "true" ]]; then
-            vsce publish --pre-release
-          else
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.production }}" == "true" ]]; then
             vsce publish
+          else
+            vsce publish --pre-release
           fi
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
@@ -159,10 +159,11 @@ jobs:
 
       - name: Set version
         run: |
-          BASE=$(grep -oP '(?<=<Version>)[^<]+' fkh-cli.csproj | cut -d. -f1,2)
-          VERSION="${BASE}.${{ github.run_number }}"
-          if [[ "${{ github.event_name }}" == "push" || "${{ inputs.pre-release }}" == "true" ]]; then
-            VERSION="${VERSION}-preview"
+          BASE=$(sed -n 's/.*<Version>\([^<]*\)<\/Version>.*/\1/p' fkh-cli.csproj | cut -d. -f1,2)
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.production }}" == "true" ]]; then
+            VERSION="${BASE}.${{ github.run_number }}"
+          else
+            VERSION="${BASE}.${{ github.run_number }}-preview"
           fi
           sed -i "s|<Version>.*</Version>|<Version>${VERSION}</Version>|" fkh-cli.csproj
 
