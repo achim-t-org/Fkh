@@ -316,6 +316,11 @@ public abstract class FunctionBase
         }
         var allowedNames = function.Parameters.Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+        // Extract _prefixed internal parameters before validation (e.g. _timezone)
+        var internalParams = incoming.Where(kv => kv.Key.StartsWith('_')).ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
+        foreach (var key in internalParams.Keys)
+            incoming.Remove(key);
+
         var unknown = incoming.Keys.Where(k => !allowedNames.Contains(k)).ToList();
         if (unknown.Count > 0)
         {
@@ -340,6 +345,10 @@ public abstract class FunctionBase
                 validated[parameter.Name] = value;
             }
         }
+
+        // Re-add internal parameters (e.g. _timezone) so services can access them
+        foreach (var kv in internalParams)
+            validated[kv.Key] = kv.Value;
 
         return ParameterValidationResult.Ok(validated);
     }
