@@ -163,7 +163,7 @@ az storage container create --name $stateContainer --account-name $stateAccount 
 $maxRetries = 12
 $retryDelay = 10
 for ($i = 1; $i -le $maxRetries; $i++) {
-    $blobs = az storage blob list --container-name $stateContainer --account-name $stateAccount --auth-mode login --num-results 1 2>&1
+    $null = az storage blob list --container-name $stateContainer --account-name $stateAccount --auth-mode login --num-results 1 2>&1
     if ($LASTEXITCODE -eq 0) {
         Write-Host "Storage RBAC permission confirmed." -ForegroundColor Green
         break
