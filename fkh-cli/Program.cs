@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net.Http.Headers;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -13,6 +14,7 @@ Usage:
 Options:
     --key "value"       Provide a parameter value (discovered from GetFunctionCatalog)
     -h, --help          Show help
+    --version           Show version
 
 Configuration (checked in order):
   1. FKH_BACKEND_URL environment variable
@@ -29,6 +31,15 @@ Authentication:
 
 try
 {
+    if (args.Contains("--version"))
+    {
+        var version = typeof(FunctionCatalogResponse).Assembly.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?.InformationalVersion
+            ?? typeof(FunctionCatalogResponse).Assembly.GetName().Version?.ToString()
+            ?? "unknown";
+        Console.WriteLine(version);
+        return 0;
+    }
+
     var settings = LoadSettings();
     var wantsHelp = args.Length == 0 || args.Contains("-h") || args.Contains("--help");
     FunctionCatalogResponse catalog;
