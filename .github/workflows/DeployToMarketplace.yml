@@ -15,12 +15,13 @@ on:
 
 jobs:
   publish-vsix:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     permissions:
       contents: read
       id-token: write
     defaults:
       run:
+        shell: bash
         working-directory: fkh-vsix
     steps:
       - name: Checkout
@@ -84,14 +85,12 @@ jobs:
 
       - name: Install AzureSignTool
         if: ${{ vars.AZURE_KEY_VAULT_CERTIFICATE != '' }}
-        run: |
-          dotnet tool install --global AzureSignTool
-          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+        run: dotnet tool install --global AzureSignTool
 
       - name: Sign VSIX
         if: ${{ vars.AZURE_KEY_VAULT_CERTIFICATE != '' }}
         run: |
-          azuresigntool sign \
+          AzureSignTool sign \
             --azure-key-vault-url ${{ secrets.AZURE_KEY_VAULT_URL }} \
             --azure-key-vault-accesstoken "${{ steps.get-token.outputs.token }}" \
             --azure-key-vault-certificate ${{ vars.AZURE_KEY_VAULT_CERTIFICATE }} \
@@ -118,12 +117,13 @@ jobs:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
   publish-cli:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     permissions:
       contents: read
       id-token: write
     defaults:
       run:
+        shell: bash
         working-directory: fkh-cli
     steps:
       - name: Checkout
@@ -171,14 +171,12 @@ jobs:
 
       - name: Install AzureSignTool
         if: ${{ vars.AZURE_KEY_VAULT_CERTIFICATE != '' }}
-        run: |
-          dotnet tool install --global AzureSignTool
-          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+        run: dotnet tool install --global AzureSignTool
 
       - name: Sign assemblies
         if: ${{ vars.AZURE_KEY_VAULT_CERTIFICATE != '' }}
         run: |
-          azuresigntool sign \
+          AzureSignTool sign \
             --azure-key-vault-url ${{ secrets.AZURE_KEY_VAULT_URL }} \
             --azure-key-vault-accesstoken "${{ steps.get-token.outputs.token }}" \
             --azure-key-vault-certificate ${{ vars.AZURE_KEY_VAULT_CERTIFICATE }} \
@@ -197,7 +195,7 @@ jobs:
       - name: Sign NuGet package
         if: ${{ vars.AZURE_KEY_VAULT_CERTIFICATE != '' }}
         run: |
-          nugetkeyvaultsigntool sign ./nupkg/*.nupkg \
+          NuGetKeyVaultSignTool sign ./nupkg/*.nupkg \
             --azure-key-vault-url ${{ secrets.AZURE_KEY_VAULT_URL }} \
             --azure-key-vault-accesstoken "${{ steps.get-token.outputs.token }}" \
             --azure-key-vault-certificate ${{ vars.AZURE_KEY_VAULT_CERTIFICATE }} \
