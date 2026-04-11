@@ -91,7 +91,7 @@ jobs:
       - name: Sign VSIX
         if: ${{ vars.AZURE_KEY_VAULT_CERTIFICATE != '' }}
         run: |
-          AzureSignTool sign \
+          azuresigntool sign \
             --azure-key-vault-url ${{ secrets.AZURE_KEY_VAULT_URL }} \
             --azure-key-vault-accesstoken "${{ steps.get-token.outputs.token }}" \
             --azure-key-vault-certificate ${{ vars.AZURE_KEY_VAULT_CERTIFICATE }} \
@@ -178,7 +178,7 @@ jobs:
       - name: Sign assemblies
         if: ${{ vars.AZURE_KEY_VAULT_CERTIFICATE != '' }}
         run: |
-          AzureSignTool sign \
+          azuresigntool sign \
             --azure-key-vault-url ${{ secrets.AZURE_KEY_VAULT_URL }} \
             --azure-key-vault-accesstoken "${{ steps.get-token.outputs.token }}" \
             --azure-key-vault-certificate ${{ vars.AZURE_KEY_VAULT_CERTIFICATE }} \
@@ -197,7 +197,7 @@ jobs:
       - name: Sign NuGet package
         if: ${{ vars.AZURE_KEY_VAULT_CERTIFICATE != '' }}
         run: |
-          NuGetKeyVaultSignTool sign ./nupkg/*.nupkg \
+          nugetkeyvaultsigntool sign ./nupkg/*.nupkg \
             --azure-key-vault-url ${{ secrets.AZURE_KEY_VAULT_URL }} \
             --azure-key-vault-accesstoken "${{ steps.get-token.outputs.token }}" \
             --azure-key-vault-certificate ${{ vars.AZURE_KEY_VAULT_CERTIFICATE }} \
