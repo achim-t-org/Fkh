@@ -84,7 +84,9 @@ jobs:
 
       - name: Install AzureSignTool
         if: ${{ vars.AZURE_KEY_VAULT_CERTIFICATE != '' }}
-        run: dotnet tool install --global AzureSignTool
+        run: |
+          dotnet tool install --global AzureSignTool
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
 
       - name: Sign VSIX
         if: ${{ vars.AZURE_KEY_VAULT_CERTIFICATE != '' }}
@@ -169,7 +171,9 @@ jobs:
 
       - name: Install AzureSignTool
         if: ${{ vars.AZURE_KEY_VAULT_CERTIFICATE != '' }}
-        run: dotnet tool install --global AzureSignTool
+        run: |
+          dotnet tool install --global AzureSignTool
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
 
       - name: Sign assemblies
         if: ${{ vars.AZURE_KEY_VAULT_CERTIFICATE != '' }}
