@@ -248,63 +248,201 @@ async function promptForParameters(
   definition: FunctionDefinition,
   prefilled: Record<string, string> = {}
 ): Promise<Record<string, string> | undefined> {
-  const parameters: Record<string, string> = { ...prefilled };
   const config = vscode.workspace.getConfiguration('fkh');
+
+  // Resolve defaults: prefilled > settings > auto-detect > catalog default
+  const resolvedDefaults: Record<string, string> = {};
+  const promptParams: FunctionParameterDefinition[] = [];
 
   for (const param of definition.parameters) {
     const prefilledKey = Object.keys(prefilled).find(
       k => k.toLowerCase() === param.name.toLowerCase()
     );
     if (prefilledKey) {
+      resolvedDefaults[param.name] = prefilled[prefilledKey];
       continue;
     }
 
     const settingKey = `${definition.name}.${param.name}`;
     const settingValue = config.get<string>(settingKey, '').trim();
     if (settingValue) {
-      parameters[param.name] = settingValue;
-      continue;
+      resolvedDefaults[param.name] = settingValue;
     }
-
-    let value: string | undefined = undefined;
-    let defaultVal = param.defaultValue ?? '';
 
     // Auto-detect public IP for parameters named 'ip'
     if (param.name.toLowerCase() === 'ip') {
       const detectedIp = await getPublicIp();
       if (detectedIp) {
-        defaultVal = detectedIp;
+        resolvedDefaults[param.name] = detectedIp;
       }
     }
 
+    promptParams.push(param);
+  }
+
+  // If nothing to prompt for, return immediately
+  if (promptParams.length === 0) {
+    return resolvedDefaults;
+  }
+
+  // Single parameter: use simple input box
+  if (promptParams.length === 1) {
+    const param = promptParams[0];
+    const defaultVal = resolvedDefaults[param.name] ?? param.defaultValue ?? '';
+    const settingKey = `${definition.name}.${param.name}`;
+    const isPassword = param.name.toLowerCase().includes('password');
+
     while (true) {
-      value = await vscode.window.showInputBox({
+      const value = await vscode.window.showInputBox({
         prompt: `${param.name}: ${param.description} (Tip: set "fkh.${settingKey}" in settings to skip this prompt)`,
         placeHolder: defaultVal,
         value: defaultVal,
-        password: param.name.toLowerCase().includes('password'),
+        password: isPassword,
         ignoreFocusOut: true,
       });
 
-      // User cancelled input dialog.
       if (value === undefined) {
         return undefined;
       }
 
       if (value.trim().length > 0) {
-        parameters[param.name] = value.trim();
-        break;
+        resolvedDefaults[param.name] = value.trim();
+        return resolvedDefaults;
       }
 
       if (!param.required) {
-        break;
+        return resolvedDefaults;
       }
 
       vscode.window.showWarningMessage(`${param.name} is required.`);
     }
   }
 
-  return parameters;
+  // Multiple parameters: use webview form
+
+  return new Promise<Record<string, string> | undefined>((resolve) => {
+    const panel = vscode.window.createWebviewPanel(
+      'fkhParameters',
+      `${definition.name}`,
+      vscode.ViewColumn.Active,
+      { enableScripts: true }
+    );
+
+    let resolved = false;
+
+    panel.webview.onDidReceiveMessage((msg: { command: string; parameters?: Record<string, string> }) => {
+      if (msg.command === 'submit' && msg.parameters) {
+        resolved = true;
+        const result = { ...resolvedDefaults };
+        for (const [key, value] of Object.entries(msg.parameters)) {
+          if (value.trim().length > 0) {
+            result[key] = value.trim();
+          }
+        }
+        panel.dispose();
+        resolve(result);
+      } else if (msg.command === 'cancel') {
+        resolved = true;
+        panel.dispose();
+        resolve(undefined);
+      }
+    });
+
+    panel.onDidDispose(() => {
+      if (!resolved) { resolve(undefined); }
+    });
+
+    const fieldsHtml = promptParams.map(param => {
+      const defaultVal = resolvedDefaults[param.name] ?? param.defaultValue ?? '';
+      const escapedDefault = defaultVal.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+      const escapedDesc = param.description.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+      const requiredBadge = param.required ? '<span class="required">required</span>' : '';
+      const isPassword = param.name.toLowerCase().includes('password');
+
+      if (param.type.toLowerCase() === 'boolean') {
+        const checked = defaultVal.toLowerCase() === 'true' ? 'checked' : '';
+        return `<div class="field">
+          <label><input type="checkbox" name="${param.name}" ${checked} /> ${param.name} ${requiredBadge}</label>
+          <div class="desc">${escapedDesc}</div>
+        </div>`;
+      }
+
+      return `<div class="field">
+        <label for="${param.name}">${param.name} ${requiredBadge}</label>
+        <div class="desc">${escapedDesc}</div>
+        <input type="${isPassword ? 'password' : 'text'}" id="${param.name}" name="${param.name}"
+          value="${escapedDefault}" placeholder="${escapedDefault || (param.required ? '(required)' : '(optional)')}"${param.required ? ' required' : ''} />
+      </div>`;
+    }).join('\n');
+
+    panel.webview.html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
+<style>
+  body { font-family: var(--vscode-font-family, sans-serif); padding: 16px; color: var(--vscode-foreground); background: var(--vscode-editor-background); }
+  h2 { margin: 0 0 4px 0; }
+  .subtitle { color: var(--vscode-descriptionForeground); margin-bottom: 16px; }
+  .field { margin-bottom: 14px; }
+  label { font-weight: 600; display: block; margin-bottom: 2px; }
+  .desc { color: var(--vscode-descriptionForeground); font-size: 12px; margin-bottom: 4px; }
+  .required { color: var(--vscode-errorForeground); font-size: 11px; font-weight: normal; }
+  input[type="text"], input[type="password"] {
+    width: 100%; box-sizing: border-box; padding: 6px 8px;
+    background: var(--vscode-input-background); color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border, transparent); border-radius: 2px;
+  }
+  input[type="text"]:focus, input[type="password"]:focus { outline: 1px solid var(--vscode-focusBorder); }
+  input:invalid { border-color: var(--vscode-errorForeground); }
+  .buttons { margin-top: 20px; display: flex; gap: 8px; }
+  button {
+    padding: 6px 16px; border: none; border-radius: 2px; cursor: pointer; font-size: 13px;
+  }
+  .btn-primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+  .btn-primary:hover { background: var(--vscode-button-hoverBackground); }
+  .btn-secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
+  .btn-secondary:hover { background: var(--vscode-button-secondaryHoverBackground); }
+</style>
+</head>
+<body>
+  <h2>${definition.name}</h2>
+  <div class="subtitle">${definition.description}</div>
+  <form id="paramForm">
+    ${fieldsHtml}
+    <div class="buttons">
+      <button type="submit" class="btn-primary">Run</button>
+      <button type="button" class="btn-secondary" id="cancelBtn">Cancel</button>
+    </div>
+  </form>
+  <script>
+    const vscode = acquireVsCodeApi();
+    const form = document.getElementById('paramForm');
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const params = {};
+      const inputs = form.querySelectorAll('input');
+      for (const el of inputs) {
+        if (!el.getAttribute('name')) continue;
+        const paramName = el.getAttribute('name');
+        if (el.type === 'checkbox') {
+          params[paramName] = el.checked ? 'true' : 'false';
+        } else {
+          params[paramName] = el.value;
+        }
+      }
+      vscode.postMessage({ command: 'submit', parameters: params });
+    });
+    document.getElementById('cancelBtn').addEventListener('click', () => {
+      vscode.postMessage({ command: 'cancel' });
+    });
+    // Focus first input
+    const first = form.querySelector('input');
+    if (first) first.focus();
+  </script>
+</body>
+</html>`;
+  });
 }
 
 function logOutput(message: string, isError = false): void {

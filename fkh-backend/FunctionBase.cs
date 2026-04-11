@@ -143,8 +143,8 @@ public abstract class FunctionBase
                     "OIDC token invalid or repository not authorized. Check ALLOWED_OIDC_REPOS configuration.");
             }
 
-            username = $"oidc:{repository}";
-            logger.LogInformation("Received {Operation} request from OIDC caller: {Repository}", operationName, repository);
+            username = repository.Replace('/', '_');
+            logger.LogInformation("Received {Operation} request from OIDC caller: {Repository} (username: {Username})", operationName, repository, username);
         }
         else
         {
