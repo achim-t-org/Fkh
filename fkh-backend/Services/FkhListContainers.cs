@@ -18,6 +18,14 @@ public class FkhListContainers : FkhServiceBase
             && parameters.TryGetValue("all", out var allValue)
             && string.Equals(allValue, "true", StringComparison.OrdinalIgnoreCase);
 
+        // Resolve the client's timezone for displaying local times
+        TimeZoneInfo clientTz = TimeZoneInfo.Utc;
+        if (parameters.TryGetValue("_timezone", out var tzId) && !string.IsNullOrWhiteSpace(tzId))
+        {
+            try { clientTz = TimeZoneInfo.FindSystemTimeZoneById(tzId); }
+            catch (TimeZoneNotFoundException) { /* fall back to UTC */ }
+        }
+
         if (!isAdmin && parameters.TryGetValue("all", out _))
         {
             throw new UnauthorizedAccessException("The --all option is restricted to administrators.");
@@ -157,7 +165,8 @@ public class FkhListContainers : FkhServiceBase
                 var timeLeft = remaining.TotalMinutes > 0
                     ? $"in {remaining.Hours}h{remaining.Minutes:D2}m"
                     : "overdue";
-                sb.Append($"\n    AutoStop: {stopAt:yyyy-MM-dd HH:mm} UTC ({timeLeft})");
+                var localStop = TimeZoneInfo.ConvertTime(stopAt, clientTz);
+                sb.Append($"\n    AutoStop: {localStop:yyyy-MM-dd HH:mm} ({timeLeft})");
             }
 
             // Repo and project metadata
