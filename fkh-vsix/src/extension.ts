@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import { createReadSettingsOptions, readSettings, getRepoName } from './readALGoSettings';
-import { determineArtifactUrl } from './bcArtifactHelper';
 import { ProjectsTreeProvider, ProjectTreeItem, ContainersTreeProvider, ContainerTreeItem, ImagesTreeProvider, ImageTreeItem, VMsTreeProvider, VMTreeItem } from './containersTreeProvider';
 
 let functionCatalog: FunctionCatalogResponse | undefined;
@@ -520,24 +519,13 @@ async function createContainer(project?: string): Promise<void> {
   outputChannel.appendLine(`  environmentSettingsVariableValue: ${options.environmentSettingsVariableValue || '(empty)'}`);
   outputChannel.appendLine(`  environmentName: ${options.environmentName || '(empty)'}`);
   outputChannel.appendLine(`  customSettings: ${options.customSettings || '(empty)'}`);
-  if (!artifact) {
-    settings['artifact'] = `///${country}/latest`;
-  }
+
+  const artifactUrl = artifact || `///${country}/latest`;
 
   outputChannel.appendLine('--- Resolved Settings ---');
   outputChannel.appendLine(`  Country: ${country}`);
-  outputChannel.appendLine(`  Artifact: ${String(settings['artifact'])}${!artifact ? ' (defaulted)' : ''}`);
+  outputChannel.appendLine(`  Artifact: ${artifactUrl}${!artifact ? ' (defaulted)' : ''}`);
   outputChannel.show(true);
-
-  let artifactUrl: string;
-  try {
-    artifactUrl = await determineArtifactUrl(settings);
-    outputChannel.appendLine(`  ArtifactUrl: ${artifactUrl}`);
-    outputChannel.show(true);
-  } catch (err) {
-    vscode.window.showErrorMessage(`Fkh: Failed to resolve artifact URL: ${err instanceof Error ? err.message : String(err)}`);
-    return;
-  }
 
   await invokeFunctionByName('CreateContainer', { artifactUrl, repo: options.repoName, project: options.project || '' });
 }
@@ -567,17 +555,10 @@ async function createImage(): Promise<void> {
     return;
   }
 
-  let artifactUrl: string;
-  try {
-    artifactUrl = await determineArtifactUrl(settings);
-    outputChannel.appendLine(`[CreateImage] ArtifactUrl: ${artifactUrl}`);
-    outputChannel.show(true);
-  } catch (err) {
-    vscode.window.showErrorMessage(`Fkh: Failed to resolve artifact URL: ${err instanceof Error ? err.message : String(err)}`);
-    return;
-  }
+  outputChannel.appendLine(`[CreateImage] Artifact: ${artifact}`);
+  outputChannel.show(true);
 
-  await invokeFunctionByName('CreateImage', { artifactUrl });
+  await invokeFunctionByName('CreateImage', { artifactUrl: artifact });
 }
 
 export function deactivate() {}

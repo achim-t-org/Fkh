@@ -211,6 +211,40 @@ public abstract class FunctionBase
         // Inject the authenticated GitHub username so services can use it
         parametersResult.Parameters!["_githubUsername"] = username;
         parametersResult.Parameters!["_isAdmin"] = isAdmin.ToString();
+
+        // Resolve artifact shorthand (e.g. "///us/latest") to a full URL
+        if (parametersResult.Parameters.TryGetValue("artifactUrl", out var rawArtifact)
+            && !string.IsNullOrWhiteSpace(rawArtifact)
+            && !rawArtifact.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var segments = ($"{rawArtifact}/////").Split('/');
+                var storageAccount = segments[0];
+                var artifactType = string.IsNullOrEmpty(segments[1]) ? "Sandbox" : segments[1];
+                var version = segments[2];
+                var country = string.IsNullOrEmpty(segments[3]) ? "us" : segments[3];
+                var selectStr = string.IsNullOrEmpty(segments[4]) ? "latest" : segments[4];
+
+                var type = Enum.Parse<BcArtifacts.ArtifactType>(artifactType, ignoreCase: true);
+                var select = Enum.Parse<BcArtifacts.ArtifactSelect>(selectStr, ignoreCase: true);
+
+                var resolved = (await BcArtifacts.BcArtifactHelper.GetBcArtifactUrlAsync(
+                    type: type, country: country, version: version,
+                    select: select, storageAccount: storageAccount)).FirstOrDefault();
+
+                if (string.IsNullOrEmpty(resolved))
+                    return Respond(req, HttpStatusCode.BadRequest, $"No artifacts found for '{rawArtifact}'.");
+
+                logger.LogInformation("Resolved artifact shorthand '{Raw}' to '{Resolved}'", rawArtifact, resolved);
+                parametersResult.Parameters["artifactUrl"] = resolved;
+            }
+            catch (Exception ex)
+            {
+                return Respond(req, HttpStatusCode.BadRequest, $"Failed to resolve artifact '{rawArtifact}': {ex.Message}");
+            }
+        }
+
         // ── Step 5: Execute AKS operation ────────────────────────────────────────────
         try
         {
