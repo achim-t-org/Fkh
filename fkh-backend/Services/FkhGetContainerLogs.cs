@@ -3,11 +3,11 @@ using Microsoft.Extensions.Logging;
 
 namespace Fkh.Services;
 
-public class FkhGetPodLogs : FkhServiceBase
+public class FkhGetContainerLogs : FkhServiceBase
 {
-    public FkhGetPodLogs(ILogger<FkhGetPodLogs> logger) : base(logger) { }
+    public FkhGetContainerLogs(ILogger<FkhGetContainerLogs> logger) : base(logger) { }
 
-    public async Task<string> GetPodLogsAsync(Dictionary<string, string> parameters)
+    public async Task<string> GetContainerLogsAsync(Dictionary<string, string> parameters)
     {
         var name = parameters["name"];
         var githubUsername = parameters["_githubUsername"];
@@ -28,7 +28,7 @@ public class FkhGetPodLogs : FkhServiceBase
 
         if (pods.Items.Count == 0)
         {
-            return $"No pod found for '{name}'.";
+            return $"No container found for '{name}'.";
         }
 
         var pod = pods.Items[0];
@@ -38,7 +38,7 @@ public class FkhGetPodLogs : FkhServiceBase
         {
             var condition = pod.Status.Conditions?.FirstOrDefault(c => c.Type == "PodScheduled" && c.Status == "False");
             var reason = condition?.Message ?? "Waiting for a node to become available.";
-            return $"Pod '{name}' is Pending — no logs available yet.\nReason: {reason}";
+            return $"Container '{name}' is Pending — no logs available yet.\nReason: {reason}";
         }
 
         var tailLines = parameters.TryGetValue("tail", out var tailValue) && int.TryParse(tailValue, out var t) ? t : 500;

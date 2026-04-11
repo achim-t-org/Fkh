@@ -18,15 +18,15 @@ var host = new HostBuilder()
         services.AddHttpClient<GitHubAppTokenService>();
 
         // Register AKS operation services
-        services.AddSingleton<FkhCreatePod>();
-        services.AddSingleton<FkhRemovePod>();
-        services.AddSingleton<FkhScalePod>();
-        services.AddSingleton<FkhListPods>();
+        services.AddSingleton<FkhCreateContainer>();
+        services.AddSingleton<FkhRemoveContainer>();
+        services.AddSingleton<FkhScaleContainer>();
+        services.AddSingleton<FkhListContainers>();
         services.AddSingleton<FkhAutoStop>();
         services.AddSingleton<FkhAllowSqlAccess>();
         services.AddSingleton<FkhListImages>();
-        services.AddSingleton<FkhListNodes>();
-        services.AddSingleton<FkhGetPodLogs>();
+        services.AddSingleton<FkhListVMs>();
+        services.AddSingleton<FkhGetContainerLogs>();
     })
     .Build();
 

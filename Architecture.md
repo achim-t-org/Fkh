@@ -1,6 +1,6 @@
 # Fkh Architecture
 
-Fkh is a **GitHub-authenticated AKS node provisioner** that allows authorized GitHub team members to create on-demand Business Central environments on Azure Kubernetes Service — directly from VS Code or a CLI — without requiring Azure credentials.
+Fkh is a **GitHub-authenticated AKS container provisioner** that allows authorized GitHub team members to create on-demand Business Central environments on Azure Kubernetes Service — directly from VS Code or a CLI — without requiring Azure credentials.
 
 ## High-Level Overview
 
@@ -17,8 +17,8 @@ graph LR
     subgraph AKS["AKS Cluster"]
         direction TB
         SQL["SQL Server<br/>(Linux)"]
-        BC["BC Pods<br/>(Windows)"]
-        SPOT["BC Pods<br/>(Windows Spot)"]
+        BC["BC Containers<br/>(Windows)"]
+        SPOT["BC Containers<br/>(Windows Spot)"]
     end
 
     ACR["Container<br/>Registry"]
@@ -26,7 +26,7 @@ graph LR
 
     VSIX & CLI -->|"GitHub token"| FUNC
     FUNC -->|"validate user"| GH
-    FUNC -->|"manage pods"| AKS
+    FUNC -->|"manage containers"| AKS
     FUNC -->|"check/pull images"| ACR
     FUNC -->|"database backups"| BLOB
     BC & SPOT -->|"TCP 1433"| SQL
@@ -36,9 +36,9 @@ graph LR
 
 ```mermaid
 graph LR
-    A["User"] -->|"POST /api/CreatePod<br/>Bearer: github_token"| B["FunctionBase<br/>(auth + validate)"]
+    A["User"] -->|"POST /api/CreateContainer<br/>Bearer: github_token"| B["FunctionBase<br/>(auth + validate)"]
     B -->|"GET /user"| C["GitHub API"]
-    B --> D["FkhCreatePod"]
+    B --> D["FkhCreateContainer"]
     D --> E["Check ACR image"]
     D --> F["Restore DB"]
     D --> G["Create K8s resources"]
@@ -52,7 +52,7 @@ graph TB
     subgraph RG["Resource Group: fkh-&lt;org&gt;"]
         subgraph AKS["AKS Cluster"]
             LP["Linux Pool<br/>(SQL Server, persisted)"]
-            WP["Windows Pool<br/>(BC pods)"]
+            WP["Windows Pool<br/>(BC containers)"]
             SP["Windows Spot Pool<br/>(optional, cheaper)"]
         end
         FA["Function App<br/>(Consumption)"]
@@ -76,7 +76,7 @@ graph TB
 
 | Component | Path | Description |
 |-----------|------|-------------|
-| **VS Code Extension** | `fkh-vsix/` | Registers commands to create/remove nodes. Uses VS Code's built-in GitHub auth to obtain a Bearer token and calls the Function App API. Fetches the function catalog for dynamic parameter prompts. Auto-detects public IP for SQL access. Parameter defaults can be set via `fkh.<Function>.<param>` settings. |
+| **VS Code Extension** | `fkh-vsix/` | Registers commands to create/remove containers. Uses VS Code's built-in GitHub auth to obtain a Bearer token and calls the Function App API. Fetches the function catalog for dynamic parameter prompts. Auto-detects public IP for SQL access. Parameter defaults can be set via `fkh.<Function>.<param>` settings. |
 | **CLI Tool** | `fkh-cli/` | Standalone .NET executable (`fkh.exe`). Reads GitHub token from `GH_TOKEN`, `GITHUB_TOKEN`, or `gh auth token`. Interactively prompts for parameters with masked password input. Auto-detects public IP for SQL access. |
 
 ### Azure Functions Backend
@@ -86,10 +86,10 @@ graph TB
 | **FunctionBase** | `fkh-backend/FunctionBase.cs` | Base class for all HTTP functions. Extracts Bearer token, validates it against GitHub API, checks team membership, parses and validates parameters against the function catalog, and injects the GitHub username. |
 | **GitHubAuthService** | `fkh-backend/Services/GitHubAuthService.cs` | Calls `GET /user` and `GET /orgs/{org}/teams/{team}/memberships/{username}` to authenticate and authorize requests. Allowed org/team pairs loaded from `ALLOWED_ORG_TEAMS` env var. |
 | **GitHubAppTokenService** | `fkh-backend/Services/GitHubAppTokenService.cs` | Creates JWTs signed with the GitHub App private key, exchanges for installation access tokens, and dispatches the `createImages` workflow when an image is missing from ACR. |
-| **FkhCreateNode** | `fkh-backend/Services/FkhCreateNode.cs` | Orchestrates node creation: ACR image check → database backup SAS URL → k8s exec to download and restore database → create K8s deployment, service, and secret. |
-| **FkhRemoveNode** | `fkh-backend/Services/FkhRemoveNode.cs` | Removes Kubernetes resources (deployment, service, secret) and drops the database for a given node. |
-| **FkhScaleNode** | `fkh-backend/Services/FkhScaleNode.cs` | Scales a node's deployment: StopNode sets replicas to 0, StartNode sets replicas to 1. Database is preserved across stop/start. |
-| **FkhListNodes** | `fkh-backend/Services/FkhListNodes.cs` | Lists nodes filtered by user (or all). Shows status, image, web client URL, and CPU/memory usage via the metrics API. |
+| **FkhCreateContainer** | `fkh-backend/Services/FkhCreateContainer.cs` | Orchestrates container creation: ACR image check → database backup SAS URL → k8s exec to download and restore database → create K8s deployment, service, and secret. |
+| **FkhRemoveContainer** | `fkh-backend/Services/FkhRemoveContainer.cs` | Removes Kubernetes resources (deployment, service, secret) and drops the database for a given container. |
+| **FkhScaleContainer** | `fkh-backend/Services/FkhScaleContainer.cs` | Scales a container's deployment: StopContainer sets replicas to 0, StartContainer sets replicas to 1. Database is preserved across stop/start. |
+| **FkhListVMs** | `fkh-backend/Services/FkhListVMs.cs` | Lists VMs filtered by user (or all). Shows status, image, web client URL, and CPU/memory usage via the metrics API. |
 | **FkhAllowSqlAccess** | `fkh-backend/Services/FkhAllowSqlAccess.cs` | Manages temporary external SQL Server access. Creates a per-user LoadBalancer service (IP-restricted via `loadBalancerSourceRanges`) and a NetworkPolicy allowing the user's IP through to the MSSQL pod. Auto-revokes expired grants via the timer-triggered AutoStop function. |
 | **FkhServiceBase** | `fkh-backend/Services/FkhServiceBase.cs` | Shared base class with AKS/ACR/Storage config, Kubernetes client creation via managed identity, and k8s exec helpers (`FindMssqlPodAsync`, `ExecInMssqlPodAsync`). |
 
@@ -155,7 +155,7 @@ sequenceDiagram
     participant Blob as Blob Storage
     participant ACR as ACR
 
-    User->>Func: POST /api/CreateNode (Bearer: gh_token)
+    User->>Func: POST /api/CreateContainer (Bearer: gh_token)
     Func->>GH: GET /user (validate token)
     GH-->>Func: { login: "username" }
     Func->>GH: GET /orgs/{org}/teams/{team}/memberships/{username}
@@ -173,16 +173,16 @@ sequenceDiagram
     Func->>AKS: k8s exec → sqlcmd RESTORE DATABASE
     Func->>AKS: Create Deployment + Service + Secret
 
-    Func-->>User: Node created (FQDN, deployment info)
+    Func-->>User: Container created (FQDN, deployment info)
 ```
 
-## Node Creation Flow
+## Container Creation Flow
 
 1. **Image check** — Verify the requested BC image exists in ACR. If missing, trigger the `createImages` GitHub Actions workflow via the GitHub App and return an error asking the user to retry.
 2. **Database backup** — Generate a 1-hour read-only SAS URL for the `.bak` blob in the DBS storage account.
 3. **Database existence check** — K8s exec into the mssql pod and run `sqlcmd` to verify the database doesn't already exist.
 4. **Database restore** — K8s exec to `curl` the backup into the pod, then `sqlcmd` to `RESTORE DATABASE` with `MOVE` clauses for data/log files.
-5. **Kubernetes resources** — Create a Secret (admin password), a Deployment (Windows pod with BC image and database env vars), and a LoadBalancer Service (public IP with Azure DNS label).
+5. **Kubernetes resources** — Create a Secret (admin password), a Deployment (Windows container with BC image and database env vars), and a LoadBalancer Service (public IP with Azure DNS label).
 6. **Return** — FQDN (`{appName}.{region}.cloudapp.azure.com`), deployment name, and database name.
 
 ## SQL Access Flow

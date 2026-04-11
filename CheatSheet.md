@@ -1,25 +1,25 @@
 # Fkh Cheat Sheet
 
-## Manage Nodes (via CLI)
+## Manage Containers (via CLI)
 
 ```powershell
-# List your nodes
-.\fkh.exe listnodes
+# List your VMs
+.\fkh.exe listvms
 
-# List all nodes
-.\fkh.exe listnodes --all
+# List all VMs
+.\fkh.exe listvms --all
 
-# Create a node
-.\fkh.exe createnode --name bcserver --artifactUrl 'https://...' --adminUsername 'admin' --adminPassword 'P@ssword1'
+# Create a container
+.\fkh.exe createcontainer --name bcserver --artifactUrl 'https://...' --adminUsername 'admin' --adminPassword 'P@ssword1'
 
-# Stop a node (scales deployment to 0, keeps database)
-.\fkh.exe stopnode --name bcserver
+# Stop a container (scales deployment to 0, keeps database)
+.\fkh.exe stopcontainer --name bcserver
 
-# Start a stopped node (scales deployment back to 1)
-.\fkh.exe startnode --name bcserver
+# Start a stopped container (scales deployment back to 1)
+.\fkh.exe startcontainer --name bcserver
 
-# Remove a node (deletes deployment, service, secret, and database)
-.\fkh.exe removenode --name bcserver
+# Remove a container (deletes deployment, service, secret, and database)
+.\fkh.exe removecontainer --name bcserver
 ```
 
 ## Setup (for kubectl commands)
@@ -29,10 +29,10 @@
 az aks get-credentials --resource-group fkh-freddydk --name fkh-freddydk-aks --overwrite-existing
 ```
 
-## View Nodes
+## View Containers
 
 ```powershell
-# List all BC pods
+# List all BC containers
 kubectl get pods -n app -l app-type=windows-servicetier -o wide
 
 # List all services (shows public IPs and FQDNs)
@@ -58,7 +58,7 @@ kubectl exec -n app -l app=mssql -- /opt/mssql-tools18/bin/sqlcmd -S localhost -
 ## Logs
 
 ```powershell
-# Follow logs from a specific node
+# Follow logs from a specific container
 kubectl logs -n app -l app=freddydk-bcserver -f --tail=100
 
 # Get mssql pod logs
@@ -95,7 +95,7 @@ kubectl rollout restart deployment <deployment-name> -n app
 ## Manual Cleanup
 
 ```powershell
-# Delete a node's resources manually (if removenode isn't available)
+# Delete a container's resources manually (if removecontainer isn't available)
 kubectl delete deployment freddydk-bcserver-deployment -n app
 kubectl delete service freddydk-bcserver-service -n app
 kubectl delete secret freddydk-bcserver-secret -n app

@@ -36,7 +36,7 @@ org_name   = "mycompany"         # lowercase, no spaces
 
 # AKS
 linux_vm_size   = "Standard_D2s_v3"   # system pool, always on
-windows_vm_size = "Standard_D8s_v3"   # BC pods run here
+windows_vm_size = "Standard_D8s_v3"   # BC containers run here
 aks_sku_tier    = "Free"              # Free | Standard ($73/mo SLA)
 windows_min_node_count = 0            # 0 = scale to zero, 1 = warm node
 windows_overprovision  = false

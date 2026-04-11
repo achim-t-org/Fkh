@@ -32,22 +32,22 @@ The first time you run a command, VS Code prompts you to sign in with GitHub. Gr
 
 You must be a member of the authorized GitHub team (configured in the tfvars file).
 
-## Create a Pod
+## Create a Container
 
 1. Open your AL-Go repository in VS Code
 2. In the **FKH** sidebar, find your project under **AL-Go Projects**
-3. Click the **Create Pod** icon next to the project
+3. Click the **Create Container** icon next to the project
 
-Or: **Ctrl+Shift+P** → **FKH: Create Pod**
+Or: **Ctrl+Shift+P** → **FKH: Create Container**
 
 The extension reads your AL-Go settings, resolves the artifact URL, and provisions a BC environment.
 
-## Manage Pods
+## Manage Containers
 
 In the **FKH** sidebar:
-- **Pods** — lists all your pods with status, WebClient link, and resource usage
-- **Start/Stop** — click the icons to scale pods up/down (database is preserved)
-- **Remove** — deletes the pod and its database
+- **Containers** — lists all your containers with status, WebClient link, and resource usage
+- **Start/Stop** — click the icons to scale containers up/down (database is preserved)
+- **Remove** — deletes the container and its database
 
 ## CLI Alternative
 
@@ -71,11 +71,11 @@ New-Item -ItemType Directory -Path ~/.fkh -Force
 Usage:
 
 ```powershell
-fkh createpod --name mybc --artifactUrl "https://..." --adminUsername admin --adminPassword "P@ssword1"
-fkh listpods
-fkh stoppod --name mybc
-fkh startpod --name mybc
-fkh removepod --name mybc
+fkh createcontainer --name mybc --artifactUrl "https://..." --adminUsername admin --adminPassword "P@ssword1"
+fkh listcontainers
+fkh stopcontainer --name mybc
+fkh startcontainer --name mybc
+fkh removecontainer --name mybc
 ```
 
 The CLI uses `gh auth token` for authentication. Sign in with `gh auth login` first.
@@ -84,5 +84,5 @@ The CLI uses `gh auth token` for authentication. Sign in with `gh auth login` fi
 
 | Role | What you can do |
 |------|----------------|
-| **Member** (Fkh-members team) | Create, start, stop, remove your own pods. View your pods and images. |
-| **Admin** (Fkh-admins team) | All of the above + view all pods + view nodes + list all users' pods |
+| **Member** (Fkh-members team) | Create, start, stop, remove your own containers. View your containers and images. |
+| **Admin** (Fkh-admins team) | All of the above + view all containers + view VMs + list all users' containers |

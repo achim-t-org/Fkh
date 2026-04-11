@@ -8,7 +8,7 @@ export class ProjectTreeItem extends vscode.TreeItem {
     public readonly label: string,
     public readonly collapsibleState: vscode.TreeItemCollapsibleState,
     public readonly projectName?: string,
-    public readonly podInfo?: PodInfo,
+    public readonly containerInfo?: ContainerInfo,
     public readonly isProperty?: boolean,
   ) {
     super(label, collapsibleState);
@@ -22,11 +22,11 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<ProjectTree
   private projects: string[] = [];
   private initialized = false;
   private _getRepoName: () => string;
-  private _getPods: () => PodInfo[];
+  private _getContainers: () => ContainerInfo[];
 
-  constructor(getRepoName: () => string, getPods: () => PodInfo[]) {
+  constructor(getRepoName: () => string, getContainers: () => ContainerInfo[]) {
     this._getRepoName = getRepoName;
-    this._getPods = getPods;
+    this._getContainers = getContainers;
   }
 
   async refresh(): Promise<void> {
@@ -50,25 +50,25 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<ProjectTree
       }
 
       return this.projects.map(name => {
-        const pods = this.getPodsForProject(name);
-        const state = pods.length > 0
+        const containers = this.getContainersForProject(name);
+        const state = containers.length > 0
           ? vscode.TreeItemCollapsibleState.Expanded
           : vscode.TreeItemCollapsibleState.None;
         const item = new ProjectTreeItem(name, state, name);
         item.iconPath = new vscode.ThemeIcon('symbol-folder');
         item.contextValue = 'algoProject';
-        if (pods.length > 0) {
-          item.description = `${pods.length} pod${pods.length !== 1 ? 's' : ''}`;
+        if (containers.length > 0) {
+          item.description = `${containers.length} container${containers.length !== 1 ? 's' : ''}`;
         }
         return item;
       });
     }
 
-    // Children of a project: pods
-    if (element.projectName && !element.podInfo) {
-      const pods = this.getPodsForProject(element.projectName);
-      return pods.map(pod => {
-        const statusLower = pod.status.toLowerCase();
+    // Children of a project: containers
+    if (element.projectName && !element.containerInfo) {
+      const containers = this.getContainersForProject(element.projectName);
+      return containers.map(container => {
+        const statusLower = container.status.toLowerCase();
         const icon = statusLower.startsWith('running')
           ? new vscode.ThemeIcon('vm-running', new vscode.ThemeColor('testing.iconPassed'))
           : statusLower.startsWith('starting')
@@ -76,21 +76,21 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<ProjectTree
             : new vscode.ThemeIcon('vm', new vscode.ThemeColor('testing.iconSkipped'));
 
         const item = new ProjectTreeItem(
-          `${pod.name} (${pod.status})`,
+          `${container.name} (${container.status})`,
           vscode.TreeItemCollapsibleState.Collapsed,
           undefined,
-          pod
+          container
         );
         item.iconPath = icon;
-        item.tooltip = `${pod.appLabel}\nStatus: ${pod.status}`;
-        item.contextValue = `pod-${pod.status.toLowerCase()}`;
+        item.tooltip = `${container.appLabel}\nStatus: ${container.status}`;
+        item.contextValue = `container-${container.status.toLowerCase()}`;
         return item;
       });
     }
 
-    // Children of a pod: properties
-    if (element.podInfo) {
-      return element.podInfo.properties.map(prop => {
+    // Children of a container: properties
+    if (element.containerInfo) {
+      return element.containerInfo.properties.map(prop => {
         const child = new ProjectTreeItem(
           `${prop.label}: ${prop.value}`,
           vscode.TreeItemCollapsibleState.None,
@@ -128,43 +128,43 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<ProjectTree
     return [];
   }
 
-  private getPodsForProject(projectName: string): PodInfo[] {
+  private getContainersForProject(projectName: string): ContainerInfo[] {
     const repoName = this._getRepoName();
     if (!repoName) { return []; }
-    const pods = this._getPods();
-    return pods.filter(pod => {
-      const podRepo = pod.properties.find(p => p.label === 'Repo')?.value ?? '';
-      const podProject = pod.properties.find(p => p.label === 'Project')?.value ?? '';
-      return podRepo.toLowerCase() === repoName.toLowerCase()
-        && podProject.toLowerCase() === projectName.toLowerCase();
+    const containers = this._getContainers();
+    return containers.filter(container => {
+      const containerRepo = container.properties.find(p => p.label === 'Repo')?.value ?? '';
+      const containerProject = container.properties.find(p => p.label === 'Project')?.value ?? '';
+      return containerRepo.toLowerCase() === repoName.toLowerCase()
+        && containerProject.toLowerCase() === projectName.toLowerCase();
     });
   }
 }
 
-// ── Pods tree ──────────────────────────────────────────────────────────
+// ── Containers tree ──────────────────────────────────────────────────────────
 
-export interface PodInfo {
+export interface ContainerInfo {
   appLabel: string;
   name: string;
   status: string;
   properties: { label: string; value: string }[];
 }
 
-export class PodTreeItem extends vscode.TreeItem {
+export class ContainerTreeItem extends vscode.TreeItem {
   constructor(
     public readonly label: string,
     public readonly collapsibleState: vscode.TreeItemCollapsibleState,
-    public readonly podInfo?: PodInfo,
+    public readonly containerInfo?: ContainerInfo,
   ) {
     super(label, collapsibleState);
   }
 }
 
-export class PodsTreeProvider implements vscode.TreeDataProvider<PodTreeItem> {
-  private _onDidChangeTreeData = new vscode.EventEmitter<PodTreeItem | undefined>();
+export class ContainersTreeProvider implements vscode.TreeDataProvider<ContainerTreeItem> {
+  private _onDidChangeTreeData = new vscode.EventEmitter<ContainerTreeItem | undefined>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-  private pods: PodInfo[] = [];
+  private containers: ContainerInfo[] = [];
   private initialized = false;
   private _getBackendUrl: () => string | undefined;
   private _getGitHubSession: () => Promise<vscode.AuthenticationSession | undefined>;
@@ -177,51 +177,51 @@ export class PodsTreeProvider implements vscode.TreeDataProvider<PodTreeItem> {
     this._getGitHubSession = getGitHubSession;
   }
 
-  getPods(): PodInfo[] {
-    return this.pods;
+  getContainers(): ContainerInfo[] {
+    return this.containers;
   }
 
   async refresh(): Promise<void> {
-    this.pods = await this.fetchPods();
+    this.containers = await this.fetchContainers();
     this.initialized = true;
     this._onDidChangeTreeData.fire(undefined);
   }
 
-  getTreeItem(element: PodTreeItem): vscode.TreeItem {
+  getTreeItem(element: ContainerTreeItem): vscode.TreeItem {
     return element;
   }
 
-  getChildren(element?: PodTreeItem): PodTreeItem[] {
+  getChildren(element?: ContainerTreeItem): ContainerTreeItem[] {
     if (!element) {
       if (!this.initialized) { return []; }
-      if (this.pods.length === 0) {
-        const empty = new PodTreeItem('No pods', vscode.TreeItemCollapsibleState.None);
+      if (this.containers.length === 0) {
+        const empty = new ContainerTreeItem('No containers', vscode.TreeItemCollapsibleState.None);
         empty.iconPath = new vscode.ThemeIcon('info');
         return [empty];
       }
-      return this.pods.map(pod => {
-        const statusLower = pod.status.toLowerCase();
+      return this.containers.map(container => {
+        const statusLower = container.status.toLowerCase();
         const icon = statusLower.startsWith('running')
           ? new vscode.ThemeIcon('vm-running', new vscode.ThemeColor('testing.iconPassed'))
           : statusLower.startsWith('starting')
             ? new vscode.ThemeIcon('sync~spin', new vscode.ThemeColor('testing.iconQueued'))
             : new vscode.ThemeIcon('vm', new vscode.ThemeColor('testing.iconSkipped'));
 
-        const item = new PodTreeItem(
-          `${pod.name} (${pod.status})`,
+        const item = new ContainerTreeItem(
+          `${container.name} (${container.status})`,
           vscode.TreeItemCollapsibleState.Collapsed,
-          pod
+          container
         );
         item.iconPath = icon;
-        item.tooltip = `${pod.appLabel}\nStatus: ${pod.status}`;
-        item.contextValue = `pod-${pod.status.toLowerCase()}`;
+        item.tooltip = `${container.appLabel}\nStatus: ${container.status}`;
+        item.contextValue = `container-${container.status.toLowerCase()}`;
         return item;
       });
     }
 
-    if (element.podInfo) {
-      return element.podInfo.properties.map(prop => {
-        const child = new PodTreeItem(
+    if (element.containerInfo) {
+      return element.containerInfo.properties.map(prop => {
+        const child = new ContainerTreeItem(
           `${prop.label}: ${prop.value}`,
           vscode.TreeItemCollapsibleState.None
         );
@@ -255,7 +255,7 @@ export class PodsTreeProvider implements vscode.TreeDataProvider<PodTreeItem> {
     return [];
   }
 
-  private async fetchPods(): Promise<PodInfo[]> {
+  private async fetchContainers(): Promise<ContainerInfo[]> {
     const baseUrl = this._getBackendUrl();
     if (!baseUrl) { return []; }
 
@@ -263,7 +263,7 @@ export class PodsTreeProvider implements vscode.TreeDataProvider<PodTreeItem> {
     if (!session) { return []; }
 
     try {
-      const response = await fetch(`${baseUrl}/ListPods`, {
+      const response = await fetch(`${baseUrl}/ListContainers`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -275,22 +275,22 @@ export class PodsTreeProvider implements vscode.TreeDataProvider<PodTreeItem> {
       if (!response.ok) { return []; }
 
       const result = await response.json() as { message: string };
-      return this.parsePodsMessage(result.message);
+      return this.parseContainersMessage(result.message);
     } catch {
       return [];
     }
   }
 
-  private parsePodsMessage(message: string): PodInfo[] {
-    const pods: PodInfo[] = [];
+  private parseContainersMessage(message: string): ContainerInfo[] {
+    const containers: ContainerInfo[] = [];
     const lines = message.split(/\r?\n/);
 
-    let current: PodInfo | undefined;
+    let current: ContainerInfo | undefined;
 
     for (const line of lines) {
       const headerMatch = line.match(/^  (\S+)\s*$/);
       if (headerMatch) {
-        if (current) { pods.push(current); }
+        if (current) { containers.push(current); }
         current = {
           appLabel: headerMatch[1],
           name: headerMatch[1],
@@ -319,8 +319,8 @@ export class PodsTreeProvider implements vscode.TreeDataProvider<PodTreeItem> {
       }
     }
 
-    if (current) { pods.push(current); }
-    return pods;
+    if (current) { containers.push(current); }
+    return containers;
   }
 }
 
@@ -469,138 +469,138 @@ export class ImagesTreeProvider implements vscode.TreeDataProvider<ImageTreeItem
 
 // ── Nodes tree (admin only) ──────────────────────────────────────────────────
 
-export interface NodeInfo {
+export interface VMInfo {
   name: string;
   status: string;
-  podAppLabels: string[];
+  containerAppLabels: string[];
   properties: { label: string; value: string }[];
 }
 
-export class NodeTreeItem extends vscode.TreeItem {
+export class VMTreeItem extends vscode.TreeItem {
   constructor(
     public readonly label: string,
     public readonly collapsibleState: vscode.TreeItemCollapsibleState,
-    public readonly nodeInfo?: NodeInfo,
-    public readonly podInfo?: PodInfo,
-    public readonly isNodeInfoGroup?: boolean,
+    public readonly vmInfo?: VMInfo,
+    public readonly containerInfo?: ContainerInfo,
+    public readonly isVMInfoGroup?: boolean,
   ) {
     super(label, collapsibleState);
   }
 }
 
-export class NodesTreeProvider implements vscode.TreeDataProvider<NodeTreeItem> {
-  private _onDidChangeTreeData = new vscode.EventEmitter<NodeTreeItem | undefined>();
+export class VMsTreeProvider implements vscode.TreeDataProvider<VMTreeItem> {
+  private _onDidChangeTreeData = new vscode.EventEmitter<VMTreeItem | undefined>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-  private nodes: NodeInfo[] = [];
+  private vms: VMInfo[] = [];
   private initialized = false;
   private _visible = false;
   private _getBackendUrl: () => string | undefined;
   private _getGitHubSession: () => Promise<vscode.AuthenticationSession | undefined>;
-  private _getPods: () => PodInfo[];
+  private _getContainers: () => ContainerInfo[];
 
   constructor(
     getBackendUrl: () => string | undefined,
     getGitHubSession: () => Promise<vscode.AuthenticationSession | undefined>,
-    getPods: () => PodInfo[]
+    getContainers: () => ContainerInfo[]
   ) {
     this._getBackendUrl = getBackendUrl;
     this._getGitHubSession = getGitHubSession;
-    this._getPods = getPods;
+    this._getContainers = getContainers;
   }
 
   get visible(): boolean { return this._visible; }
 
   async refresh(): Promise<void> {
-    const result = await this.fetchNodes();
-    this.nodes = result.nodes;
+    const result = await this.fetchVMs();
+    this.vms = result.vms;
     this._visible = result.visible;
     this.initialized = true;
     this._onDidChangeTreeData.fire(undefined);
   }
 
-  getTreeItem(element: NodeTreeItem): vscode.TreeItem {
+  getTreeItem(element: VMTreeItem): vscode.TreeItem {
     return element;
   }
 
-  getChildren(element?: NodeTreeItem): NodeTreeItem[] {
+  getChildren(element?: VMTreeItem): VMTreeItem[] {
     if (!element) {
       if (!this.initialized) { return []; }
-      if (this.nodes.length === 0) {
-        const empty = new NodeTreeItem('No Windows nodes found', vscode.TreeItemCollapsibleState.None);
+      if (this.vms.length === 0) {
+        const empty = new VMTreeItem('No Windows VMs found', vscode.TreeItemCollapsibleState.None);
         empty.iconPath = new vscode.ThemeIcon('info');
         return [empty];
       }
-      return this.nodes.map(node => {
-        const statusLower = node.status.toLowerCase();
+      return this.vms.map(vm => {
+        const statusLower = vm.status.toLowerCase();
         const icon = statusLower === 'ready'
           ? new vscode.ThemeIcon('vm-running', new vscode.ThemeColor('testing.iconPassed'))
           : new vscode.ThemeIcon('vm', new vscode.ThemeColor('testing.iconFailed'));
 
-        const item = new NodeTreeItem(
-          `${node.name} (${node.status})`,
+        const item = new VMTreeItem(
+          `${vm.name} (${vm.status})`,
           vscode.TreeItemCollapsibleState.Collapsed,
-          node
+          vm
         );
         item.iconPath = icon;
-        item.tooltip = `${node.name}\nStatus: ${node.status}`;
-        item.contextValue = 'windowsNode';
-        const allPods = this._getPods();
-        const nodePodLabels = new Set(node.podAppLabels);
-        const matchedPodCount = allPods.filter(p => nodePodLabels.has(p.appLabel)).length;
-        if (matchedPodCount > 0) {
-          item.description = `${matchedPodCount} pod${matchedPodCount !== 1 ? 's' : ''}`;
+        item.tooltip = `${vm.name}\nStatus: ${vm.status}`;
+        item.contextValue = 'windowsVM';
+        const allContainers = this._getContainers();
+        const vmContainerLabels = new Set(vm.containerAppLabels);
+        const matchedContainerCount = allContainers.filter(p => vmContainerLabels.has(p.appLabel)).length;
+        if (matchedContainerCount > 0) {
+          item.description = `${matchedContainerCount} container${matchedContainerCount !== 1 ? 's' : ''}`;
         }
         return item;
       });
     }
 
-    // Children of a node: "Node Info" group + pods
-    if (element.nodeInfo && !element.podInfo && !element.isNodeInfoGroup) {
-      const children: NodeTreeItem[] = [];
+    // Children of a VM: "VM Info" group + containers
+    if (element.vmInfo && !element.containerInfo && !element.isVMInfoGroup) {
+      const children: VMTreeItem[] = [];
 
-      // Collapsible "Node Info" group
-      const infoItem = new NodeTreeItem(
-        'Node Info',
+      // Collapsible "VM Info" group
+      const infoItem = new VMTreeItem(
+        'VM Info',
         vscode.TreeItemCollapsibleState.Collapsed,
-        element.nodeInfo,
+        element.vmInfo,
         undefined,
         true
       );
       infoItem.iconPath = new vscode.ThemeIcon('info');
       children.push(infoItem);
 
-      // Pods on this node
-      const allPods = this._getPods();
-      const nodePodLabels = new Set(element.nodeInfo.podAppLabels);
-      const nodePods = allPods.filter(p => nodePodLabels.has(p.appLabel));
-      for (const pod of nodePods) {
-        const statusLower = pod.status.toLowerCase();
-        const podIcon = statusLower.startsWith('running')
+      // Containers on this VM
+      const allContainers = this._getContainers();
+      const vmContainerLabels = new Set(element.vmInfo.containerAppLabels);
+      const vmContainers = allContainers.filter(p => vmContainerLabels.has(p.appLabel));
+      for (const container of vmContainers) {
+        const statusLower = container.status.toLowerCase();
+        const containerIcon = statusLower.startsWith('running')
           ? new vscode.ThemeIcon('vm-running', new vscode.ThemeColor('testing.iconPassed'))
           : statusLower.startsWith('starting')
             ? new vscode.ThemeIcon('sync~spin', new vscode.ThemeColor('testing.iconQueued'))
             : new vscode.ThemeIcon('vm', new vscode.ThemeColor('testing.iconSkipped'));
 
-        const podItem = new NodeTreeItem(
-          `${pod.name} (${pod.status})`,
+        const containerItem = new VMTreeItem(
+          `${container.name} (${container.status})`,
           vscode.TreeItemCollapsibleState.Collapsed,
           undefined,
-          pod
+          container
         );
-        podItem.iconPath = podIcon;
-        podItem.tooltip = `${pod.appLabel}\nStatus: ${pod.status}`;
-        podItem.contextValue = `pod-${pod.status.toLowerCase()}`;
-        children.push(podItem);
+        containerItem.iconPath = containerIcon;
+        containerItem.tooltip = `${container.appLabel}\nStatus: ${container.status}`;
+        containerItem.contextValue = `container-${container.status.toLowerCase()}`;
+        children.push(containerItem);
       }
 
       return children;
     }
 
-    // Children of the "Node Info" group: node properties
-    if (element.isNodeInfoGroup && element.nodeInfo) {
-      return element.nodeInfo.properties.map(prop => {
-        const child = new NodeTreeItem(
+    // Children of the "VM Info" group: VM properties
+    if (element.isVMInfoGroup && element.vmInfo) {
+      return element.vmInfo.properties.map(prop => {
+        const child = new VMTreeItem(
           `${prop.label}: ${prop.value}`,
           vscode.TreeItemCollapsibleState.None
         );
@@ -627,10 +627,10 @@ export class NodesTreeProvider implements vscode.TreeDataProvider<NodeTreeItem> 
       });
     }
 
-    // Children of a pod under a node: properties
-    if (element.podInfo) {
-      return element.podInfo.properties.map(prop => {
-        const child = new NodeTreeItem(
+    // Children of a container under a VM: properties
+    if (element.containerInfo) {
+      return element.containerInfo.properties.map(prop => {
+        const child = new VMTreeItem(
           `${prop.label}: ${prop.value}`,
           vscode.TreeItemCollapsibleState.None
         );
@@ -664,15 +664,15 @@ export class NodesTreeProvider implements vscode.TreeDataProvider<NodeTreeItem> 
     return [];
   }
 
-  private async fetchNodes(): Promise<{ nodes: NodeInfo[]; visible: boolean }> {
+  private async fetchVMs(): Promise<{ vms: VMInfo[]; visible: boolean }> {
     const baseUrl = this._getBackendUrl();
-    if (!baseUrl) { return { nodes: [], visible: false }; }
+    if (!baseUrl) { return { vms: [], visible: false }; }
 
     const session = await this._getGitHubSession();
-    if (!session) { return { nodes: [], visible: false }; }
+    if (!session) { return { vms: [], visible: false }; }
 
     try {
-      const response = await fetch(`${baseUrl}/ListNodes`, {
+      const response = await fetch(`${baseUrl}/ListVMs`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -683,32 +683,32 @@ export class NodesTreeProvider implements vscode.TreeDataProvider<NodeTreeItem> 
 
       if (response.status === 403 || response.status === 500) {
         // Not admin — hide the view
-        return { nodes: [], visible: false };
+        return { vms: [], visible: false };
       }
 
-      if (!response.ok) { return { nodes: [], visible: false }; }
+      if (!response.ok) { return { vms: [], visible: false }; }
 
       const result = await response.json() as { message: string };
-      return { nodes: this.parseNodesMessage(result.message), visible: true };
+      return { vms: this.parseVMsMessage(result.message), visible: true };
     } catch {
-      return { nodes: [], visible: false };
+      return { vms: [], visible: false };
     }
   }
 
-  private parseNodesMessage(message: string): NodeInfo[] {
-    const nodes: NodeInfo[] = [];
+  private parseVMsMessage(message: string): VMInfo[] {
+    const vms: VMInfo[] = [];
     const lines = message.split(/\r?\n/);
 
-    let current: NodeInfo | undefined;
+    let current: VMInfo | undefined;
 
     for (const line of lines) {
       const headerMatch = line.match(/^  (\S+)\s*$/);
       if (headerMatch) {
-        if (current) { nodes.push(current); }
+        if (current) { vms.push(current); }
         current = {
           name: headerMatch[1],
           status: 'Unknown',
-          podAppLabels: [],
+          containerAppLabels: [],
           properties: [],
         };
         continue;
@@ -723,15 +723,15 @@ export class NodesTreeProvider implements vscode.TreeDataProvider<NodeTreeItem> 
 
         if (key === 'Status') {
           current.status = value;
-        } else if (key === 'Pods') {
-          current.podAppLabels = value === '0' ? [] : value.split(',').map(s => s.trim());
+        } else if (key === 'Containers') {
+          current.containerAppLabels = value === '0' ? [] : value.split(',').map(s => s.trim());
           continue;
         }
         current.properties.push({ label: key, value });
       }
     }
 
-    if (current) { nodes.push(current); }
-    return nodes;
+    if (current) { vms.push(current); }
+    return vms;
   }
 }

@@ -35,7 +35,7 @@ $baseUrl = terraform output -raw function_url
 Invoke-RestMethod "$baseUrl"
 ```
 
-You should see a JSON response listing all available functions (CreatePod, ListPods, etc.).
+You should see a JSON response listing all available functions (CreateContainer, ListContainers, etc.).
 
 ## When to Re-publish
 

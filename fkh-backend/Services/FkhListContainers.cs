@@ -5,11 +5,11 @@ using Microsoft.Extensions.Logging;
 
 namespace Fkh.Services;
 
-public class FkhListPods : FkhServiceBase
+public class FkhListContainers : FkhServiceBase
 {
-    public FkhListPods(ILogger<FkhListPods> logger) : base(logger) { }
+    public FkhListContainers(ILogger<FkhListContainers> logger) : base(logger) { }
 
-    public async Task<string> ListPodsAsync(Dictionary<string, string> parameters)
+    public async Task<string> ListContainersAsync(Dictionary<string, string> parameters)
     {
         var githubUsername = parameters["_githubUsername"];
         var showAll = parameters.TryGetValue("all", out var allValue)
@@ -44,7 +44,7 @@ public class FkhListPods : FkhServiceBase
 
         if (filtered.Count == 0)
         {
-            return showAll ? "No pods found." : $"No pods found for user '{githubUsername}'. Use --all to list all pods.";
+            return showAll ? "No containers found." : $"No containers found for user '{githubUsername}'. Use --all to list all containers.";
         }
 
         // Get pod metrics if available
@@ -67,7 +67,7 @@ public class FkhListPods : FkhServiceBase
         catch { /* metrics API not available */ }
 
         var sb = new StringBuilder();
-        sb.Append(showAll ? "All pods:" : $"Pods for '{githubUsername}':");
+        sb.Append(showAll ? "All containers:" : $"Containers for '{githubUsername}':");
 
         // Get services to resolve FQDNs
         var services = await client.ListNamespacedServiceAsync(Namespace);

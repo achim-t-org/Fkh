@@ -260,7 +260,7 @@ resource "kubernetes_service" "mssql" {
 }
 
 # ============================================================================
-# Network Policy: restrict SQL Server access to Windows app pods only
+# Network Policy: restrict SQL Server access to Windows app containers only
 # ============================================================================
 
 resource "kubernetes_network_policy" "mssql_allow_windows_app_only" {
@@ -384,12 +384,12 @@ resource "kubernetes_daemonset" "image_prepull" {
 }
 
 # ============================================================================
-# Overprovisioning: keep spare capacity for instant BC pod scheduling
+# Overprovisioning: keep spare capacity for instant BC container scheduling
 # ============================================================================
-# A low-priority placeholder pod reserves 500m CPU + 3Gi on a Windows node.
-# When a real BC pod is created, it preempts (evicts) the placeholder and
+# A low-priority placeholder pod reserves 500m CPU + 3Gi on a Windows VM.
+# When a real BC container is created, it preempts (evicts) the placeholder and
 # starts immediately. The displaced placeholder triggers the autoscaler
-# to provision a new node in the background, restoring spare capacity.
+# to provision a new VM in the background, restoring spare capacity.
 
 resource "kubernetes_priority_class" "overprovision" {
   count = var.windows_overprovision ? 1 : 0

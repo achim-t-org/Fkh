@@ -1,6 +1,6 @@
 # Fkh — Freddy's Kubernetes Helper
 
-Fkh lets authorised GitHub users provision AKS Windows nodes on demand directly
+Fkh lets authorised GitHub users provision containers on demand directly
 from VS Code. A GitHub-authenticated Azure Function acts as the provisioning gate;
 Terraform manages all Azure and GitHub infrastructure.
 
@@ -10,13 +10,13 @@ Terraform manages all Azure and GitHub infrastructure.
 
 Requirements depend on what you are doing.
 
-### End users — provisioning nodes via VS Code
+### End users — provisioning containers via VS Code
 
 Just [VS Code](https://code.visualstudio.com) with the Fkh extension installed.
 Authentication is handled automatically via VS Code's built-in GitHub sign-in.
 No Azure CLI, no Terraform, nothing else.
 
-### End users — provisioning nodes via CLI
+### End users — provisioning containers via CLI
 
 Install these tools:
 
@@ -130,7 +130,7 @@ Run from the publish folder (or add it to PATH):
 
 ```powershell
 cd .\dist
-.\fkh.exe createnode
+.\fkh.exe createcontainer
 ```
 
 Set the function base URL:
@@ -145,11 +145,11 @@ Set the function base URL:
 Run commands:
 
 ```powershell
-fkh.exe listnodes
-fkh.exe createnode
-fkh.exe removenode
-fkh.exe stopnode
-fkh.exe startnode
+fkh.exe listvms
+fkh.exe createcontainer
+fkh.exe removecontainer
+fkh.exe stopcontainer
+fkh.exe startcontainer
 fkh.exe allowsqlaccess
 fkh.exe revokesqlaccess
 ```
@@ -157,11 +157,11 @@ fkh.exe revokesqlaccess
 Pass optional payload parameters:
 
 ```powershell
-fkh.exe listnodes --all
-fkh.exe createnode --name bcserver --artifactUrl "https://example/artifact.zip" --adminUsername "admin" --adminPassword "P@ssword1"
-fkh.exe removenode --name bcserver
-fkh.exe stopnode --name bcserver
-fkh.exe startnode --name bcserver
+fkh.exe listvms --all
+fkh.exe createcontainer --name bcserver --artifactUrl "https://example/artifact.zip" --adminUsername "admin" --adminPassword "P@ssword1"
+fkh.exe removecontainer --name bcserver
+fkh.exe stopcontainer --name bcserver
+fkh.exe startcontainer --name bcserver
 fkh.exe allowsqlaccess                          # auto-detects your public IP
 fkh.exe allowsqlaccess --ip 203.0.113.10 --hours 4
 fkh.exe revokesqlaccess
@@ -188,8 +188,8 @@ Examples (add to `settings.json`):
 ```json
 {
   "fkh.baseUrl": "https://fkhmyapp.azurewebsites.net/api",
-  "fkh.CreateNode.adminUsername": "admin",
-  "fkh.StartNode.autostop": "4",
+  "fkh.CreateContainer.adminUsername": "admin",
+  "fkh.StartContainer.autostop": "4",
   "fkh.AllowSqlAccess.hours": "4"
 }
 ```

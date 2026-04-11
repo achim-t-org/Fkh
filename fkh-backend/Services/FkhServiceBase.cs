@@ -107,10 +107,10 @@ public abstract class FkhServiceBase
     }
 
     /// <summary>
-    /// Ensures at least one Windows node is Ready and has a running CNS pod.
-    /// If no Windows node exists, triggers the cluster autoscaler by creating a
+    /// Ensures at least one Windows VM is Ready and has a running CNS pod.
+    /// If no Windows VM exists, triggers the cluster autoscaler by creating a
     /// temporary placeholder pod, then throws <see cref="RetryAfterException"/>
-    /// so the caller retries after the node is provisioned.
+    /// so the caller retries after the VM is provisioned.
     /// </summary>
     protected async Task EnsureWindowsNodeReadyAsync(Kubernetes client, bool useSpot = false)
     {
@@ -138,7 +138,7 @@ public abstract class FkhServiceBase
             Logger.LogInformation("No Ready {NodeType} nodes found. Triggering autoscaler...", nodeType);
             await CreatePlaceholderPodAsync(client, useSpot);
             throw new RetryAfterException(
-                $"No {nodeType} node is available. The cluster autoscaler is provisioning one. Please retry in a few minutes.",
+                $"No {nodeType} VM is available. The cluster autoscaler is provisioning one. Please retry in a few minutes.",
                 retryAfterSeconds: 120);
         }
 
@@ -165,11 +165,11 @@ public abstract class FkhServiceBase
             var nodeType = useSpot ? "Windows Spot" : "Windows";
             Logger.LogInformation("{NodeType} nodes exist but CNS is not ready yet.", nodeType);
             throw new RetryAfterException(
-                $"A {nodeType} node is starting up but networking is not ready yet. Please retry in a couple of minutes.",
+                $"A {nodeType} VM is starting up but networking is not ready yet. Please retry in a couple of minutes.",
                 retryAfterSeconds: 60);
         }
 
-        Logger.LogInformation("Windows node ready with healthy CNS on {NodeCount} node(s).", cnsOnWindows.Count);
+        Logger.LogInformation("Windows VM ready with healthy CNS on {NodeCount} node(s).", cnsOnWindows.Count);
     }
 
     private async Task CreatePlaceholderPodAsync(Kubernetes client, bool useSpot = false)
@@ -236,12 +236,12 @@ public abstract class FkhServiceBase
         };
 
         await client.CreateNamespacedPodAsync(pod, Namespace);
-        Logger.LogInformation("Created warmup placeholder pod to trigger Windows node autoscaling.");
+        Logger.LogInformation("Created warmup placeholder pod to trigger Windows VM autoscaling.");
     }
 
     /// <summary>
     /// Cleans up the warmup placeholder pod if it exists.
-    /// Call after a Windows node is confirmed ready.
+    /// Call after a Windows VM is confirmed ready.
     /// </summary>
     protected async Task CleanupPlaceholderPodAsync(Kubernetes client, bool useSpot = false)
     {

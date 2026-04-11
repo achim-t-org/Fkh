@@ -4,18 +4,18 @@ using Microsoft.Extensions.Logging;
 
 namespace Fkh.Services;
 
-public class FkhListNodes : FkhServiceBase
+public class FkhListVMs : FkhServiceBase
 {
-    public FkhListNodes(ILogger<FkhListNodes> logger) : base(logger) { }
+    public FkhListVMs(ILogger<FkhListVMs> logger) : base(logger) { }
 
-    public async Task<string> ListNodesAsync(Dictionary<string, string> parameters)
+    public async Task<string> ListVMsAsync(Dictionary<string, string> parameters)
     {
         var isAdmin = parameters.TryGetValue("_isAdmin", out var adminValue)
             && string.Equals(adminValue, "true", StringComparison.OrdinalIgnoreCase);
 
         if (!isAdmin)
         {
-            throw new UnauthorizedAccessException("ListNodes is restricted to administrators.");
+            throw new UnauthorizedAccessException("ListVMs is restricted to administrators.");
         }
 
         var client = await GetKubernetesClientAsync();
@@ -28,7 +28,7 @@ public class FkhListNodes : FkhServiceBase
 
         if (windowsNodes.Count == 0)
         {
-            return "No Windows nodes found.";
+            return "No Windows VMs found.";
         }
 
         // Check CNS status per node
@@ -71,7 +71,7 @@ public class FkhListNodes : FkhServiceBase
             sb.AppendLine($"  {name}");
             sb.AppendLine($"    Status: {(ready ? "Ready" : "NotReady")}");
             sb.AppendLine($"    CNS: {(cnsReady ? "Ready" : "NotReady")}");
-            sb.AppendLine($"    Pods: {(nodePodLabels.Count > 0 ? string.Join(",", nodePodLabels) : "0")}");
+            sb.AppendLine($"    Containers: {(nodePodLabels.Count > 0 ? string.Join(",", nodePodLabels) : "0")}");
             sb.AppendLine($"    CPU: {cpuAllocatable}/{cpuCapacity}");
             sb.AppendLine($"    Memory: {memAllocatable}/{memCapacity}");
             sb.AppendLine($"    Kubelet: {kubeletVersion}");

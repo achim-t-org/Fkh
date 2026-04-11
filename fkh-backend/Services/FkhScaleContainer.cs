@@ -4,11 +4,11 @@ using Microsoft.Extensions.Logging;
 
 namespace Fkh.Services;
 
-public class FkhScalePod : FkhServiceBase
+public class FkhScaleContainer : FkhServiceBase
 {
-    public FkhScalePod(ILogger<FkhScalePod> logger) : base(logger) { }
+    public FkhScaleContainer(ILogger<FkhScaleContainer> logger) : base(logger) { }
 
-    public async Task<string> StopPodAsync(Dictionary<string, string> parameters)
+    public async Task<string> StopContainerAsync(Dictionary<string, string> parameters)
     {
         var result = await ScaleAsync(parameters, 0);
         // Clear auto-stop annotation when manually stopping
@@ -21,7 +21,7 @@ public class FkhScalePod : FkhServiceBase
         return result;
     }
 
-    public async Task<string> StartPodAsync(Dictionary<string, string> parameters)
+    public async Task<string> StartContainerAsync(Dictionary<string, string> parameters)
     {
         // Ensure a Windows node with healthy CNS is available before scaling up
         var name = parameters["name"];
@@ -69,6 +69,6 @@ public class FkhScalePod : FkhServiceBase
 
         var action = replicas == 0 ? "Stopped" : "Started";
         Logger.LogInformation("{Action} deployment '{Deployment}'.", action, deploymentName);
-        return $"{action} pod '{appName}'.\n  Deployment: {deploymentName}\n  Replicas: {replicas}";
+        return $"{action} container '{appName}'.\n  Deployment: {deploymentName}\n  Replicas: {replicas}";
     }
 }
