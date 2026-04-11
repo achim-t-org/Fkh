@@ -12,8 +12,16 @@ public class FkhListContainers : FkhServiceBase
     public async Task<string> ListContainersAsync(Dictionary<string, string> parameters)
     {
         var githubUsername = parameters["_githubUsername"];
-        var showAll = parameters.TryGetValue("all", out var allValue)
+        var isAdmin = parameters.TryGetValue("_isAdmin", out var adminValue)
+            && string.Equals(adminValue, "true", StringComparison.OrdinalIgnoreCase);
+        var showAll = isAdmin
+            && parameters.TryGetValue("all", out var allValue)
             && string.Equals(allValue, "true", StringComparison.OrdinalIgnoreCase);
+
+        if (!isAdmin && parameters.TryGetValue("all", out _))
+        {
+            throw new UnauthorizedAccessException("The --all option is restricted to administrators.");
+        }
 
         var client = await GetKubernetesClientAsync();
         var allDeployments = await client.ListNamespacedDeploymentAsync(Namespace);
@@ -44,7 +52,11 @@ public class FkhListContainers : FkhServiceBase
 
         if (filtered.Count == 0)
         {
-            return showAll ? "No containers found." : $"No containers found for user '{githubUsername}'. Use --all to list all containers.";
+            return showAll
+                ? "No containers found."
+                : isAdmin
+                    ? $"No containers found for user '{githubUsername}'. Use --all to list all containers."
+                    : $"No containers found for user '{githubUsername}'.";
         }
 
         // Get pod metrics if available
