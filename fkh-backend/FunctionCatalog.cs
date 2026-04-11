@@ -47,6 +47,14 @@ public static class FunctionCatalog
                 },
                 new()
                 {
+                    Name = "databaseBackupSasUrl",
+                    Type = "string",
+                    Description = "SAS URL to a custom database backup (.bak) file. If provided, this backup is restored instead of the default Cronus database.",
+                    Required = false,
+                    DefaultValue = null
+                },
+                new()
+                {
                     Name = "autostop",
                     Type = "string",
                     Description = "When to auto-stop the container. Use '<n>h' for hours from now (e.g. '4h') or a time of day in UTC (e.g. '18:00' or '6PM'). Leave empty for no auto-stop.",

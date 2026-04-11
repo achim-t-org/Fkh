@@ -31,6 +31,7 @@ public class FkhCreateContainer : FkhServiceBase
         var project = parameters.TryGetValue("project", out var p) ? p : null;
         var useSpot = parameters.TryGetValue("spot", out var spotValue)
             && string.Equals(spotValue, "true", StringComparison.OrdinalIgnoreCase);
+        var bakSasUrl = parameters.TryGetValue("databaseBackupSasUrl", out var bak) ? bak : null;
 
         var imageTag = GetImageTag(artifactUrl);
         var fullImage = $"{AcrLoginServer}/{AcrRepository}:{imageTag}";
@@ -58,7 +59,9 @@ public class FkhCreateContainer : FkhServiceBase
         await EnsureDeploymentDoesNotExistAsync(client, deploymentName);
 
         // ── Check database does not exist, download backup, and restore via k8s exec ─
-        var sasUrl = await GetDatabaseBackupSasUrlAsync(imageTag);
+        var sasUrl = !string.IsNullOrWhiteSpace(bakSasUrl)
+            ? bakSasUrl
+            : await GetDatabaseBackupSasUrlAsync(imageTag);
         await EnsureDatabaseDoesNotExistAsync(client, databaseName);
         await RestoreDatabaseViaExecAsync(client, sasUrl, databaseName);
 
