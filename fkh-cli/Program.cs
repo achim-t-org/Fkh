@@ -13,6 +13,7 @@ Usage:
 
 Options:
     --key "value"       Provide a parameter value (discovered from GetFunctionCatalog)
+    --nowait            Don't wait for completion (createcontainer, createimage)
     -h, --help          Show help
     --version           Show version
 
@@ -109,6 +110,11 @@ try
             && retrySeconds > 0)
         {
             Console.WriteLine(message);
+            if (parsed.NoWait)
+            {
+                Console.WriteLine("--nowait specified, not waiting for completion.");
+                return 0;
+            }
             Console.WriteLine($"Retrying in {retrySeconds} seconds... (Ctrl+C to cancel)");
             await Task.Delay(TimeSpan.FromSeconds(retrySeconds), cts.Token);
             continue;
@@ -164,6 +170,12 @@ static ParsedArgs ParseArgs(string[] args, FunctionCatalogResponse catalog)
         if (string.IsNullOrWhiteSpace(key))
         {
             throw new InvalidOperationException("Parameter name cannot be empty after '--'.");
+        }
+
+        if (string.Equals(key, "nowait", StringComparison.OrdinalIgnoreCase))
+        {
+            parsed.NoWait = true;
+            continue;
         }
 
         if (booleanParams.Contains(key))
@@ -489,6 +501,7 @@ sealed class ParsedArgs
 {
     public bool ShowHelp { get; init; }
     public string? Command { get; init; }
+    public bool NoWait { get; set; }
     public Dictionary<string, string> Parameters { get; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
