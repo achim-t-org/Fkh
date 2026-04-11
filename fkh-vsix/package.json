@@ -2,7 +2,7 @@
   "name": "fkh",
   "displayName": "Freddy's Kubernetes Helper",
   "description": "Provision AKS containers via authenticated Azure Function",
-  "version": "0.0.1",
+  "version": "0.2.1",
   "publisher": "Freddy-DK",
   "icon": "images/icon.png",
   "repository": {

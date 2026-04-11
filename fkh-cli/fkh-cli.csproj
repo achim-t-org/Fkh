@@ -8,7 +8,7 @@
     <ToolCommandName>fkh</ToolCommandName>
     <AssemblyName>fkh</AssemblyName>
     <PackageId>fkh</PackageId>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Authors>Freddy DK</Authors>
     <Description>FKH command line client</Description>
   </PropertyGroup>
