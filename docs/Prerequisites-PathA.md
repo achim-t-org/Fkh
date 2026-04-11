@@ -14,7 +14,7 @@ Go to your fork's **Settings → Secrets and variables → Actions** and add the
 | `AZURE_DEPLOY_TENANT_ID` | Azure AD tenant ID |
 | `AZURE_DEPLOY_SUBSCRIPTION_ID` | Target Azure subscription ID |
 | `SQL_SA_PASSWORD` | SA password for the SQL Server in AKS (min 8 chars) |
-| `GITHUB_APP_PRIVATE_KEY` | PEM-encoded private key of the GitHub App (from [Create the GitHub App](GitHubApp.md)) |
+| `GH_APP_PRIVATE_KEY` | PEM-encoded private key of the GitHub App (from [Create the GitHub App](GitHubApp.md)) |
 | `GH_PAT` | GitHub PAT with scopes: `admin:org`, `repo`, `read:org` |
 
 ## GitHub Variable
