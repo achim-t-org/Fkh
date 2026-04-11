@@ -132,6 +132,34 @@ jobs:
             --auth-mode login \
             --output none 2>/dev/null || true
 
+          # Grant the OIDC service principal "Storage Blob Data Contributor" on the state storage account
+          STATE_ACCOUNT_ID=$(az storage account show --name "${{ steps.parse.outputs.state_account }}" --resource-group "${{ steps.parse.outputs.state_rg }}" --query id -o tsv)
+          az role assignment create \
+            --role "Storage Blob Data Contributor" \
+            --assignee "${{ secrets.AZURE_DEPLOY_CLIENT_ID }}" \
+            --scope "$STATE_ACCOUNT_ID" \
+            --output none 2>/dev/null || true
+
+      - name: Wait for RBAC propagation
+        shell: bash
+        run: |
+          for i in $(seq 1 12); do
+            if az storage blob list \
+              --container-name "${{ steps.parse.outputs.state_container }}" \
+              --account-name "${{ steps.parse.outputs.state_account }}" \
+              --auth-mode login \
+              --num-results 1 > /dev/null 2>&1; then
+              echo "Storage RBAC permission confirmed."
+              break
+            fi
+            if [ "$i" -eq 12 ]; then
+              echo "::error::Storage Blob Data Contributor role did not propagate after 120s."
+              exit 1
+            fi
+            echo "Waiting for RBAC propagation ($i/12)..."
+            sleep 10
+          done
+
       # ── Terraform init ────────────────────────────────────────────────────
       - name: Terraform init
         run: |
