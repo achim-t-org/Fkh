@@ -246,7 +246,8 @@ export class ContainersTreeProvider implements vscode.TreeDataProvider<Container
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.accessToken}`,
         },
-        body: JSON.stringify({ parameters: { _timezone: Intl.DateTimeFormat().resolvedOptions().timeZone } }),
+        body: JSON.stringify({ parameters: { _timezone: vscode.workspace.getConfiguration('fkh').get<string>('timezone', '').trim()
+          || Intl.DateTimeFormat().resolvedOptions().timeZone } }),
       });
 
       if (!response.ok) { return []; }

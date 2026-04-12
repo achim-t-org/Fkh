@@ -239,6 +239,11 @@
           "type": "string",
           "default": "",
           "description": "URL of the Fkh backend, e.g. https://fkh-<org_name>-backend.azurewebsites.net/api"
+        },
+        "fkh.timezone": {
+          "type": "string",
+          "default": "",
+          "description": "IANA timezone (e.g. 'Europe/Copenhagen'). Set this when running in Codespaces or remote environments where the auto-detected timezone is incorrect."
         }
       }
     }

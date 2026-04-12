@@ -493,7 +493,8 @@ async function invokeFunctionByName(functionName: string, prefilled: Record<stri
   if (!parameters) { return; }
 
   // Send the client's timezone so the server can resolve time-of-day autostop values
-  parameters['_timezone'] = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  parameters['_timezone'] = vscode.workspace.getConfiguration('fkh').get<string>('timezone', '').trim()
+    || Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   const session = await getGitHubSession();
   if (!session) { return; }
