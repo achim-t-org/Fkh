@@ -11,9 +11,11 @@
     <Version>0.2.0</Version>
     <Authors>Freddy DK</Authors>
     <Description>FKH command line client</Description>
+    <PackageIcon>icon.png</PackageIcon>
   </PropertyGroup>
 
   <ItemGroup>
+    <None Include="icon.png" Pack="true" PackagePath="" />
     <None Include="fkh.settings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
