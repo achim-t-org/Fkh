@@ -82,6 +82,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      packages: write
     defaults:
       run:
         shell: bash
@@ -173,3 +174,7 @@ jobs:
       - name: Publish to NuGet
         if: github.repository_owner == env.PUBLISH_OWNER && github.event.repository.name == env.PUBLISH_REPO
         run: dotnet nuget push ./nupkg/*.nupkg --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+      - name: Publish to GitHub Packages
+        if: github.repository_owner == env.PUBLISH_OWNER && github.event.repository.name == env.PUBLISH_REPO
+        run: dotnet nuget push ./nupkg/*.nupkg --api-key ${{ secrets.GITHUB_TOKEN }} --source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json --skip-duplicate
