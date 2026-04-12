@@ -6,10 +6,10 @@ Fkh is also available as a command-line interface: [fkh on NuGet](https://www.nu
 
 ## Getting Started
 
-1. Deploy the Fkh Backend (see `https://github.com/Freddy-DK/Fkh`)
-2. Install the extension from the VS Code Marketplace.
-3. Set the backend URL in your settings: **Fkh: Backend Url** (e.g. `https://fkh-<org>-backend.azurewebsites.net/api`).
-4. The extension will prompt you to sign in with GitHub on first use.
+- 1. Deploy the Fkh Backend (see `https://github.com/Freddy-DK/Fkh`)
+- 2. Install the extension from the VS Code Marketplace.
+- 3. Set the backend URL in your settings: **Fkh: Backend Url** (e.g. `https://fkh-<org>-backend.azurewebsites.net/api`).
+- 4. The extension will prompt you to sign in with GitHub on first use.
 
 ## Authentication & Access Control
 
