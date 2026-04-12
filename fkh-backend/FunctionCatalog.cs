@@ -422,6 +422,47 @@ public static class FunctionCatalog
                     DefaultValue = null
                 }
             }
+        },
+        new FunctionDefinition
+        {
+            Name = "PublishApp",
+            Description = "Publishes a .app file to a running Business Central container. The app is copied into the container and installed via Publish-NAVApp.",
+            Route = "PublishApp",
+            Parameters = new List<FunctionParameterDefinition>
+            {
+                new()
+                {
+                    Name = "name",
+                    Type = "string",
+                    Description = "Name of the container to publish the app to. Mutually exclusive with 'fullName'.",
+                    Required = false,
+                    DefaultValue = null
+                },
+                new()
+                {
+                    Name = "fullName",
+                    Type = "string",
+                    Description = "Full app label of the container to publish the app to (admin only). Mutually exclusive with 'name'.",
+                    Required = false,
+                    DefaultValue = null
+                },
+                new()
+                {
+                    Name = "appFile",
+                    Type = "file",
+                    Description = "Path to the .app file to publish.",
+                    Required = true,
+                    DefaultValue = null
+                },
+                new()
+                {
+                    Name = "syncMode",
+                    Type = "string",
+                    Description = "Sync mode for the app (Add, ForceSync, Clean, Development).",
+                    Required = false,
+                    DefaultValue = "Add"
+                }
+            }
         }
     };
 

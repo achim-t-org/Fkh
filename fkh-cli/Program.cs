@@ -54,12 +54,12 @@ try
     {
         catalog = await GetFunctionCatalogAsync(settings.BackendUrl);
     }
-    catch
+    catch (Exception ex)
     {
         Console.WriteLine(Help);
         Console.WriteLine();
-        Console.WriteLine("Could not fetch function metadata. Configure fkh.settings.json and try again.");
-        return 0;
+        Console.Error.WriteLine($"{Ansi.Red}{ex.Message}{Ansi.Reset}");
+        return 1;
     }
 
     if (wantsHelp)
@@ -91,22 +91,83 @@ try
     // Send the client's timezone so the server can resolve time-of-day autostop values
     parsed.Parameters["_timezone"] = TimeZoneInfo.Local.Id;
 
+    // Detect file-type parameters
+    var fileParams = function.Parameters
+        .Where(p => string.Equals(p.Type, "file", StringComparison.OrdinalIgnoreCase))
+        .Select(p => p.Name)
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    // Resolve file paths and validate they exist
+    var filesToUpload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    foreach (var fp in fileParams)
+    {
+        if (parsed.Parameters.TryGetValue(fp, out var filePath) && !string.IsNullOrWhiteSpace(filePath))
+        {
+            if (!File.Exists(filePath))
+            {
+                Console.Error.WriteLine($"{Ansi.Red}File not found: {filePath}{Ansi.Reset}");
+                return 1;
+            }
+            filesToUpload[fp] = filePath;
+            parsed.Parameters.Remove(fp);
+        }
+    }
+
+    var hasFiles = filesToUpload.Count > 0;
+
     if (!parsed.AsJson)
+    {
+        if (hasFiles)
+        {
+            foreach (var (paramName, filePath) in filesToUpload)
+            {
+                var fileSize = new FileInfo(filePath).Length;
+                Console.WriteLine($"{Ansi.Dim}Uploading {paramName}: {filePath} ({fileSize:N0} bytes){Ansi.Reset}");
+            }
+        }
         Console.WriteLine($"{Ansi.Dim}Calling {endpoint}{Ansi.Reset}");
+    }
 
     using var cts = new CancellationTokenSource();
     Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
 
     using var client = new HttpClient();
+    if (hasFiles)
+    {
+        client.Timeout = TimeSpan.FromMinutes(30); // Large file uploads need more time
+    }
+
     while (true)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
+
+        if (hasFiles)
         {
-            Content = new StringContent(
+            // Send as multipart/form-data with file attachments
+            var multipart = new MultipartFormDataContent();
+            multipart.Add(new StringContent(
                 JsonSerializer.Serialize(new FunctionInvokeRequest { Parameters = parsed.Parameters }),
                 Encoding.UTF8,
-                "application/json")
-        };
+                "application/json"), "parameters");
+
+            foreach (var (paramName, filePath) in filesToUpload)
+            {
+                var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
+                var fileContent = new StreamContent(fileStream);
+                fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+                multipart.Add(fileContent, paramName, Path.GetFileName(filePath));
+            }
+
+            request.Content = multipart;
+        }
+        else
+        {
+            request.Content = new StringContent(
+                JsonSerializer.Serialize(new FunctionInvokeRequest { Parameters = parsed.Parameters }),
+                Encoding.UTF8,
+                "application/json");
+        }
+
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         var response = await client.SendAsync(request, cts.Token);
@@ -262,17 +323,36 @@ static async Task<FunctionCatalogResponse> GetFunctionCatalogAsync(string? backe
     if (string.IsNullOrWhiteSpace(backendUrl))
     {
         throw new InvalidOperationException(
-            "No function endpoint configured. Set FKH_BACKEND_URL or create ~/.fkh/settings.json with a backendUrl property.");
+            "No backend URL configured. Set FKH_BACKEND_URL, create ~/.fkh/settings.json, or place fkh.settings.json next to the executable with a backendUrl property.");
     }
 
-    using var client = new HttpClient();
     var functionsUrl = $"{backendUrl.TrimEnd('/')}/functions";
-    var response = await client.GetAsync(functionsUrl);
+
+    using var client = new HttpClient();
+    HttpResponseMessage response;
+    try
+    {
+        response = await client.GetAsync(functionsUrl);
+    }
+    catch (HttpRequestException ex)
+    {
+        throw new InvalidOperationException(
+            $"Could not reach the backend at {functionsUrl}. {ex.Message}");
+    }
+
     var body = await response.Content.ReadAsStringAsync();
+
+    if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+        response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+    {
+        throw new InvalidOperationException(
+            $"Authentication failed ({(int)response.StatusCode}) when calling {functionsUrl}. {body}");
+    }
 
     if (!response.IsSuccessStatusCode)
     {
-        throw new InvalidOperationException($"Failed to fetch functions ({(int)response.StatusCode}): {body}");
+        throw new InvalidOperationException(
+            $"Failed to fetch function catalog from {functionsUrl} ({(int)response.StatusCode}): {body}");
     }
 
     var catalog = JsonSerializer.Deserialize<FunctionCatalogResponse>(body,
@@ -280,7 +360,8 @@ static async Task<FunctionCatalogResponse> GetFunctionCatalogAsync(string? backe
 
     if (catalog is null || catalog.Functions.Count == 0)
     {
-        throw new InvalidOperationException("Function catalog is empty or invalid.");
+        throw new InvalidOperationException(
+            $"Function catalog returned from {functionsUrl} is empty or invalid.");
     }
 
     return catalog;

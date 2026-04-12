@@ -263,7 +263,33 @@ async function promptForParameters(
   const resolvedDefaults: Record<string, string> = {};
   const promptParams: FunctionParameterDefinition[] = [];
 
+  // Prompt for file-type parameters first using a file picker
   for (const param of definition.parameters) {
+    if (param.type.toLowerCase() !== 'file') { continue; }
+    const prefilledKey = Object.keys(prefilled).find(
+      k => k.toLowerCase() === param.name.toLowerCase()
+    );
+    if (prefilledKey) {
+      resolvedDefaults[param.name] = prefilled[prefilledKey];
+      continue;
+    }
+
+    const uris = await vscode.window.showOpenDialog({
+      canSelectMany: false,
+      openLabel: `Select ${param.name}`,
+      title: param.description,
+      filters: param.name.toLowerCase().includes('app') ? { 'App files': ['app'], 'All files': ['*'] } : undefined,
+    });
+    if (!uris || uris.length === 0) {
+      if (param.required) { return undefined; }
+      continue;
+    }
+    resolvedDefaults[param.name] = uris[0].fsPath;
+  }
+
+  for (const param of definition.parameters) {
+    // Skip file-type params (already handled above)
+    if (param.type.toLowerCase() === 'file') { continue; }
     // Hide fullName from non-admins
     if (param.name.toLowerCase() === 'fullname' && !isAdmin) {
       continue;
@@ -508,6 +534,23 @@ async function invokeFunctionByName(functionName: string, prefilled: Record<stri
   const session = await getGitHubSession();
   if (!session) { return; }
 
+  // Detect file-type parameters
+  const fileParamNames = new Set(
+    definition.parameters
+      .filter(p => p.type.toLowerCase() === 'file')
+      .map(p => p.name.toLowerCase())
+  );
+
+  const filesToUpload: Record<string, string> = {};
+  for (const [key, value] of Object.entries(parameters)) {
+    if (fileParamNames.has(key.toLowerCase()) && value) {
+      filesToUpload[key] = value;
+      delete parameters[key];
+    }
+  }
+
+  const hasFiles = Object.keys(filesToUpload).length > 0;
+
   await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
@@ -516,7 +559,6 @@ async function invokeFunctionByName(functionName: string, prefilled: Record<stri
     },
     async (progress, cancelToken) => {
       try {
-        const body: FunctionInvokeRequest = { parameters };
         const url = `${getBackendUrl()}/${definition.route}`;
 
         while (true) {
@@ -525,14 +567,38 @@ async function invokeFunctionByName(functionName: string, prefilled: Record<stri
             return;
           }
 
-          const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${session.accessToken}`,
-            },
-            body: JSON.stringify(body),
-          });
+          let response: Response;
+
+          if (hasFiles) {
+            // Build multipart/form-data manually using Blob API
+            const formData = new FormData();
+            formData.append('parameters', JSON.stringify({ parameters }));
+            for (const [paramName, filePath] of Object.entries(filesToUpload)) {
+              const fileUri = vscode.Uri.file(filePath);
+              const fileBuffer = await vscode.workspace.fs.readFile(fileUri);
+              const blob = new Blob([new Uint8Array(fileBuffer) as BlobPart], { type: 'application/octet-stream' });
+              const fileName = filePath.replace(/\\/g, '/').split('/').pop() ?? 'file';
+              formData.append(paramName, blob, fileName);
+            }
+
+            response = await fetch(url, {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${session.accessToken}`,
+              },
+              body: formData,
+            });
+          } else {
+            const body: FunctionInvokeRequest = { parameters };
+            response = await fetch(url, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${session.accessToken}`,
+              },
+              body: JSON.stringify(body),
+            });
+          }
 
           if (response.status === 202) {
             const result = await response.json() as { message: string; retryAfterSeconds?: number };
