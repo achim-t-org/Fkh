@@ -35,6 +35,8 @@ Authentication (checked in order):
   4. gh auth token         GitHub CLI (interactive fallback)
 """;
 
+var asJson = args.Contains("--asJson", StringComparer.OrdinalIgnoreCase);
+
 try
 {
     if (args.Contains("--version"))
@@ -56,9 +58,16 @@ try
     }
     catch (Exception ex)
     {
-        Console.WriteLine(Help);
-        Console.WriteLine();
-        Console.Error.WriteLine($"{Ansi.Red}{ex.Message}{Ansi.Reset}");
+        if (asJson)
+        {
+            Console.WriteLine(JsonSerializer.Serialize(new { error = ex.Message }));
+        }
+        else
+        {
+            Console.WriteLine(Help);
+            Console.WriteLine();
+            Console.Error.WriteLine($"{Ansi.Red}{ex.Message}{Ansi.Reset}");
+        }
         return 1;
     }
 
@@ -216,13 +225,27 @@ try
             return 0;
         }
 
-        Console.Error.WriteLine($"{Ansi.Red}Request failed ({(int)response.StatusCode}): {body}{Ansi.Reset}");
+        if (parsed.AsJson)
+        {
+            Console.WriteLine(JsonSerializer.Serialize(new { error = $"Request failed ({(int)response.StatusCode}): {body}" }));
+        }
+        else
+        {
+            Console.Error.WriteLine($"{Ansi.Red}Request failed ({(int)response.StatusCode}): {body}{Ansi.Reset}");
+        }
         return 1;
     }
 }
 catch (Exception ex)
 {
-    Console.Error.WriteLine($"{Ansi.Red}{ex.Message}{Ansi.Reset}");
+    if (asJson)
+    {
+        Console.WriteLine(JsonSerializer.Serialize(new { error = ex.Message }));
+    }
+    else
+    {
+        Console.Error.WriteLine($"{Ansi.Red}{ex.Message}{Ansi.Reset}");
+    }
     return 1;
 }
 
@@ -324,6 +347,13 @@ static async Task<FunctionCatalogResponse> GetFunctionCatalogAsync(string? backe
     {
         throw new InvalidOperationException(
             "No backend URL configured. Set FKH_BACKEND_URL, create ~/.fkh/settings.json, or place fkh.settings.json next to the executable with a backendUrl property.");
+    }
+
+    if (!Uri.TryCreate(backendUrl, UriKind.Absolute, out var baseUri)
+        || (baseUri.Scheme != "http" && baseUri.Scheme != "https"))
+    {
+        throw new InvalidOperationException(
+            $"Invalid backend URL: '{backendUrl}'. Must be an absolute http/https URL (e.g. https://fkh-myorg-backend.azurewebsites.net/api).");
     }
 
     var functionsUrl = $"{backendUrl.TrimEnd('/')}/functions";

@@ -19,7 +19,7 @@ public class FkhGetContainerLogs : FkhServiceBase
         var client = await GetKubernetesClientAsync();
         var pods = await client.ListNamespacedPodAsync(Namespace, labelSelector: $"app={appName}");
 
-        if (pods.Items.Count == 0 && isAdmin)
+        if (pods.Items.Count == 0 && isAdmin && !string.IsNullOrWhiteSpace(name))
         {
             // Admin can view any pod — try without username prefix
             var adminAppName = SanitizeAppName(name);
