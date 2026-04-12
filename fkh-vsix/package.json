@@ -101,6 +101,11 @@
         "command": "fkh.removeImage",
         "title": "Remove",
         "icon": "$(trash)"
+      },
+      {
+        "command": "fkh.waitForContainer",
+        "title": "Wait for Ready",
+        "icon": "$(sync)"
       }
     ],
     "viewsContainers": {
@@ -228,6 +233,11 @@
         {
           "command": "fkh.getContainerLogs",
           "when": "(view == fkhContainers || view == fkhProjects || view == fkhVMs) && viewItem =~ /^container-/",
+          "group": "1_actions"
+        },
+        {
+          "command": "fkh.waitForContainer",
+          "when": "(view == fkhContainers || view == fkhProjects) && viewItem =~ /container-(starting|stopped)/",
           "group": "1_actions"
         },
         {

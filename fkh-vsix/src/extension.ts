@@ -110,6 +110,10 @@ export function activate(context: vscode.ExtensionContext) {
       if (confirm !== 'Remove') { return; }
       await invokeContainerAction('RemoveContainer', item.containerInfo.name);
     }),
+    vscode.commands.registerCommand('fkh.waitForContainer', async (item: ContainerTreeItem | ProjectTreeItem) => {
+      if (!item.containerInfo) { return; }
+      await invokeFunctionByName('WaitForContainer', { name: item.containerInfo.name });
+    }),
     vscode.commands.registerCommand('fkh.run', async () => {
       const catalog = await getFunctionCatalog();
       if (!catalog) { return; }

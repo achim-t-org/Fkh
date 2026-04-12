@@ -334,12 +334,21 @@ public abstract class FunctionBase
         foreach (var parameter in function.Parameters)
         {
             incoming.TryGetValue(parameter.Name, out var value);
-            value = string.IsNullOrWhiteSpace(value) ? parameter.DefaultValue : value;
+            value = string.IsNullOrWhiteSpace(vaue) ? parameter.DefaultValue : value;
 
             if (parameter.Required && string.IsNullOrWhiteSpace(value))
             {
                 return ParameterValidationResult.Fail(
                     $"Missing required parameter '{parameter.Name}' for {function.Name}.");
+            }
+
+            // Validate 'name' parameters: alphanumeric only
+            if (string.Equals(parameter.Name, "name", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(value)
+                && !value.All(char.IsLetterOrDigit))
+            {
+                return ParameterValidationResult.Fail(
+                    $"Parameter 'name' may only contain alphanumeric characters (a-z, A-Z, 0-9).");
             }
 
             if (!string.IsNullOrWhiteSpace(value))

@@ -141,9 +141,9 @@ public class FkhListContainers : FkhServiceBase
                 }
             }
 
-            // Extract pod name by stripping the "username-" prefix
-            var podName = appLabel.Contains('-') && appLabel.IndexOf('-') < appLabel.Length - 1
-                ? appLabel[(appLabel.IndexOf('-') + 1)..] : appLabel;
+            // Extract container name by stripping the "username-" prefix (split on last '-' since usernames can contain hyphens)
+            var podName = appLabel.Contains('-') && appLabel.LastIndexOf('-') < appLabel.Length - 1
+                ? appLabel[(appLabel.LastIndexOf('-') + 1)..] : appLabel;
 
             // Auto-stop time
             string? autoStopStr = null;

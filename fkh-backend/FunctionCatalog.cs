@@ -294,6 +294,23 @@ public static class FunctionCatalog
         },
         new FunctionDefinition
         {
+            Name = "WaitForContainer",
+            Description = "Waits for a container to be ready. Polls until the container is running and ready for connections, or fails if the container enters an error state.",
+            Route = "WaitForContainer",
+            Parameters = new List<FunctionParameterDefinition>
+            {
+                new()
+                {
+                    Name = "name",
+                    Type = "string",
+                    Description = "Name of the container to wait for (same name used when creating it).",
+                    Required = true,
+                    DefaultValue = null
+                }
+            }
+        },
+        new FunctionDefinition
+        {
             Name = "GetContainerLogs",
             Description = "Gets logs from a container.",
             Route = "GetContainerLogs",
