@@ -6,7 +6,7 @@ Fkh is also available as a VS Code extension: [Freddy's Kubernetes Helper on the
 
 ## Getting started
 
-1. Deploy the Fkh Backend (see `https://github.com/Freddy-DK/Fkh`)
+1. Deploy the Fkh Backend (see [Fkh home](https://github.com/Freddy-DK/Fkh))
 2. Install the CLI from NuGet, using:
 
 ```bash
