@@ -2,7 +2,6 @@ using Azure.Containers.ContainerRegistry;
 using Azure.Identity;
 using k8s;
 using Microsoft.Extensions.Logging;
-using System.Text;
 
 namespace Fkh.Services;
 
@@ -10,7 +9,7 @@ public class FkhListImages : FkhServiceBase
 {
     public FkhListImages(ILogger<FkhListImages> logger) : base(logger) { }
 
-    public async Task<string> ListImagesAsync(Dictionary<string, string> parameters)
+    public async Task<object> ListImagesAsync(Dictionary<string, string> parameters)
     {
 #pragma warning disable CS0618
         var credential = new ManagedIdentityCredential(ClientId);
@@ -20,16 +19,14 @@ public class FkhListImages : FkhServiceBase
         // Check which images are currently in use by Kubernetes deployments
         var lastUsedMap = await GetLastUsedTimesAsync();
 
-        var sb = new StringBuilder();
-        var count = 0;
+        var repositories = new List<object>();
 
         await foreach (var repoName in client.GetRepositoryNamesAsync())
         {
             var repository = client.GetRepository(repoName);
             var properties = await repository.GetPropertiesAsync();
 
-            sb.Append($"\n\n  Repository: {repoName}");
-            sb.Append($"\n    Tags: {properties.Value.RegistryLoginServer}");
+            var tags = new List<object>();
 
             await foreach (var manifest in repository.GetAllManifestPropertiesAsync(
                 ArtifactManifestOrder.LastUpdatedOnDescending))
@@ -47,18 +44,14 @@ public class FkhListImages : FkhServiceBase
                         ? usedTime.ToString("yyyy-MM-dd HH:mm")
                         : "never";
 
-                    sb.Append($"\n    {tag}  ({size}, {updated}, last used: {lastUsed})");
-                    count++;
+                    tags.Add(new { Name = tag, Size = size, Updated = updated, LastUsed = lastUsed });
                 }
             }
+
+            repositories.Add(new { Repository = repoName, Tags = tags });
         }
 
-        if (count == 0)
-        {
-            return "No images found in the container registry.";
-        }
-
-        return $"Images ({count}):{sb}";
+        return new { Images = repositories };
     }
 
     /// <summary>

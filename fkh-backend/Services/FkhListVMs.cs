@@ -1,4 +1,3 @@
-using System.Text;
 using k8s;
 using Microsoft.Extensions.Logging;
 
@@ -8,7 +7,7 @@ public class FkhListVMs : FkhServiceBase
 {
     public FkhListVMs(ILogger<FkhListVMs> logger) : base(logger) { }
 
-    public async Task<string> ListVMsAsync(Dictionary<string, string> parameters)
+    public async Task<object> ListVMsAsync(Dictionary<string, string> parameters)
     {
         var isAdmin = parameters.TryGetValue("_isAdmin", out var adminValue)
             && string.Equals(adminValue, "true", StringComparison.OrdinalIgnoreCase);
@@ -28,7 +27,7 @@ public class FkhListVMs : FkhServiceBase
 
         if (windowsNodes.Count == 0)
         {
-            return "No Windows VMs found.";
+            return new { Vms = Array.Empty<object>() };
         }
 
         // Check CNS status per node
@@ -40,7 +39,7 @@ public class FkhListVMs : FkhServiceBase
         // Get pod counts per node in app namespace
         var appPods = await client.ListNamespacedPodAsync(Namespace);
 
-        var sb = new StringBuilder();
+        var vmResults = new List<object>();
         foreach (var node in windowsNodes)
         {
             var name = node.Metadata.Name;
@@ -68,17 +67,20 @@ public class FkhListVMs : FkhServiceBase
                 .OrderBy(p => p)
                 .ToList();
 
-            sb.AppendLine($"  {name}");
-            sb.AppendLine($"    Status: {(ready ? "Ready" : "NotReady")}");
-            sb.AppendLine($"    CNS: {(cnsReady ? "Ready" : "NotReady")}");
-            sb.AppendLine($"    Containers: {(nodePodLabels.Count > 0 ? string.Join(",", nodePodLabels) : "0")}");
-            sb.AppendLine($"    CPU: {cpuAllocatable}/{cpuCapacity}");
-            sb.AppendLine($"    Memory: {memAllocatable}/{memCapacity}");
-            sb.AppendLine($"    Kubelet: {kubeletVersion}");
-            sb.AppendLine($"    OS: {osImage}");
+            vmResults.Add(new
+            {
+                Name = name,
+                Status = ready ? "Ready" : "NotReady",
+                Cns = cnsReady ? "Ready" : "NotReady",
+                Containers = nodePodLabels,
+                Cpu = $"{cpuAllocatable}/{cpuCapacity}",
+                Memory = $"{memAllocatable}/{memCapacity}",
+                Kubelet = kubeletVersion,
+                Os = osImage,
+            });
         }
 
-        return sb.ToString();
+        return new { Vms = vmResults };
     }
 
     private static string FormatMemory(string memKi)

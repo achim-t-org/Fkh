@@ -6,7 +6,7 @@ public class FkhInvokeSqlCmd : FkhServiceBase
 {
     public FkhInvokeSqlCmd(ILogger<FkhInvokeSqlCmd> logger) : base(logger) { }
 
-    public async Task<string> InvokeSqlCmdAsync(Dictionary<string, string> parameters)
+    public async Task<object> InvokeSqlCmdAsync(Dictionary<string, string> parameters)
     {
         var githubUsername = parameters["_githubUsername"];
         var containerName = parameters["name"];
@@ -33,7 +33,7 @@ public class FkhInvokeSqlCmd : FkhServiceBase
 
         if (!dbExists)
         {
-            return $"Database '{databaseName}' not found. Make sure the container name is correct.";
+            return new { Database = databaseName, Message = "Database not found. Make sure the container name is correct." };
         }
 
         // Execute the SQL statement against the user's database
@@ -42,12 +42,11 @@ public class FkhInvokeSqlCmd : FkhServiceBase
             $"-Q \"{safeSql}\"";
         var result = await ExecInMssqlPodAsync(client, podName, execScript);
 
-        var output = result.Stdout.TrimEnd();
-        if (!string.IsNullOrWhiteSpace(result.Stderr))
+        return new
         {
-            output += $"\n\n[stderr]:\n{result.Stderr.TrimEnd()}";
-        }
-
-        return $"SQL executed on database '{databaseName}':\n\n{output}";
+            Database = databaseName,
+            Output = result.Stdout.TrimEnd(),
+            Stderr = string.IsNullOrWhiteSpace(result.Stderr) ? null : result.Stderr.TrimEnd(),
+        };
     }
 }

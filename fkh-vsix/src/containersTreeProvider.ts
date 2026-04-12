@@ -90,39 +90,7 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<ProjectTree
 
     // Children of a container: properties
     if (element.containerInfo) {
-      return element.containerInfo.properties.map(prop => {
-        const child = new ProjectTreeItem(
-          `${prop.label}: ${prop.value}`,
-          vscode.TreeItemCollapsibleState.None,
-          undefined,
-          undefined,
-          true
-        );
-        child.tooltip = `${prop.label}: ${prop.value}`;
-
-        if (prop.label === 'WebClient') {
-          child.command = {
-            command: 'vscode.open',
-            title: 'Open WebClient',
-            arguments: [vscode.Uri.parse(prop.value)],
-          };
-          child.iconPath = new vscode.ThemeIcon('link-external');
-        } else if (prop.label === 'Image') {
-          child.iconPath = new vscode.ThemeIcon('package');
-        } else if (prop.label === 'Memory') {
-          child.iconPath = new vscode.ThemeIcon('server-process');
-        } else if (prop.label === 'AutoStop') {
-          child.iconPath = new vscode.ThemeIcon('watch');
-        } else if (prop.label === 'Repo') {
-          child.iconPath = new vscode.ThemeIcon('repo');
-        } else if (prop.label === 'Project') {
-          child.iconPath = new vscode.ThemeIcon('symbol-folder');
-        } else if (prop.label === 'Status') {
-          child.iconPath = new vscode.ThemeIcon('info');
-        }
-
-        return child;
-      });
+      return buildContainerPropertyNodes(element.containerInfo, ProjectTreeItem);
     }
 
     return [];
@@ -133,8 +101,8 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<ProjectTree
     if (!repoName) { return []; }
     const containers = this._getContainers();
     return containers.filter(container => {
-      const containerRepo = container.properties.find(p => p.label === 'Repo')?.value ?? '';
-      const containerProject = container.properties.find(p => p.label === 'Project')?.value ?? '';
+      const containerRepo = container.repo ?? '';
+      const containerProject = container.project ?? '';
       return containerRepo.toLowerCase() === repoName.toLowerCase()
         && containerProject.toLowerCase() === projectName.toLowerCase();
     });
@@ -147,7 +115,45 @@ export interface ContainerInfo {
   appLabel: string;
   name: string;
   status: string;
-  properties: { label: string; value: string }[];
+  statusDetail: string;
+  reason?: string;
+  image: string;
+  autoStop?: string;
+  repo?: string;
+  project?: string;
+  webClient?: string;
+  memory?: string;
+}
+
+function buildContainerPropertyNodes<T extends vscode.TreeItem>(
+  info: ContainerInfo,
+  Ctor: new (label: string, state: vscode.TreeItemCollapsibleState, ...args: any[]) => T,
+): T[] {
+  const nodes: T[] = [];
+  const add = (label: string, value: string | undefined, icon: string, command?: vscode.Command) => {
+    if (!value) { return; }
+    const node = new Ctor(`${label}: ${value}`, vscode.TreeItemCollapsibleState.None);
+    node.tooltip = `${label}: ${value}`;
+    node.iconPath = new vscode.ThemeIcon(icon);
+    if (command) { node.command = command; }
+    nodes.push(node);
+  };
+
+  add('Status', info.statusDetail, 'info');
+  if (info.reason) { add('Reason', info.reason, 'warning'); }
+  add('Image', info.image, 'package');
+  add('AutoStop', info.autoStop, 'watch');
+  add('Repo', info.repo, 'repo');
+  add('Project', info.project, 'symbol-folder');
+  if (info.webClient) {
+    add('WebClient', info.webClient, 'link-external', {
+      command: 'vscode.open',
+      title: 'Open WebClient',
+      arguments: [vscode.Uri.parse(info.webClient)],
+    });
+  }
+  add('Memory', info.memory, 'server-process');
+  return nodes;
 }
 
 export class ContainerTreeItem extends vscode.TreeItem {
@@ -220,36 +226,7 @@ export class ContainersTreeProvider implements vscode.TreeDataProvider<Container
     }
 
     if (element.containerInfo) {
-      return element.containerInfo.properties.map(prop => {
-        const child = new ContainerTreeItem(
-          `${prop.label}: ${prop.value}`,
-          vscode.TreeItemCollapsibleState.None
-        );
-        child.tooltip = `${prop.label}: ${prop.value}`;
-
-        if (prop.label === 'WebClient') {
-          child.command = {
-            command: 'vscode.open',
-            title: 'Open WebClient',
-            arguments: [vscode.Uri.parse(prop.value)],
-          };
-          child.iconPath = new vscode.ThemeIcon('link-external');
-        } else if (prop.label === 'Image') {
-          child.iconPath = new vscode.ThemeIcon('package');
-        } else if (prop.label === 'Memory') {
-          child.iconPath = new vscode.ThemeIcon('server-process');
-        } else if (prop.label === 'AutoStop') {
-          child.iconPath = new vscode.ThemeIcon('watch');
-        } else if (prop.label === 'Repo') {
-          child.iconPath = new vscode.ThemeIcon('repo');
-        } else if (prop.label === 'Project') {
-          child.iconPath = new vscode.ThemeIcon('symbol-folder');
-        } else if (prop.label === 'Status') {
-          child.iconPath = new vscode.ThemeIcon('info');
-        }
-
-        return child;
-      });
+      return buildContainerPropertyNodes(element.containerInfo, ContainerTreeItem);
     }
 
     return [];
@@ -274,53 +251,11 @@ export class ContainersTreeProvider implements vscode.TreeDataProvider<Container
 
       if (!response.ok) { return []; }
 
-      const result = await response.json() as { message: string };
-      return this.parseContainersMessage(result.message);
+      const result = await response.json() as { containers: ContainerInfo[] };
+      return result.containers ?? [];
     } catch {
       return [];
     }
-  }
-
-  private parseContainersMessage(message: string): ContainerInfo[] {
-    const containers: ContainerInfo[] = [];
-    const lines = message.split(/\r?\n/);
-
-    let current: ContainerInfo | undefined;
-
-    for (const line of lines) {
-      const headerMatch = line.match(/^  (\S+)\s*$/);
-      if (headerMatch) {
-        if (current) { containers.push(current); }
-        current = {
-          appLabel: headerMatch[1],
-          name: headerMatch[1],
-          status: 'Unknown',
-          properties: [],
-        };
-        continue;
-      }
-
-      if (!current) { continue; }
-
-      const propMatch = line.match(/^    (\S+?)\s*:\s*(.+)$/);
-      if (propMatch) {
-        const key = propMatch[1];
-        const value = propMatch[2].trim();
-
-        if (key === 'Name') {
-          current.name = value;
-        } else if (key === 'Status') {
-          const statusWord = value.split(' ')[0];
-          current.status = statusWord;
-          current.properties.push({ label: 'Status', value });
-        } else {
-          current.properties.push({ label: key, value });
-        }
-      }
-    }
-
-    if (current) { containers.push(current); }
-    return containers;
   }
 }
 
@@ -430,45 +365,11 @@ export class ImagesTreeProvider implements vscode.TreeDataProvider<ImageTreeItem
 
       if (!response.ok) { return []; }
 
-      const result = await response.json() as { message: string };
-      return this.parseImagesMessage(result.message);
+      const result = await response.json() as { images: ImageInfo[] };
+      return result.images ?? [];
     } catch {
       return [];
     }
-  }
-
-  private parseImagesMessage(message: string): ImageInfo[] {
-    const images: ImageInfo[] = [];
-    let current: ImageInfo | undefined;
-
-    const lines = message.split('\n');
-    for (const line of lines) {
-      const repoMatch = line.match(/^\s*Repository:\s*(.+)$/);
-      if (repoMatch) {
-        if (current) { images.push(current); }
-        current = { repository: repoMatch[1].trim(), tags: [] };
-        continue;
-      }
-
-      if (!current) { continue; }
-
-      // Skip the "Tags:" line
-      if (line.match(/^\s*Tags:/)) { continue; }
-
-      // Parse tag lines: "    tagname  (size, date, last used: date)"
-      const tagMatch = line.match(/^\s{4}(\S+)\s+\(([^,]+),\s*([^,]+),\s*last used:\s*(.+)\)$/);
-      if (tagMatch) {
-        current.tags.push({
-          name: tagMatch[1],
-          size: tagMatch[2].trim(),
-          updated: tagMatch[3].trim(),
-          lastUsed: tagMatch[4].trim(),
-        });
-      }
-    }
-
-    if (current) { images.push(current); }
-    return images;
   }
 }
 
@@ -477,8 +378,12 @@ export class ImagesTreeProvider implements vscode.TreeDataProvider<ImageTreeItem
 export interface VMInfo {
   name: string;
   status: string;
-  containerAppLabels: string[];
-  properties: { label: string; value: string }[];
+  containers: string;
+  cns: string;
+  cpu: string;
+  memory: string;
+  kubelet: string;
+  os: string;
 }
 
 export class VMTreeItem extends vscode.TreeItem {
@@ -551,7 +456,7 @@ export class VMsTreeProvider implements vscode.TreeDataProvider<VMTreeItem> {
         item.tooltip = `${vm.name}\nStatus: ${vm.status}`;
         item.contextValue = 'windowsVM';
         const allContainers = this._getContainers();
-        const vmContainerLabels = new Set(vm.containerAppLabels);
+        const vmContainerLabels = new Set(vm.containers ? vm.containers.split(',').map(s => s.trim()) : []);
         const matchedContainerCount = allContainers.filter(p => vmContainerLabels.has(p.appLabel)).length;
         if (matchedContainerCount > 0) {
           item.description = `${matchedContainerCount} container${matchedContainerCount !== 1 ? 's' : ''}`;
@@ -577,7 +482,7 @@ export class VMsTreeProvider implements vscode.TreeDataProvider<VMTreeItem> {
 
       // Containers on this VM
       const allContainers = this._getContainers();
-      const vmContainerLabels = new Set(element.vmInfo.containerAppLabels);
+      const vmContainerLabels = new Set(element.vmInfo.containers ? element.vmInfo.containers.split(',').map(s => s.trim()) : []);
       const vmContainers = allContainers.filter(p => vmContainerLabels.has(p.appLabel));
       for (const container of vmContainers) {
         const statusLower = container.status.toLowerCase();
@@ -604,66 +509,28 @@ export class VMsTreeProvider implements vscode.TreeDataProvider<VMTreeItem> {
 
     // Children of the "VM Info" group: VM properties
     if (element.isVMInfoGroup && element.vmInfo) {
-      return element.vmInfo.properties.map(prop => {
-        const child = new VMTreeItem(
-          `${prop.label}: ${prop.value}`,
-          vscode.TreeItemCollapsibleState.None
-        );
-        child.tooltip = `${prop.label}: ${prop.value}`;
-
-        if (prop.label === 'CNS') {
-          child.iconPath = new vscode.ThemeIcon(
-            prop.value === 'Ready' ? 'pass' : 'error',
-            prop.value === 'Ready'
-              ? new vscode.ThemeColor('testing.iconPassed')
-              : new vscode.ThemeColor('testing.iconFailed')
-          );
-        } else if (prop.label === 'CPU') {
-          child.iconPath = new vscode.ThemeIcon('dashboard');
-        } else if (prop.label === 'Memory') {
-          child.iconPath = new vscode.ThemeIcon('server-process');
-        } else if (prop.label === 'Kubelet') {
-          child.iconPath = new vscode.ThemeIcon('versions');
-        } else if (prop.label === 'OS') {
-          child.iconPath = new vscode.ThemeIcon('device-desktop');
-        }
-
-        return child;
-      });
+      const vm = element.vmInfo;
+      const nodes: VMTreeItem[] = [];
+      const add = (label: string, value: string | undefined, icon: string, iconColor?: vscode.ThemeColor) => {
+        if (!value) { return; }
+        const node = new VMTreeItem(`${label}: ${value}`, vscode.TreeItemCollapsibleState.None);
+        node.tooltip = `${label}: ${value}`;
+        node.iconPath = new vscode.ThemeIcon(icon, iconColor);
+        nodes.push(node);
+      };
+      add('CNS', vm.cns, vm.cns === 'Ready' ? 'pass' : 'error',
+        vm.cns === 'Ready' ? new vscode.ThemeColor('testing.iconPassed') : new vscode.ThemeColor('testing.iconFailed'));
+      add('Containers', vm.containers, 'vm');
+      add('CPU', vm.cpu, 'dashboard');
+      add('Memory', vm.memory, 'server-process');
+      add('Kubelet', vm.kubelet, 'versions');
+      add('OS', vm.os, 'device-desktop');
+      return nodes;
     }
 
     // Children of a container under a VM: properties
     if (element.containerInfo) {
-      return element.containerInfo.properties.map(prop => {
-        const child = new VMTreeItem(
-          `${prop.label}: ${prop.value}`,
-          vscode.TreeItemCollapsibleState.None
-        );
-        child.tooltip = `${prop.label}: ${prop.value}`;
-
-        if (prop.label === 'WebClient') {
-          child.command = {
-            command: 'vscode.open',
-            title: 'Open WebClient',
-            arguments: [vscode.Uri.parse(prop.value)],
-          };
-          child.iconPath = new vscode.ThemeIcon('link-external');
-        } else if (prop.label === 'Image') {
-          child.iconPath = new vscode.ThemeIcon('package');
-        } else if (prop.label === 'Memory') {
-          child.iconPath = new vscode.ThemeIcon('server-process');
-        } else if (prop.label === 'AutoStop') {
-          child.iconPath = new vscode.ThemeIcon('watch');
-        } else if (prop.label === 'Repo') {
-          child.iconPath = new vscode.ThemeIcon('repo');
-        } else if (prop.label === 'Project') {
-          child.iconPath = new vscode.ThemeIcon('symbol-folder');
-        } else if (prop.label === 'Status') {
-          child.iconPath = new vscode.ThemeIcon('info');
-        }
-
-        return child;
-      });
+      return buildContainerPropertyNodes(element.containerInfo, VMTreeItem);
     }
 
     return [];
@@ -693,50 +560,10 @@ export class VMsTreeProvider implements vscode.TreeDataProvider<VMTreeItem> {
 
       if (!response.ok) { return { vms: [], visible: false }; }
 
-      const result = await response.json() as { message: string };
-      return { vms: this.parseVMsMessage(result.message), visible: true };
+      const result = await response.json() as { vms: VMInfo[] };
+      return { vms: result.vms ?? [], visible: true };
     } catch {
       return { vms: [], visible: false };
     }
-  }
-
-  private parseVMsMessage(message: string): VMInfo[] {
-    const vms: VMInfo[] = [];
-    const lines = message.split(/\r?\n/);
-
-    let current: VMInfo | undefined;
-
-    for (const line of lines) {
-      const headerMatch = line.match(/^  (\S+)\s*$/);
-      if (headerMatch) {
-        if (current) { vms.push(current); }
-        current = {
-          name: headerMatch[1],
-          status: 'Unknown',
-          containerAppLabels: [],
-          properties: [],
-        };
-        continue;
-      }
-
-      if (!current) { continue; }
-
-      const propMatch = line.match(/^    (\S+?):\s*(.+)$/);
-      if (propMatch) {
-        const key = propMatch[1];
-        const value = propMatch[2].trim();
-
-        if (key === 'Status') {
-          current.status = value;
-        } else if (key === 'Containers') {
-          current.containerAppLabels = value === '0' ? [] : value.split(',').map(s => s.trim());
-          continue;
-        }
-        current.properties.push({ label: key, value });
-      }
-    }
-
-    if (current) { vms.push(current); }
-    return vms;
   }
 }

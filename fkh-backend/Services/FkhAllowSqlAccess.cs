@@ -12,7 +12,7 @@ public class FkhAllowSqlAccess : FkhServiceBase
 
     public FkhAllowSqlAccess(ILogger<FkhAllowSqlAccess> logger) : base(logger) { }
 
-    public async Task<string> AllowSqlAccessAsync(Dictionary<string, string> parameters)
+    public async Task<object> AllowSqlAccessAsync(Dictionary<string, string> parameters)
     {
         var githubUsername = parameters["_githubUsername"];
         var ip = parameters["ip"];
@@ -205,20 +205,22 @@ public class FkhAllowSqlAccess : FkhServiceBase
             }
 
             sqlLoginInfo = databases.Count > 0
-                ? $"\n  SQL Login: {sqlLogin} (db_owner on {string.Join(", ", databases)})"
-                : $"\n  SQL Login: {sqlLogin} (no databases matching '{sqlLogin}_*' found)";
+                ? $"{sqlLogin} (db_owner on {string.Join(", ", databases)})"
+                : $"{sqlLogin} (no databases matching '{sqlLogin}_*' found)";
         }
 
-        var sqlDiag = sqlLog.Count > 0 ? "\n--- SQL Diagnostics ---\n  " + string.Join("\n  ", sqlLog) : "";
-        return $"SQL access granted for user '{githubUsername}'.\n" +
-               $"  Allowed IP: {cidr}\n" +
-               $"  SQL Endpoint: {endpoint}\n" +
-               $"  Auto-revoke: {revokeAt:yyyy-MM-dd HH:mm} UTC ({hours}h)" +
-               sqlLoginInfo +
-               sqlDiag;
+        return new
+        {
+            User = githubUsername,
+            AllowedIp = cidr,
+            SqlEndpoint = endpoint,
+            AutoRevoke = $"{revokeAt:yyyy-MM-dd HH:mm} UTC ({hours}h)",
+            SqlLogin = string.IsNullOrEmpty(sqlLoginInfo) ? null : sqlLoginInfo,
+            Diagnostics = sqlLog.Count > 0 ? sqlLog : null,
+        };
     }
 
-    public async Task<string> RevokeSqlAccessAsync(Dictionary<string, string> parameters)
+    public async Task<object> RevokeSqlAccessAsync(Dictionary<string, string> parameters)
     {
         var githubUsername = parameters["_githubUsername"];
         var sanitizedUser = SanitizeAppName(githubUsername);
@@ -226,7 +228,7 @@ public class FkhAllowSqlAccess : FkhServiceBase
         return await RevokeForUserAsync(sanitizedUser, githubUsername);
     }
 
-    public async Task<string> RevokeForUserAsync(string sanitizedUser, string displayName)
+    public async Task<object> RevokeForUserAsync(string sanitizedUser, string displayName)
     {
         var serviceName = $"{ServicePrefix}{sanitizedUser}";
         var policyName = $"{PolicyPrefix}{sanitizedUser}";
@@ -292,11 +294,11 @@ public class FkhAllowSqlAccess : FkhServiceBase
 
         if (removed.Count == 0)
         {
-            return $"No SQL access resources found for user '{displayName}'.";
+            return new { User = displayName, Message = "No SQL access resources found.", Removed = Array.Empty<string>() };
         }
 
         Logger.LogInformation("Revoked SQL access for user '{User}': {Resources}", displayName, string.Join(", ", removed));
-        return $"SQL access revoked for user '{displayName}'.\n  Removed: {string.Join(", ", removed)}";
+        return new { User = displayName, Removed = removed };
     }
 
     public async Task CheckAndRevokeExpiredAccessAsync()

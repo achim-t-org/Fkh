@@ -106,51 +106,51 @@ try
 
         var response = await client.SendAsync(request, cts.Token);
         var body = await response.Content.ReadAsStringAsync(cts.Token);
-        var message = TryGetMessage(body) ?? body;
 
-        if (response.StatusCode == System.Net.HttpStatusCode.Accepted
-            && response.Headers.TryGetValues("Retry-After", out var retryValues)
-            && int.TryParse(retryValues.FirstOrDefault(), out var retrySeconds)
-            && retrySeconds > 0)
+        if (response.StatusCode == System.Net.HttpStatusCode.Accepted)
         {
-            Console.WriteLine(message);
-            if (parsed.NoWait)
+            // Retry responses still use { "message": "...", "retryAfterSeconds": N }
+            var message = TryGetMessage(body) ?? body;
+            var retrySeconds = 0;
+            if (response.Headers.TryGetValues("Retry-After", out var retryValues))
+                int.TryParse(retryValues.FirstOrDefault(), out retrySeconds);
+            if (retrySeconds > 0)
             {
-                Console.WriteLine("--nowait specified, not waiting for completion.");
-                return 0;
+                Console.WriteLine(message);
+                if (parsed.NoWait)
+                {
+                    Console.WriteLine("--nowait specified, not waiting for completion.");
+                    return 0;
+                }
+                Console.WriteLine($"Retrying in {retrySeconds} seconds... (Ctrl+C to cancel)");
+                await Task.Delay(TimeSpan.FromSeconds(retrySeconds), cts.Token);
+                continue;
             }
-            Console.WriteLine($"Retrying in {retrySeconds} seconds... (Ctrl+C to cancel)");
-            await Task.Delay(TimeSpan.FromSeconds(retrySeconds), cts.Token);
-            continue;
         }
 
         if (response.IsSuccessStatusCode)
         {
             if (parsed.AsJson)
             {
-                var jsonOutput = JsonSerializer.Serialize(
-                    new { success = true, message },
-                    new JsonSerializerOptions { WriteIndented = true });
-                Console.WriteLine(jsonOutput);
+                // Pretty-print the raw JSON from the server
+                try
+                {
+                    using var doc = JsonDocument.Parse(body);
+                    Console.WriteLine(JsonSerializer.Serialize(doc.RootElement, new JsonSerializerOptions { WriteIndented = true }));
+                }
+                catch
+                {
+                    Console.WriteLine(body);
+                }
             }
             else
             {
-                Console.WriteLine(message);
+                Console.WriteLine(FormatJsonAsText(body));
             }
             return 0;
         }
 
-        if (parsed.AsJson)
-        {
-            var jsonOutput = JsonSerializer.Serialize(
-                new { success = false, statusCode = (int)response.StatusCode, message },
-                new JsonSerializerOptions { WriteIndented = true });
-            Console.WriteLine(jsonOutput);
-        }
-        else
-        {
-            Console.Error.WriteLine($"Request failed ({(int)response.StatusCode}): {message}");
-        }
+        Console.Error.WriteLine($"Request failed ({(int)response.StatusCode}): {body}");
         return 1;
     }
 }
@@ -494,6 +494,99 @@ static string? TryGetMessage(string responseBody)
     }
 
     return null;
+}
+
+static string FormatJsonAsText(string json)
+{
+    try
+    {
+        using var doc = JsonDocument.Parse(json);
+        var sb = new StringBuilder();
+        FormatElement(sb, doc.RootElement, indent: 0);
+        return sb.ToString().TrimEnd();
+    }
+    catch
+    {
+        return json;
+    }
+}
+
+static void FormatElement(StringBuilder sb, JsonElement element, int indent)
+{
+    var prefix = new string(' ', indent * 2);
+
+    switch (element.ValueKind)
+    {
+        case JsonValueKind.Object:
+            foreach (var prop in element.EnumerateObject())
+            {
+                var label = PascalToTitle(prop.Name);
+                if (prop.Value.ValueKind == JsonValueKind.Object)
+                {
+                    sb.AppendLine($"{prefix}{label}:");
+                    FormatElement(sb, prop.Value, indent + 1);
+                }
+                else if (prop.Value.ValueKind == JsonValueKind.Array)
+                {
+                    var arr = prop.Value;
+                    if (arr.GetArrayLength() == 0)
+                        continue;
+                    // Check if it's an array of simple values
+                    var first = arr[0];
+                    if (first.ValueKind == JsonValueKind.Object)
+                    {
+                        sb.AppendLine($"{prefix}{label}:");
+                        foreach (var item in arr.EnumerateArray())
+                        {
+                            sb.AppendLine();
+                            FormatElement(sb, item, indent + 1);
+                        }
+                    }
+                    else
+                    {
+                        var values = string.Join(", ", arr.EnumerateArray().Select(v => v.ToString()));
+                        sb.AppendLine($"{prefix}{label}: {values}");
+                    }
+                }
+                else if (prop.Value.ValueKind == JsonValueKind.Null)
+                {
+                    // Skip null values
+                }
+                else
+                {
+                    sb.AppendLine($"{prefix}{label}: {prop.Value}");
+                }
+            }
+            break;
+
+        case JsonValueKind.Array:
+            foreach (var item in element.EnumerateArray())
+            {
+                FormatElement(sb, item, indent);
+                sb.AppendLine();
+            }
+            break;
+
+        default:
+            sb.AppendLine($"{prefix}{element}");
+            break;
+    }
+}
+
+static string PascalToTitle(string name)
+{
+    if (string.IsNullOrEmpty(name)) return name;
+    var sb = new StringBuilder();
+    sb.Append(char.ToUpper(name[0]));
+    for (var i = 1; i < name.Length; i++)
+    {
+        if (char.IsUpper(name[i]) && i > 0 && !char.IsUpper(name[i - 1]))
+        {
+            sb.Append(' ');
+        }
+        sb.Append(name[i]);
+    }
+    return sb.ToString();
 }
 
 static CliSettings LoadSettings()

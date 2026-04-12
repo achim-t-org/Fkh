@@ -455,6 +455,30 @@ function logOutput(message: string, isError = false): void {
   if (isError) { vscode.window.showErrorMessage(message); }
 }
 
+function formatJsonResult(obj: unknown, indent = 0): string {
+  if (obj === null || obj === undefined) { return ''; }
+  if (typeof obj === 'string' || typeof obj === 'number' || typeof obj === 'boolean') {
+    return String(obj);
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(item => formatJsonResult(item, indent)).join('\n');
+  }
+  if (typeof obj === 'object') {
+    const prefix = '  '.repeat(indent);
+    return Object.entries(obj as Record<string, unknown>)
+      .filter(([, v]) => v !== null && v !== undefined)
+      .map(([k, v]) => {
+        const label = k.charAt(0).toUpperCase() + k.slice(1).replace(/([A-Z])/g, ' $1');
+        if (typeof v === 'object') {
+          return `${prefix}${label}:\n${formatJsonResult(v, indent + 1)}`;
+        }
+        return `${prefix}${label}: ${v}`;
+      })
+      .join('\n');
+  }
+  return String(obj);
+}
+
 async function invokeFunctionByName(functionName: string, prefilled: Record<string, string> = {}): Promise<void> {
   const catalog = await getFunctionCatalog();
   if (!catalog) { return; }
@@ -515,8 +539,8 @@ async function invokeFunctionByName(functionName: string, prefilled: Record<stri
           }
 
           if (response.ok) {
-            const result = await response.json() as { message: string };
-            logOutput(`[${definition.name}] ${result.message}`);
+            const result = await response.json();
+            logOutput(`[${definition.name}] ${formatJsonResult(result)}`);
           } else {
             const error = response.status === 401 || response.status === 403
               ? `Access denied (${response.status}). Make sure your GitHub account is a member of an authorized team.`
@@ -566,8 +590,8 @@ async function invokeContainerAction(
         });
 
         if (response.ok) {
-          const result = await response.json() as { message: string };
-          logOutput(`[${functionName}] ${result.message}`);
+          const result = await response.json();
+          logOutput(`[${functionName}] ${formatJsonResult(result)}`);
         } else {
           const error = response.status === 401 || response.status === 403
             ? `Access denied (${response.status}).`
@@ -610,10 +634,10 @@ async function showContainerLogs(appLabel: string, containerName: string): Promi
         });
 
         if (response.ok) {
-          const result = await response.json() as { message: string };
+          const result = await response.json() as { logs: string };
           const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
           const uri = vscode.Uri.parse(`fkh-log:${containerName}-${timestamp}.log`);
-          containerLogContents.set(uri.toString(), result.message);
+          containerLogContents.set(uri.toString(), result.logs ?? '');
           const doc = await vscode.workspace.openTextDocument(uri);
           await vscode.window.showTextDocument(doc, { preview: true });
         } else {

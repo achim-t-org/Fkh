@@ -14,7 +14,7 @@ public class FkhCreateImage : FkhServiceBase
         _gitHubAppTokenService = gitHubAppTokenService;
     }
 
-    public async Task<string> CreateImageAsync(Dictionary<string, string> parameters)
+    public async Task<object> CreateImageAsync(Dictionary<string, string> parameters)
     {
         var artifactUrl = parameters["artifactUrl"];
 
@@ -32,7 +32,7 @@ public class FkhCreateImage : FkhServiceBase
         {
             var artifact = client.GetArtifact(AcrRepository, imageTag);
             await artifact.GetManifestPropertiesAsync();
-            return $"Image already exists: {fullImage}";
+            return new { Image = fullImage, Message = "Image already exists." };
         }
         catch (Azure.RequestFailedException ex) when (ex.Status == 404)
         {

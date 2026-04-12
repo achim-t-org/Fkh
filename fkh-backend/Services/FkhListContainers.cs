@@ -1,4 +1,3 @@
-using System.Text;
 using k8s;
 using k8s.Models;
 using Microsoft.Extensions.Logging;
@@ -9,7 +8,7 @@ public class FkhListContainers : FkhServiceBase
 {
     public FkhListContainers(ILogger<FkhListContainers> logger) : base(logger) { }
 
-    public async Task<string> ListContainersAsync(Dictionary<string, string> parameters)
+    public async Task<object> ListContainersAsync(Dictionary<string, string> parameters)
     {
         var githubUsername = parameters["_githubUsername"];
         var isAdmin = parameters.TryGetValue("_isAdmin", out var adminValue)
@@ -60,11 +59,7 @@ public class FkhListContainers : FkhServiceBase
 
         if (filtered.Count == 0)
         {
-            return showAll
-                ? "No containers found."
-                : isAdmin
-                    ? $"No containers found for user '{githubUsername}'. Use --all to list all containers."
-                    : $"No containers found for user '{githubUsername}'.";
+            return new { Containers = Array.Empty<object>() };
         }
 
         // Get pod metrics if available
@@ -86,15 +81,14 @@ public class FkhListContainers : FkhServiceBase
         }
         catch { /* metrics API not available */ }
 
-        var sb = new StringBuilder();
-        sb.Append(showAll ? "All containers:" : $"Containers for '{githubUsername}':");
-
         // Get services to resolve FQDNs
         var services = await client.ListNamespacedServiceAsync(Namespace);
         var serviceMap = services.Items
             .Where(s => s.Spec?.Selector != null && s.Spec.Selector.ContainsKey("app"))
             .GroupBy(s => s.Spec.Selector["app"])
             .ToDictionary(g => g.Key, g => g.First());
+
+        var containerResults = new List<object>();
 
         foreach (var deployment in filtered)
         {
@@ -150,41 +144,36 @@ public class FkhListContainers : FkhServiceBase
             var podName = appLabel.Contains('-') && appLabel.IndexOf('-') < appLabel.Length - 1
                 ? appLabel[(appLabel.IndexOf('-') + 1)..] : appLabel;
 
-            sb.Append($"\n\n  {appLabel}");
-            sb.Append($"\n    Name:   {podName}");
-            sb.Append($"\n    Status: {status} ({readyReplicas}/{replicas} ready)");
-            if (pendingReason != null)
-                sb.Append($"\n    Reason: {pendingReason}");
-            sb.Append($"\n    Image:  {shortImage}");
-
             // Auto-stop time
-            if (deployment.Metadata.Annotations?.TryGetValue("fkh/auto-stop-at", out var stopAtStr) == true
-                && DateTimeOffset.TryParse(stopAtStr, out var stopAt))
+            string? autoStopStr = null;
+            if (deployment.Metadata.Annotations?.TryGetValue("fkh/auto-stop-at", out var stopAtRaw) == true
+                && DateTimeOffset.TryParse(stopAtRaw, out var stopAt))
             {
                 var remaining = stopAt - DateTimeOffset.UtcNow;
                 var timeLeft = remaining.TotalMinutes > 0
                     ? $"in {remaining.Hours}h{remaining.Minutes:D2}m"
                     : "overdue";
                 var localStop = TimeZoneInfo.ConvertTime(stopAt, clientTz);
-                sb.Append($"\n    AutoStop: {localStop:yyyy-MM-dd HH:mm} ({timeLeft})");
+                autoStopStr = $"{localStop:yyyy-MM-dd HH:mm} ({timeLeft})";
             }
 
             // Repo and project metadata
-            if (deployment.Metadata.Annotations?.TryGetValue("fkh/repo", out var repo) == true && !string.IsNullOrEmpty(repo))
-                sb.Append($"\n    Repo:    {repo}");
-            if (deployment.Metadata.Annotations?.TryGetValue("fkh/project", out var proj) == true && !string.IsNullOrEmpty(proj))
-                sb.Append($"\n    Project: {proj}");
+            string? repo = deployment.Metadata.Annotations?.TryGetValue("fkh/repo", out var r) == true && !string.IsNullOrEmpty(r) ? r : null;
+            string? proj = deployment.Metadata.Annotations?.TryGetValue("fkh/project", out var p) == true && !string.IsNullOrEmpty(p) ? p : null;
 
             // Web client URL from service FQDN
+            string? webClientUrl = null;
             if (serviceMap.TryGetValue(appLabel, out var svc))
             {
                 var dnsLabel = svc.Metadata.Annotations?.TryGetValue("service.beta.kubernetes.io/azure-dns-label-name", out var label) == true ? label : null;
                 if (dnsLabel != null)
                 {
-                    sb.Append($"\n    WebClient:    https://{dnsLabel}.{AksLocation}.cloudapp.azure.com/BC/");
+                    webClientUrl = $"https://{dnsLabel}.{AksLocation}.cloudapp.azure.com/BC/";
                 }
             }
 
+            // Memory metrics
+            string? memoryStr = null;
             if (podMetricsMap.TryGetValue(appLabel, out var metrics))
             {
                 var containerMetrics = metrics.Containers?.FirstOrDefault();
@@ -196,21 +185,30 @@ public class FkhListContainers : FkhServiceBase
                         var limitBytes = container?.Resources?.Limits?.TryGetValue("memory", out var limVal) == true
                             ? limVal.ToDouble() : 0;
                         var usedMb = usedBytes / (1024 * 1024);
-                        if (limitBytes > 0)
-                        {
-                            var limitMb = limitBytes / (1024 * 1024);
-                            sb.Append($"\n    Memory: {usedMb:F0}Mb used (of {limitMb:F0}Mb)");
-                        }
-                        else
-                        {
-                            sb.Append($"\n    Memory: {usedMb:F0}Mb used");
-                        }
+                        memoryStr = limitBytes > 0
+                            ? $"{usedMb:F0}Mb used (of {limitBytes / (1024 * 1024):F0}Mb)"
+                            : $"{usedMb:F0}Mb used";
                     }
                 }
             }
+
+            containerResults.Add(new
+            {
+                AppLabel = appLabel,
+                Name = podName,
+                Status = status,
+                StatusDetail = $"{readyReplicas}/{replicas} ready",
+                Reason = pendingReason,
+                Image = shortImage,
+                AutoStop = autoStopStr,
+                Repo = repo,
+                Project = proj,
+                WebClient = webClientUrl,
+                Memory = memoryStr,
+            });
         }
 
-        return sb.ToString();
+        return new { Containers = containerResults };
     }
 
     // Lightweight models for pod metrics API

@@ -7,7 +7,7 @@ public class FkhGetContainerLogs : FkhServiceBase
 {
     public FkhGetContainerLogs(ILogger<FkhGetContainerLogs> logger) : base(logger) { }
 
-    public async Task<string> GetContainerLogsAsync(Dictionary<string, string> parameters)
+    public async Task<object> GetContainerLogsAsync(Dictionary<string, string> parameters)
     {
         var name = parameters["name"];
         var githubUsername = parameters["_githubUsername"];
@@ -28,7 +28,7 @@ public class FkhGetContainerLogs : FkhServiceBase
 
         if (pods.Items.Count == 0)
         {
-            return $"No container found for '{name}'.";
+            return new { Logs = (string?)null, Message = $"No container found for '{name}'." };
         }
 
         var pod = pods.Items[0];
@@ -38,7 +38,7 @@ public class FkhGetContainerLogs : FkhServiceBase
         {
             var condition = pod.Status.Conditions?.FirstOrDefault(c => c.Type == "PodScheduled" && c.Status == "False");
             var reason = condition?.Message ?? "Waiting for a node to become available.";
-            return $"Container '{name}' is Pending — no logs available yet.\nReason: {reason}";
+            return new { Logs = (string?)null, Message = $"Container '{name}' is Pending — no logs available yet.", Reason = reason };
         }
 
         var tailLines = parameters.TryGetValue("tail", out var tailValue) && int.TryParse(tailValue, out var t) ? t : 500;
@@ -50,6 +50,6 @@ public class FkhGetContainerLogs : FkhServiceBase
             tailLines: tailLines);
 
         using var reader = new StreamReader(stream);
-        return await reader.ReadToEndAsync();
+        return new { Logs = await reader.ReadToEndAsync() };
     }
 }

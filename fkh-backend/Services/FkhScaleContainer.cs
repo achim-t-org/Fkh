@@ -8,7 +8,7 @@ public class FkhScaleContainer : FkhServiceBase
 {
     public FkhScaleContainer(ILogger<FkhScaleContainer> logger) : base(logger) { }
 
-    public async Task<string> StopContainerAsync(Dictionary<string, string> parameters)
+    public async Task<object> StopContainerAsync(Dictionary<string, string> parameters)
     {
         var result = await ScaleAsync(parameters, 0);
         // Clear auto-stop annotation when manually stopping
@@ -21,7 +21,7 @@ public class FkhScaleContainer : FkhServiceBase
         return result;
     }
 
-    public async Task<string> StartContainerAsync(Dictionary<string, string> parameters)
+    public async Task<object> StartContainerAsync(Dictionary<string, string> parameters)
     {
         // Ensure a Windows node with healthy CNS is available before scaling up
         var name = parameters["name"];
@@ -41,7 +41,6 @@ public class FkhScaleContainer : FkhServiceBase
         await CleanupPlaceholderPodAsync(client, useSpot);
 
         var result = await ScaleAsync(parameters, 1);
-        var autoStopInfo = "";
 
         parameters.TryGetValue("autostop", out var autoStopValue);
         parameters.TryGetValue("_timezone", out var autoStopTz);
@@ -49,13 +48,20 @@ public class FkhScaleContainer : FkhServiceBase
         if (autoStop is not null)
         {
             await SetAutoStopAnnotationAsync(client, deploymentName, autoStop.Value.StopAt);
-            autoStopInfo = $"\n  AutoStop: {autoStop.Value.StopAt:yyyy-MM-dd HH:mm} UTC ({autoStop.Value.Description})";
         }
 
-        return result + autoStopInfo;
+        return new
+        {
+            result.Container,
+            result.Deployment,
+            result.Replicas,
+            AutoStop = autoStop is not null
+                ? $"{autoStop.Value.StopAt:yyyy-MM-dd HH:mm} UTC ({autoStop.Value.Description})"
+                : (string?)null,
+        };
     }
 
-    public async Task<string> ExtendAutoStopAsync(Dictionary<string, string> parameters)
+    public async Task<object> ExtendAutoStopAsync(Dictionary<string, string> parameters)
     {
         var name = parameters["name"];
         var githubUsername = parameters["_githubUsername"];
@@ -80,10 +86,12 @@ public class FkhScaleContainer : FkhServiceBase
         var newStopAt = currentStopAt.AddHours(2);
         await SetAutoStopAnnotationAsync(client, deploymentName, newStopAt);
 
-        return $"Extended auto-stop for '{appName}'.\n  AutoStop: {newStopAt:yyyy-MM-dd HH:mm} UTC";
+        return new { Container = appName, AutoStop = $"{newStopAt:yyyy-MM-dd HH:mm} UTC" };
     }
 
-    private async Task<string> ScaleAsync(Dictionary<string, string> parameters, int replicas)
+    private record ScaleResult(string Container, string Deployment, int Replicas);
+
+    private async Task<ScaleResult> ScaleAsync(Dictionary<string, string> parameters, int replicas)
     {
         var name = parameters["name"];
         var githubUsername = parameters["_githubUsername"];
@@ -99,6 +107,6 @@ public class FkhScaleContainer : FkhServiceBase
 
         var action = replicas == 0 ? "Stopped" : "Started";
         Logger.LogInformation("{Action} deployment '{Deployment}'.", action, deploymentName);
-        return $"{action} container '{appName}'.\n  Deployment: {deploymentName}\n  Replicas: {replicas}";
+        return new ScaleResult(appName, deploymentName, replicas);
     }
 }

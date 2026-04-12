@@ -99,7 +99,7 @@ public abstract class FunctionBase
         ILogger logger,
         GitHubAuthService gitHub,
         string operationName,
-        Func<Dictionary<string, string>, Task<string>> aksOperation)
+        Func<Dictionary<string, string>, Task<object>> aksOperation)
     {
         var clientIp = GetClientIp(req);
 
@@ -250,7 +250,9 @@ public abstract class FunctionBase
         {
             var result = await aksOperation(parametersResult.Parameters!);
             var response = req.CreateResponse(HttpStatusCode.OK);
-            await response.WriteAsJsonAsync(new { message = result });
+            var jsonString = JsonSerializer.Serialize(result, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull });
+            response.Headers.Add("Content-Type", "application/json; charset=utf-8");
+            response.WriteString(jsonString);
             return response;
         }
         catch (RetryAfterException retryEx)

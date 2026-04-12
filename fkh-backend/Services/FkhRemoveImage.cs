@@ -9,7 +9,7 @@ public class FkhRemoveImage : FkhServiceBase
 {
     public FkhRemoveImage(ILogger<FkhRemoveImage> logger) : base(logger) { }
 
-    public async Task<string> RemoveImageAsync(Dictionary<string, string> parameters)
+    public async Task<object> RemoveImageAsync(Dictionary<string, string> parameters)
     {
         var repository = parameters["repository"];
         var tag = parameters.TryGetValue("tag", out var t) ? t : null;
@@ -55,7 +55,7 @@ public class FkhRemoveImage : FkhServiceBase
         }
 
         Logger.LogInformation("Image removal complete for repository '{Repository}'.", repository);
-        return $"Remove image:\n  {string.Join("\n  ", results)}";
+        return new { Repository = repository, Tag = tag, Results = results };
     }
 
     private async Task<string> TryDeleteDatabaseBackupAsync(ManagedIdentityCredential credential, string imageTag)

@@ -7,7 +7,7 @@ public class FkhRemoveContainer : FkhServiceBase
 {
     public FkhRemoveContainer(ILogger<FkhRemoveContainer> logger) : base(logger) { }
 
-    public async Task<string> RemoveContainerAsync(Dictionary<string, string> parameters)
+    public async Task<object> RemoveContainerAsync(Dictionary<string, string> parameters)
     {
         var name = parameters["name"];
         var githubUsername = parameters["_githubUsername"];
@@ -31,7 +31,7 @@ public class FkhRemoveContainer : FkhServiceBase
         results.Add(await TryDropDatabaseAsync(client, databaseName));
 
         Logger.LogInformation("Container '{AppName}' removal complete.", appName);
-        return $"Remove container '{appName}':\n  {string.Join("\n  ", results)}";
+        return new { Container = appName, Results = results };
     }
 
     private async Task<string> TryDeleteAsync(string resourceType, Func<Task> deleteAction)

@@ -18,7 +18,7 @@ public class FkhCreateContainer : FkhServiceBase
         _gitHubAppTokenService = gitHubAppTokenService;
     }
 
-    public async Task<string> CreateContainerAsync(Dictionary<string, string> parameters)
+    public async Task<object> CreateContainerAsync(Dictionary<string, string> parameters)
     {
         var name = parameters["name"];
         var artifactUrl = parameters["artifactUrl"];
@@ -78,20 +78,31 @@ public class FkhCreateContainer : FkhServiceBase
         await CreateLoadBalancerServiceAsync(client, serviceName, appName, dnsLabel);
 
         // Set auto-stop annotation if requested
-        var autoStopInfo = "";
+        string? autoStopInfo = null;
         parameters.TryGetValue("autostop", out var autoStopValue);
         parameters.TryGetValue("_timezone", out var autoStopTz);
         var autoStop = ParseAutoStop(autoStopValue, autoStopTz);
         if (autoStop is not null)
         {
             await SetAutoStopAnnotationAsync(client, deploymentName, autoStop.Value.StopAt);
-            autoStopInfo = $"\n  AutoStop: {autoStop.Value.StopAt:yyyy-MM-dd HH:mm} UTC ({autoStop.Value.Description})";
+            autoStopInfo = $"{autoStop.Value.StopAt:yyyy-MM-dd HH:mm} UTC ({autoStop.Value.Description})";
         }
 
         Logger.LogInformation("Deployment {Deployment} and service {Service} created in namespace {Namespace}",
             deploymentName, serviceName, Namespace);
 
-        return $"Container created.\n  Deployment: {deploymentName}\n  Service: {serviceName}\n  Image: {fullImage}\n  FQDN: {publicDnsName}\n  WebClient: {publicDnsName}/BC?tenant=default\n  Database: {databaseName}\n  SQL Disk: {diskInfo}{autoStopInfo}";
+        return new
+        {
+            Message = "Container created.",
+            Deployment = deploymentName,
+            Service = serviceName,
+            Image = fullImage,
+            Fqdn = publicDnsName,
+            WebClient = $"{publicDnsName}/BC?tenant=default",
+            Database = databaseName,
+            SqlDisk = diskInfo,
+            AutoStop = autoStopInfo,
+        };
     }
 
     private async Task EnsureDeploymentDoesNotExistAsync(Kubernetes client, string deploymentName)
