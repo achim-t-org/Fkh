@@ -1,5 +1,5 @@
 # ============================================================================
-# Update Fkh Backend – Publish function code only (no Terraform)
+# Update Fkh Backend – Publish function code only (no Terraform apply)
 # ============================================================================
 # Mirrors terraform/deploy-functionupdate.ps1 for CI/CD use.
 # Use this when backend code changes but infrastructure is unchanged.
@@ -14,7 +14,7 @@
 #     • Contributor on the Function App resource group
 #
 # ── Required GitHub Secrets ─────────────────────────────────────────────────
-#   AZURE_DEPLOY_CLIENT_ID        - App Registration's Application (client) ID
+#   AZURE_DEPLOY_CLIENT_ID         - App Registration's Application (client) ID
 #   AZURE_DEPLOY_TENANT_ID         - Azure AD tenant ID
 #   AZURE_DEPLOY_SUBSCRIPTION_ID   - Azure subscription ID
 #
