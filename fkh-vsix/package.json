@@ -17,14 +17,17 @@
     "ui"
   ],
   "categories": [
-    "Other"
+    "Other",
+    "Extension Packs",
+    "Testing",
+    "Azure"
   ],
   "keywords": [
     "Kubernetes",
-    "AL-Go for GitHub",
-    "Business Central",
-    "Containers",
-    "AL-Go"
+    "AL",
+    "AL-Go",
+    "Business-Central",
+    "Containers"
   ],
   "activationEvents": [],
   "main": "./dist/extension.js",
