@@ -70,9 +70,9 @@ try {{
 
         var result = await ExecInBcPodAsync(client, podName, containerName, script);
 
-        if (!string.IsNullOrWhiteSpace(result.Stderr) && result.Stderr.Contains("Failed to publish app"))
+        if (!string.IsNullOrWhiteSpace(result.Stderr))
         {
-            throw new InvalidOperationException($"App publishing failed: {result.Stderr}");
+            throw new InvalidOperationException($"App publishing failed in container '{appName}':\n{result.Stderr.TrimEnd()}");
         }
 
         // Try to parse the JSON output from the script
