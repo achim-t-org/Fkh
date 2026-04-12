@@ -87,7 +87,7 @@ try
     // Send the client's timezone so the server can resolve time-of-day autostop values
     parsed.Parameters["_timezone"] = TimeZoneInfo.Local.Id;
 
-    Console.WriteLine($"Calling {endpoint}");
+    Console.WriteLine($"{Ansi.Dim}Calling {endpoint}{Ansi.Reset}");
 
     using var cts = new CancellationTokenSource();
     Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
@@ -116,13 +116,13 @@ try
                 int.TryParse(retryValues.FirstOrDefault(), out retrySeconds);
             if (retrySeconds > 0)
             {
-                Console.WriteLine(message);
+                Console.WriteLine($"{Ansi.Yellow}{message}{Ansi.Reset}");
                 if (parsed.NoWait)
                 {
                     Console.WriteLine("--nowait specified, not waiting for completion.");
                     return 0;
                 }
-                Console.WriteLine($"Retrying in {retrySeconds} seconds... (Ctrl+C to cancel)");
+                Console.WriteLine($"{Ansi.Dim}Retrying in {retrySeconds} seconds... (Ctrl+C to cancel){Ansi.Reset}");
                 await Task.Delay(TimeSpan.FromSeconds(retrySeconds), cts.Token);
                 continue;
             }
@@ -150,13 +150,13 @@ try
             return 0;
         }
 
-        Console.Error.WriteLine($"Request failed ({(int)response.StatusCode}): {body}");
+        Console.Error.WriteLine($"{Ansi.Red}Request failed ({(int)response.StatusCode}): {body}{Ansi.Reset}");
         return 1;
     }
 }
 catch (Exception ex)
 {
-    Console.Error.WriteLine(ex.Message);
+    Console.Error.WriteLine($"{Ansi.Red}{ex.Message}{Ansi.Reset}");
     return 1;
 }
 
@@ -523,7 +523,7 @@ static void FormatElement(StringBuilder sb, JsonElement element, int indent)
                 var label = PascalToTitle(prop.Name);
                 if (prop.Value.ValueKind == JsonValueKind.Object)
                 {
-                    sb.AppendLine($"{prefix}{label}:");
+                    sb.AppendLine($"{prefix}{Ansi.Cyan}{label}:{Ansi.Reset}");
                     FormatElement(sb, prop.Value, indent + 1);
                 }
                 else if (prop.Value.ValueKind == JsonValueKind.Array)
@@ -535,7 +535,7 @@ static void FormatElement(StringBuilder sb, JsonElement element, int indent)
                     var first = arr[0];
                     if (first.ValueKind == JsonValueKind.Object)
                     {
-                        sb.AppendLine($"{prefix}{label}:");
+                        sb.AppendLine($"{prefix}{Ansi.Cyan}{label}:{Ansi.Reset}");
                         foreach (var item in arr.EnumerateArray())
                         {
                             sb.AppendLine();
@@ -545,7 +545,7 @@ static void FormatElement(StringBuilder sb, JsonElement element, int indent)
                     else
                     {
                         var values = string.Join(", ", arr.EnumerateArray().Select(v => v.ToString()));
-                        sb.AppendLine($"{prefix}{label}: {values}");
+                        sb.AppendLine($"{prefix}{Ansi.Cyan}{label}:{Ansi.Reset} {values}");
                     }
                 }
                 else if (prop.Value.ValueKind == JsonValueKind.Null)
@@ -554,7 +554,7 @@ static void FormatElement(StringBuilder sb, JsonElement element, int indent)
                 }
                 else
                 {
-                    sb.AppendLine($"{prefix}{label}: {prop.Value}");
+                    sb.AppendLine($"{prefix}{Ansi.Cyan}{label}:{Ansi.Reset} {prop.Value}");
                 }
             }
             break;
@@ -677,4 +677,25 @@ sealed class FunctionInvokeRequest
 {
     [JsonPropertyName("parameters")]
     public Dictionary<string, string> Parameters { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+}
+
+static class Ansi
+{
+    static readonly bool _enabled = SupportsAnsi();
+
+    public static string Cyan => _enabled ? "\x1b[36m" : "";
+    public static string Red => _enabled ? "\x1b[31m" : "";
+    public static string Yellow => _enabled ? "\x1b[33m" : "";
+    public static string Dim => _enabled ? "\x1b[2m" : "";
+    public static string Reset => _enabled ? "\x1b[0m" : "";
+
+    static bool SupportsAnsi()
+    {
+        if (Console.IsOutputRedirected) return false;
+        if (Environment.GetEnvironmentVariable("NO_COLOR") is not null) return false;
+        if (Environment.GetEnvironmentVariable("WT_SESSION") is not null) return true;
+        if (Environment.GetEnvironmentVariable("TERM_PROGRAM") is not null) return true;
+        if (Environment.GetEnvironmentVariable("TERM") is not null) return true;
+        return false;
+    }
 }
