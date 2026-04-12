@@ -206,7 +206,29 @@ public abstract class FunctionBase
             return Respond(req, HttpStatusCode.BadRequest, "Missing multipart boundary.");
         }
 
-        var (formFields, formFiles) = await ParseMultipartAsync(req.Body, boundary);
+        // Try to seek body stream to start in case it was already read
+        logger.LogWarning("[DEBUG] req.Body type: {Type}, CanSeek: {CanSeek}, CanRead: {CanRead}", req.Body.GetType().FullName, req.Body.CanSeek, req.Body.CanRead);
+        if (req.Body.CanSeek)
+        {
+            logger.LogWarning("[DEBUG] Body position before seek: {Pos}, length: {Len}", req.Body.Position, req.Body.Length);
+            req.Body.Position = 0;
+        }
+        logger.LogWarning("[DEBUG] boundary: '{Boundary}'", boundary);
+
+        // Read body into buffer so we can log its size
+        using var bodyMs = new MemoryStream();
+        await req.Body.CopyToAsync(bodyMs);
+        var bodyBytes = bodyMs.ToArray();
+        logger.LogWarning("[DEBUG] raw body size: {Size} bytes", bodyBytes.Length);
+        if (bodyBytes.Length > 0)
+        {
+            var preview = bodyBytes.Length > 300
+                ? Encoding.UTF8.GetString(bodyBytes, 0, 300)
+                : Encoding.UTF8.GetString(bodyBytes);
+            logger.LogWarning("[DEBUG] body preview: '{Preview}'", preview);
+        }
+
+        var (formFields, formFiles) = await ParseMultipartAsync(new MemoryStream(bodyBytes), boundary);
 
         // ── DEBUG: Dump what we got from multipart parsing ─────────────────────
         logger.LogWarning("[DEBUG] formFields keys: [{Keys}]", string.Join(", ", formFields.Keys));
@@ -383,6 +405,9 @@ public abstract class FunctionBase
             if (MatchesAt(data, i, boundaryBytes))
                 positions.Add(i);
         }
+
+        // DEBUG: log boundary match count
+        Console.Error.WriteLine($"[DEBUG ParseMultipart] boundary positions found: {positions.Count}");
 
         for (var p = 0; p < positions.Count - 1; p++)
         {
