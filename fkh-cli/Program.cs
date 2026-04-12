@@ -91,7 +91,8 @@ try
     // Send the client's timezone so the server can resolve time-of-day autostop values
     parsed.Parameters["_timezone"] = TimeZoneInfo.Local.Id;
 
-    Console.WriteLine($"{Ansi.Dim}Calling {endpoint}{Ansi.Reset}");
+    if (!parsed.AsJson)
+        Console.WriteLine($"{Ansi.Dim}Calling {endpoint}{Ansi.Reset}");
 
     using var cts = new CancellationTokenSource();
     Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
