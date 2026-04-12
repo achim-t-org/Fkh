@@ -545,8 +545,7 @@ async function invokeFunctionByName(functionName: string, prefilled: Record<stri
   for (const [key, value] of Object.entries(parameters)) {
     if (fileParamNames.has(key.toLowerCase()) && value) {
       filesToUpload[key] = value;
-      const fileName = value.replace(/\\/g, '/').split('/').pop() ?? 'file';
-      parameters[key] = fileName;
+      delete parameters[key];
     }
   }
 

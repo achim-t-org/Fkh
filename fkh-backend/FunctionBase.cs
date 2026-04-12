@@ -208,6 +208,14 @@ public abstract class FunctionBase
 
         var (formFields, formFiles) = await ParseMultipartAsync(req.Body, boundary);
 
+        // ── DEBUG: Dump what we got from multipart parsing ─────────────────────
+        logger.LogWarning("[DEBUG] formFields keys: [{Keys}]", string.Join(", ", formFields.Keys));
+        logger.LogWarning("[DEBUG] formFiles keys: [{Keys}]", string.Join(", ", formFiles.Keys));
+        foreach (var ff in formFiles)
+            logger.LogWarning("[DEBUG] formFile '{Name}' = {Size} bytes", ff.Key, ff.Value.Length);
+        foreach (var ff in formFields)
+            logger.LogWarning("[DEBUG] formField '{Name}' = '{Value}'", ff.Key, ff.Value.Length > 200 ? ff.Value[..200] + "..." : ff.Value);
+
         // Build parameter dictionary from the "parameters" JSON field or individual form fields
         var parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (formFields.TryGetValue("parameters", out var parametersJson))
@@ -245,6 +253,11 @@ public abstract class FunctionBase
             .Where(p => string.Equals(p.Type, "file", StringComparison.OrdinalIgnoreCase))
             .Select(p => p.Name)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // ── DEBUG: Dump parameters and file param names after extraction ────
+        logger.LogWarning("[DEBUG] parameters keys after extraction: [{Keys}]", string.Join(", ", parameters.Keys));
+        logger.LogWarning("[DEBUG] fileParamNames: [{Names}]", string.Join(", ", fileParamNames));
+        logger.LogWarning("[DEBUG] formFiles keys at validation: [{Keys}]", string.Join(", ", formFiles.Keys));
 
         // Validate non-file parameters
         var allowedNames = function.Parameters.Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
