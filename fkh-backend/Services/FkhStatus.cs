@@ -365,7 +365,7 @@ public class FkhStatus : FkhServiceBase
 
             await foreach (var usage in subscription.GetUsagesAsync(location))
             {
-                if (usage.CurrentValue > 0 || usage.Name.LocalizedValue?.Contains("vCPU", StringComparison.OrdinalIgnoreCase) == true)
+                if (usage.CurrentValue > 0)
                 {
                     usages.Add(new
                     {
