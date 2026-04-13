@@ -16,6 +16,7 @@ Options:
     --oidcToken <token> Use a GitHub Actions OIDC token instead of gh auth
     --nowait            Don't wait for completion (createcontainer, createimage)
     --asJson            Output the result as JSON
+    --output <path>     Save binary output (e.g. event log) to this file path
     -h, --help          Show help
     --version           Show version
 
@@ -221,6 +222,12 @@ try
 
         if (response.IsSuccessStatusCode)
         {
+            // Handle binary file responses (e.g. GetContainerEventLog returns base64-encoded .evtx)
+            if (TrySaveBinaryResponse(body, parsed, parsed.Output))
+            {
+                return 0;
+            }
+
             if (parsed.AsJson)
             {
                 // Pretty-print the raw JSON from the server
@@ -321,6 +328,17 @@ static ParsedArgs ParseArgs(string[] args, FunctionCatalogResponse catalog)
                 throw new InvalidOperationException("Missing value for --oidcToken");
             }
             parsed.OidcToken = args[i];
+            continue;
+        }
+
+        if (string.Equals(key, "output", StringComparison.OrdinalIgnoreCase))
+        {
+            i++;
+            if (i >= args.Length)
+            {
+                throw new InvalidOperationException("Missing value for --output");
+            }
+            parsed.Output = args[i];
             continue;
         }
 
@@ -657,6 +675,41 @@ static string? TryGetMessage(string responseBody)
     return null;
 }
 
+static bool TrySaveBinaryResponse(string body, ParsedArgs parsed, string? outputPath)
+{
+    try
+    {
+        using var doc = JsonDocument.Parse(body);
+        var root = doc.RootElement;
+
+        // Look for responses that contain a base64-encoded file (e.g. eventLog)
+        if (root.TryGetProperty("eventLog", out var eventLogProp) && eventLogProp.ValueKind == JsonValueKind.String)
+        {
+            var base64 = eventLogProp.GetString();
+            if (string.IsNullOrWhiteSpace(base64))
+            {
+                Console.Error.WriteLine($"{Ansi.Red}No event log data returned.{Ansi.Reset}");
+                return true;
+            }
+
+            var fileName = outputPath
+                ?? (root.TryGetProperty("fileName", out var fileNameProp) && fileNameProp.ValueKind == JsonValueKind.String
+                    ? fileNameProp.GetString() ?? "eventlog.evtx"
+                    : "eventlog.evtx");
+
+            var bytes = Convert.FromBase64String(base64);
+            File.WriteAllBytes(fileName, bytes);
+            Console.WriteLine($"{Ansi.Cyan}Event log saved to {Path.GetFullPath(fileName)} ({bytes.Length / 1024.0:N1} KB){Ansi.Reset}");
+            return true;
+        }
+    }
+    catch
+    {
+        // Not a binary response — fall through to normal handling
+    }
+    return false;
+}
+
 static string FormatJsonAsText(string json)
 {
     try
@@ -788,6 +841,7 @@ sealed class ParsedArgs
     public bool NoWait { get; set; }
     public bool AsJson { get; set; }
     public string? OidcToken { get; set; }
+    public string? Output { get; set; }
     public Dictionary<string, string> Parameters { get; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
