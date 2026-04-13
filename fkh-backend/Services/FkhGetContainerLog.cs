@@ -3,11 +3,11 @@ using Microsoft.Extensions.Logging;
 
 namespace Fkh.Services;
 
-public class FkhGetContainerLogs : FkhServiceBase
+public class FkhGetContainerLog : FkhServiceBase
 {
-    public FkhGetContainerLogs(ILogger<FkhGetContainerLogs> logger) : base(logger) { }
+    public FkhGetContainerLog(ILogger<FkhGetContainerLog> logger) : base(logger) { }
 
-    public async Task<object> GetContainerLogsAsync(Dictionary<string, string> parameters)
+    public async Task<object> GetContainerLogAsync(Dictionary<string, string> parameters)
     {
         var name = parameters.TryGetValue("name", out var n) ? n : null;
         var githubUsername = parameters["_githubUsername"];

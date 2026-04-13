@@ -88,9 +88,14 @@
         "icon": "$(vm)"
       },
       {
-        "command": "fkh.getContainerLogs",
-        "title": "Get Logs",
+        "command": "fkh.getContainerLog",
+        "title": "Get Container Log",
         "icon": "$(output)"
+      },
+      {
+        "command": "fkh.getContainerEventLog",
+        "title": "Get Event Log",
+        "icon": "$(file-binary)"
       },
       {
         "command": "fkh.createImage",
@@ -226,12 +231,17 @@
           "group": "2_destructive"
         },
         {
-          "command": "fkh.getContainerLogs",
+          "command": "fkh.getContainerLog",
           "when": "(view == fkhContainers || view == fkhProjects || view == fkhVMs) && viewItem =~ /^container-/",
           "group": "inline"
         },
         {
-          "command": "fkh.getContainerLogs",
+          "command": "fkh.getContainerLog",
+          "when": "(view == fkhContainers || view == fkhProjects || view == fkhVMs) && viewItem =~ /^container-/",
+          "group": "1_actions"
+        },
+        {
+          "command": "fkh.getContainerEventLog",
           "when": "(view == fkhContainers || view == fkhProjects || view == fkhVMs) && viewItem =~ /^container-/",
           "group": "1_actions"
         },

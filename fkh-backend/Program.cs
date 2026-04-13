@@ -22,7 +22,8 @@ var host = new HostBuilder()
         services.AddSingleton<FkhCreateContainer>();
         services.AddSingleton<FkhRemoveContainer>();
         services.AddSingleton<FkhScaleContainer>();
-        services.AddSingleton<FkhGetContainerLogs>();
+        services.AddSingleton<FkhGetContainerLog>();
+        services.AddSingleton<FkhGetContainerEventLog>();
         services.AddSingleton<FkhAutoStop>();
         services.AddSingleton<FkhAllowSqlAccess>();
         services.AddSingleton<FkhListImages>();

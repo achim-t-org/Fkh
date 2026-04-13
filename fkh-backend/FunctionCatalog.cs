@@ -380,9 +380,9 @@ public static class FunctionCatalog
         },
         new FunctionDefinition
         {
-            Name = "GetContainerLogs",
+            Name = "GetContainerLog",
             Description = "Gets logs from a container.",
-            Route = "GetContainerLogs",
+            Route = "GetContainerLog",
             Parameters = new List<FunctionParameterDefinition>
             {
                 new()
@@ -409,6 +409,32 @@ public static class FunctionCatalog
                     Description = "Number of lines to retrieve from the end of the log.",
                     Required = false,
                     DefaultValue = "500"
+                }
+            }
+        },
+        new FunctionDefinition
+        {
+            Name = "GetContainerEventLog",
+            Description = "Downloads the Windows Application event log from a container as an .evtx file.",
+            Route = "GetContainerEventLog",
+            Parameters = new List<FunctionParameterDefinition>
+            {
+                new()
+                {
+                    Name = "name",
+                    Type = "string",
+                    Description = "Name of the container to download the event log from.",
+                    Required = true,
+                    DefaultValue = null
+                },
+                new()
+                {
+                    Name = "useNameAsIs",
+                    Type = "boolean",
+                    Description = "Use the name as-is without prefixing with your GitHub username. Name may contain hyphens. (admin only)",
+                    Required = false,
+                    AdminOnly = true,
+                    DefaultValue = "false"
                 }
             }
         },

@@ -84,9 +84,13 @@ export function activate(context: vscode.ExtensionContext) {
       await vmsProvider.refresh();
       vscode.commands.executeCommand('setContext', 'fkh.isAdmin', vmsProvider.visible);
     }),
-    vscode.commands.registerCommand('fkh.getContainerLogs', async (item: ContainerTreeItem | ProjectTreeItem | VMTreeItem) => {
+    vscode.commands.registerCommand('fkh.getContainerLog', async (item: ContainerTreeItem | ProjectTreeItem | VMTreeItem) => {
       if (!item.containerInfo) { return; }
-      await showContainerLogs(item.containerInfo.appLabel, item.containerInfo.name);
+      await showContainerLog(item.containerInfo.appLabel, item.containerInfo.name);
+    }),
+    vscode.commands.registerCommand('fkh.getContainerEventLog', async (item: ContainerTreeItem | ProjectTreeItem | VMTreeItem) => {
+      if (!item.containerInfo) { return; }
+      await downloadContainerEventLog(item.containerInfo.appLabel, item.containerInfo.name);
     }),
     vscode.commands.registerCommand('fkh.startContainer', async (item: ContainerTreeItem | ProjectTreeItem) => {
       if (!item.containerInfo) { return; }
@@ -687,7 +691,7 @@ async function invokeContainerAction(
   );
 }
 
-async function showContainerLogs(appLabel: string, containerName: string): Promise<void> {
+async function showContainerLog(appLabel: string, containerName: string): Promise<void> {
   const baseUrl = getBackendUrl();
   if (!baseUrl) { return; }
 
@@ -703,7 +707,7 @@ async function showContainerLogs(appLabel: string, containerName: string): Promi
     async () => {
       try {
         const body: FunctionInvokeRequest = { parameters: { name: containerName } };
-        const response = await fetch(`${baseUrl}/GetContainerLogs`, {
+        const response = await fetch(`${baseUrl}/GetContainerLog`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -723,10 +727,82 @@ async function showContainerLogs(appLabel: string, containerName: string): Promi
           const error = response.status === 401 || response.status === 403
             ? `Access denied (${response.status}).`
             : `Failed (${response.status}): ${await response.text()}`;
-          logOutput(`[GetContainerLogs] ${error}`, true);
+          logOutput(`[GetContainerLog] ${error}`, true);
         }
       } catch (err) {
-        logOutput(`[GetContainerLogs] Could not reach the provisioning service: ${err instanceof Error ? err.message : String(err)}`, true);
+        logOutput(`[GetContainerLog] Could not reach the provisioning service: ${err instanceof Error ? err.message : String(err)}`, true);
+      }
+    }
+  );
+}
+
+async function downloadContainerEventLog(appLabel: string, containerName: string): Promise<void> {
+  const baseUrl = getBackendUrl();
+  if (!baseUrl) { return; }
+
+  const session = await getGitHubSession();
+  if (!session) { return; }
+
+  // Prompt for save location before downloading
+  const defaultFileName = `${containerName}-eventlog.evtx`;
+  const saveUri = await vscode.window.showSaveDialog({
+    defaultUri: vscode.Uri.file(defaultFileName),
+    filters: { 'Event Log': ['evtx'], 'All files': ['*'] },
+    title: 'Save Event Log As',
+  });
+  if (!saveUri) { return; }
+
+  await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: `Downloading event log from ${containerName}...`,
+      cancellable: false,
+    },
+    async () => {
+      try {
+        const body: FunctionInvokeRequest = { parameters: { name: containerName } };
+        const response = await fetch(`${baseUrl}/GetContainerEventLog`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.accessToken}`,
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (response.ok) {
+          const result = await response.json() as { eventLog: string; container: string; fileName: string };
+          if (!result.eventLog) {
+            logOutput(`[GetContainerEventLog] No event log data returned.`, true);
+            return;
+          }
+
+          // Decode base64 to binary — works in Node, web, and Codespaces
+          const binaryString = atob(result.eventLog);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+
+          await vscode.workspace.fs.writeFile(saveUri, bytes);
+          logOutput(`[GetContainerEventLog] Event log saved to ${saveUri.fsPath || saveUri.toString()}`);
+          const openAction = await vscode.window.showInformationMessage(
+            `Event log saved to ${saveUri.fsPath || saveUri.toString()}`,
+            'Open File', 'Reveal in Explorer'
+          );
+          if (openAction === 'Open File') {
+            await vscode.env.openExternal(saveUri);
+          } else if (openAction === 'Reveal in Explorer') {
+            await vscode.commands.executeCommand('revealFileInOS', saveUri);
+          }
+        } else {
+          const error = response.status === 401 || response.status === 403
+            ? `Access denied (${response.status}).`
+            : `Failed (${response.status}): ${await response.text()}`;
+          logOutput(`[GetContainerEventLog] ${error}`, true);
+        }
+      } catch (err) {
+        logOutput(`[GetContainerEventLog] Could not reach the provisioning service: ${err instanceof Error ? err.message : String(err)}`, true);
       }
     }
   );
