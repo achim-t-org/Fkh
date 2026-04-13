@@ -790,7 +790,7 @@ async function createContainer(project?: string): Promise<void> {
   }
   outputChannel.show(true);
 
-  await invokeFunctionByName('CreateContainer', { artifactUrl, repo: options.repoName, project: options.project || '', ...prefilled });
+  await invokeFunctionByName('CreateContainer', { artifactUrl, repo: options.repoName, project: options.project || '', fullName: '', ...prefilled });
 }
 
 async function createImage(): Promise<void> {
