@@ -39,7 +39,7 @@ var asJson = args.Contains("--asJson", StringComparer.OrdinalIgnoreCase);
 
 try
 {
-    if (args.Contains("--version"))
+    if (args.Length > 0 && string.Equals(args[0], "--version", StringComparison.OrdinalIgnoreCase))
     {
         var version = typeof(FunctionCatalogResponse).Assembly.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?.InformationalVersion
             ?? typeof(FunctionCatalogResponse).Assembly.GetName().Version?.ToString()
