@@ -77,7 +77,7 @@ Creates a new Business Central container with a persisted SQL Server database.
 | `artifactUrl` | string | Yes | BC artifact URL or shorthand (e.g. `///us/latest`) |
 | `adminUsername` | string | Yes | Admin username for the BC instance |
 | `adminPassword` | string | Yes | Admin password for the BC instance |
-| `databaseBackupSasUrl` | string | No | SAS URL to a database backup to restore |
+| `useDatabase` | string | No | Database to restore. A SAS URL (https://...) or 'name/version' referencing an uploaded database (use 'latest' for most recent) |
 | `autostop` | string | No | Auto-stop time (e.g. `4h` or `18:00`) |
 | `cpu` | string | No | CPU request (default: `500m`) |
 | `memory` | string | No | Memory limit (default: `3Gi`) |

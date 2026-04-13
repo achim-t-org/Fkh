@@ -55,9 +55,9 @@ public static class FunctionCatalog
                 },
                 new()
                 {
-                    Name = "databaseBackupSasUrl",
+                    Name = "useDatabase",
                     Type = "string",
-                    Description = "SAS URL to a custom database backup (.bak) file. If provided, this backup is restored instead of the default Cronus database.",
+                    Description = "Database to restore. Can be a SAS URL to a .bak file, or 'name/version' referencing an uploaded database (use 'latest' for the most recent version).",
                     Required = false,
                     DefaultValue = null
                 },
@@ -489,6 +489,15 @@ public static class FunctionCatalog
                     DefaultValue = "databases"
                 }
             }
+        },
+        new FunctionDefinition
+        {
+            Name = "Status",
+            Description = "Returns system status including Kubernetes nodes, BC containers, SQL, storage, quotas, and security. Admin only.",
+            Route = "Status",
+            Hidden = true,
+            AdminOnly = true,
+            Parameters = new List<FunctionParameterDefinition>()
         }
     };
 

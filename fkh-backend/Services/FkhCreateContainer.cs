@@ -31,7 +31,7 @@ public class FkhCreateContainer : FkhServiceBase
         var project = parameters.TryGetValue("project", out var p) ? p : null;
         var useSpot = parameters.TryGetValue("spot", out var spotValue)
             && string.Equals(spotValue, "true", StringComparison.OrdinalIgnoreCase);
-        var bakSasUrl = parameters.TryGetValue("databaseBackupSasUrl", out var bak) ? bak : null;
+        var useDatabase = parameters.TryGetValue("useDatabase", out var udb) ? udb : null;
 
         var imageTag = GetImageTag(artifactUrl);
         var fullImage = $"{AcrLoginServer}/{AcrRepository}:{imageTag}";
@@ -59,8 +59,8 @@ public class FkhCreateContainer : FkhServiceBase
         await EnsureDeploymentDoesNotExistAsync(client, deploymentName);
 
         // ── Check database does not exist, download backup, and restore via k8s exec ─
-        var sasUrl = !string.IsNullOrWhiteSpace(bakSasUrl)
-            ? bakSasUrl
+        var sasUrl = !string.IsNullOrWhiteSpace(useDatabase)
+            ? await ResolveUseDatabaseAsync(useDatabase)
             : await GetDatabaseBackupSasUrlAsync(imageTag);
         await EnsureDatabaseDoesNotExistAsync(client, databaseName);
         await RestoreDatabaseViaExecAsync(client, sasUrl, databaseName);
@@ -130,6 +130,92 @@ public class FkhCreateContainer : FkhServiceBase
             throw new InvalidOperationException(
                 $"A database named '{databaseName}' already exists on the SQL server. Please choose a different name or remove the existing container first.");
         }
+    }
+
+    private async Task<string> ResolveUseDatabaseAsync(string useDatabase)
+    {
+        // If it looks like a URL, use it directly
+        if (useDatabase.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            return useDatabase;
+
+        // Otherwise, treat as "name/version" referencing an uploaded database
+        var parts = useDatabase.Split('/', 2);
+        if (parts.Length != 2 || string.IsNullOrWhiteSpace(parts[0]) || string.IsNullOrWhiteSpace(parts[1]))
+            throw new ArgumentException($"Invalid useDatabase value '{useDatabase}'. Expected a URL (https://...) or 'name/version' (e.g. 'mydb/latest').");
+
+        var dbName = parts[0];
+        var dbVersion = parts[1];
+
+#pragma warning disable CS0618
+        var credential = new ManagedIdentityCredential(ClientId);
+#pragma warning restore CS0618
+        var blobServiceClient = new BlobServiceClient(
+            new Uri($"https://{DbsStorageAccountName}.blob.core.windows.net"), credential);
+        var containerClient = blobServiceClient.GetBlobContainerClient("databases");
+
+        // Read all.json manifest
+        var manifestClient = containerClient.GetBlobClient($"{dbName}/all.json");
+        if (!await manifestClient.ExistsAsync())
+            throw new InvalidOperationException($"No uploaded database named '{dbName}' found (missing {dbName}/all.json in 'databases' container).");
+
+        var downloadResponse = await manifestClient.DownloadContentAsync();
+        var manifestJson = downloadResponse.Value.Content.ToString();
+        using var doc = System.Text.Json.JsonDocument.Parse(manifestJson);
+        var root = doc.RootElement;
+
+        string resolvedVersion;
+        if (string.Equals(dbVersion, "latest", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!root.TryGetProperty("latest", out var latestProp) || latestProp.ValueKind == System.Text.Json.JsonValueKind.Null)
+                throw new InvalidOperationException($"Database '{dbName}' manifest has no 'latest' version.");
+            resolvedVersion = latestProp.GetString()!;
+        }
+        else
+        {
+            // Check if the requested version exists
+            if (!root.TryGetProperty("versions", out var versionsProp) || versionsProp.ValueKind != System.Text.Json.JsonValueKind.Array)
+                throw new InvalidOperationException($"Database '{dbName}' manifest has no 'versions' array.");
+
+            var found = false;
+            foreach (var v in versionsProp.EnumerateArray())
+            {
+                if (string.Equals(v.GetString(), dbVersion, StringComparison.OrdinalIgnoreCase))
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+                throw new InvalidOperationException($"Version '{dbVersion}' not found for database '{dbName}'. Available versions: {string.Join(", ", versionsProp.EnumerateArray().Select(v => v.GetString()))}.");
+
+            resolvedVersion = dbVersion;
+        }
+
+        // Generate a SAS URL for the .bak blob
+        var blobName = $"{dbName}/{resolvedVersion}.bak";
+        var blobClient = containerClient.GetBlobClient(blobName);
+        if (!await blobClient.ExistsAsync())
+            throw new InvalidOperationException($"Database backup blob '{blobName}' not found in 'databases' container.");
+
+        var delegationKey = await blobServiceClient.GetUserDelegationKeyAsync(
+            DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddHours(1));
+
+        var sasBuilder = new Azure.Storage.Sas.BlobSasBuilder
+        {
+            BlobContainerName = "databases",
+            BlobName = blobName,
+            Resource = "b",
+            ExpiresOn = DateTimeOffset.UtcNow.AddHours(1)
+        };
+        sasBuilder.SetPermissions(Azure.Storage.Sas.BlobSasPermissions.Read);
+
+        var blobUriBuilder = new Azure.Storage.Blobs.BlobUriBuilder(blobClient.Uri)
+        {
+            Sas = sasBuilder.ToSasQueryParameters(delegationKey, blobServiceClient.AccountName)
+        };
+
+        Logger.LogInformation("Resolved useDatabase '{UseDatabase}' to blob '{BlobName}' (version: {Version}).", useDatabase, blobName, resolvedVersion);
+        return blobUriBuilder.ToUri().ToString();
     }
 
     private async Task<string> GetDatabaseBackupSasUrlAsync(string imageTag)

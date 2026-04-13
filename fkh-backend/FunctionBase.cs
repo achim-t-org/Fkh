@@ -91,6 +91,32 @@ public abstract class FunctionBase
         FailedAttempts.TryRemove(ip, out _);
     }
 
+    /// <summary>Returns IPs currently blocked due to too many failed attempts.</summary>
+    public static List<string> GetBlockedIps()
+    {
+        var now = DateTime.UtcNow;
+        return FailedAttempts
+            .Where(kv => now - kv.Value.WindowStart <= BlockWindow && kv.Value.Count >= MaxFailedAttempts)
+            .Select(kv => kv.Key)
+            .ToList();
+    }
+
+    /// <summary>Returns IPs with recent failed auth attempts (within the block window).</summary>
+    public static List<object> GetRecentFailedAttempts()
+    {
+        var now = DateTime.UtcNow;
+        return FailedAttempts
+            .Where(kv => now - kv.Value.WindowStart <= BlockWindow)
+            .Select(kv => (object)new
+            {
+                Ip = kv.Key,
+                FailedCount = kv.Value.Count,
+                Blocked = kv.Value.Count >= MaxFailedAttempts,
+                WindowStart = kv.Value.WindowStart,
+            })
+            .ToList();
+    }
+
     /// <summary>
     /// Like <see cref="ExecuteAsync"/> but expects a multipart/form-data request.
     /// The "parameters" JSON part is parsed the same way.  File parts are passed
