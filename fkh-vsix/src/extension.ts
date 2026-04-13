@@ -751,6 +751,18 @@ async function createContainer(project?: string): Promise<void> {
   const artifact = String(settings['artifact'] ?? '');
   const country = String(settings['country'] ?? 'us');
 
+  // Extract fkh.CreateContainer.* overrides from AL-Go settings
+  const fkhSettings = settings['fkh'] as Record<string, string> | undefined;
+  const prefilled: Record<string, string> = {};
+  if (fkhSettings && typeof fkhSettings === 'object') {
+    const prefix = 'CreateContainer.';
+    for (const [key, value] of Object.entries(fkhSettings)) {
+      if (key.startsWith(prefix) && value) {
+        prefilled[key.substring(prefix.length)] = String(value);
+      }
+    }
+  }
+
   outputChannel.appendLine('--- ReadSettings Options ---');
   outputChannel.appendLine(`  baseFolder: ${options.baseFolder.toString()}`);
   outputChannel.appendLine(`  repoName: ${options.repoName}`);
@@ -770,9 +782,15 @@ async function createContainer(project?: string): Promise<void> {
   outputChannel.appendLine('--- Resolved Settings ---');
   outputChannel.appendLine(`  Country: ${country}`);
   outputChannel.appendLine(`  Artifact: ${artifactUrl}${!artifact ? ' (defaulted)' : ''}`);
+  if (Object.keys(prefilled).length > 0) {
+    outputChannel.appendLine('  Fkh overrides from AL-Go settings:');
+    for (const [key, value] of Object.entries(prefilled)) {
+      outputChannel.appendLine(`    ${key}: ${value}`);
+    }
+  }
   outputChannel.show(true);
 
-  await invokeFunctionByName('CreateContainer', { artifactUrl, repo: options.repoName, project: options.project || '' });
+  await invokeFunctionByName('CreateContainer', { artifactUrl, repo: options.repoName, project: options.project || '', ...prefilled });
 }
 
 async function createImage(): Promise<void> {
