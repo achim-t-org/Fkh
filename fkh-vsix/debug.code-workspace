@@ -7,6 +7,7 @@
   "settings": {
     "fkh.backendUrl": "https://fkh-freddydk-backend.azurewebsites.net/api",
     "fkh.CreateContainer.adminUsername": "admin",
-    "fkh.CreateContainer.adminPassword": "P@ssword1"
+    "fkh.CreateContainer.adminPassword": "P@ssword1",
+    "fkh.CreateContainer.autostop": "18:00"
   }
 }
