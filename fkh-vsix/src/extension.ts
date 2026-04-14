@@ -889,7 +889,7 @@ async function createContainer(project?: string): Promise<void> {
     const containerName = String(result.deployment || '');
     if (serverUrl && containerName) {
       try {
-        await updateLaunchJsonAfterCreate(containerName, serverUrl, options.project || '');
+        await updateLaunchJsonAfterCreate(containerName, serverUrl, options.project || '', prefilled);
       } catch (err) {
         logOutput(`[UpdateLaunchJson] ${err instanceof Error ? err.message : String(err)}`, true);
       }

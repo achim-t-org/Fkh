@@ -14,6 +14,7 @@ export async function updateLaunchJsonAfterCreate(
   containerName: string,
   serverUrl: string,
   project: string,
+  alGoOverrides?: Record<string, string>,
 ): Promise<void> {
   const mode = vscode.workspace.getConfiguration('fkh').get<string>('CreateContainer.updateLaunchJson', 'project');
   if (mode === 'none') { return; }
@@ -29,7 +30,7 @@ export async function updateLaunchJsonAfterCreate(
   if (appFolders.length === 0) { return; }
 
   for (const appFolder of appFolders) {
-    await upsertLaunchConfiguration(appFolder, containerName, serverUrl);
+    await upsertLaunchConfiguration(appFolder, containerName, serverUrl, alGoOverrides);
   }
 }
 
@@ -69,6 +70,7 @@ async function upsertLaunchConfiguration(
   appFolder: vscode.Uri,
   containerName: string,
   serverUrl: string,
+  alGoOverrides?: Record<string, string>,
 ): Promise<void> {
   const vscodeFolderUri = vscode.Uri.joinPath(appFolder, '.vscode');
   const launchUri = vscode.Uri.joinPath(vscodeFolderUri, 'launch.json');
@@ -87,30 +89,42 @@ async function upsertLaunchConfiguration(
     launchJson = { version: '0.2.0', configurations: [] };
   }
 
+  const cfg = vscode.workspace.getConfiguration('fkh.CreateContainer');
+
+  function resolve<T>(key: string, fallback: T): T {
+    const alGoVal = alGoOverrides?.[key];
+    if (alGoVal !== undefined && alGoVal !== '') {
+      if (typeof fallback === 'number') { return Number(alGoVal) as T; }
+      if (typeof fallback === 'boolean') { return (alGoVal === 'true') as unknown as T; }
+      return alGoVal as unknown as T;
+    }
+    return cfg.get<T>(key, fallback);
+  }
+
   const newConfig: Record<string, unknown> = {
     name: containerName,
     request: 'launch',
     type: 'al',
     environmentType: 'OnPrem',
-    server: serverUrl,
+    server: serverUrl.startsWith('https://') ? serverUrl : `https://${serverUrl}`,
     serverInstance: 'BC',
     port: 7049,
     authentication: 'UserPassword',
     tenant: 'default',
-    startupObjectId: 130451,
-    startupObjectType: 'Page',
-    startupCompany: '',
-    schemaUpdateMode: 'Synchronize',
-    launchBrowser: true,
-    usePublicURLFromServer: true,
-    breakOnError: 'All',
-    breakOnRecordWrite: false,
-    enableLongRunningSqlStatements: true,
-    longRunningSqlStatementsThreshold: 500,
-    numberOfSqlStatements: 10,
-    enableSqlInformationDebugger: true,
-    forceUpgrade: false,
-    dependencyPublishingOption: 'Default',
+    startupObjectId: resolve<number>('startupObjectId', 22),
+    startupObjectType: resolve<string>('startupObjectType', 'Page'),
+    startupCompany: resolve<string>('startupCompany', ''),
+    schemaUpdateMode: resolve<string>('schemaUpdateMode', 'Synchronize'),
+    launchBrowser: resolve<boolean>('launchBrowser', true),
+    usePublicURLFromServer: resolve<boolean>('usePublicURLFromServer', true),
+    breakOnError: resolve<string>('breakOnError', 'All'),
+    breakOnRecordWrite: resolve<boolean>('breakOnRecordWrite', false),
+    enableLongRunningSqlStatements: resolve<boolean>('enableLongRunningSqlStatements', true),
+    longRunningSqlStatementsThreshold: resolve<number>('longRunningSqlStatementsThreshold', 500),
+    numberOfSqlStatements: resolve<number>('numberOfSqlStatements', 10),
+    enableSqlInformationDebugger: resolve<boolean>('enableSqlInformationDebugger', true),
+    forceUpgrade: resolve<boolean>('forceUpgrade', false),
+    dependencyPublishingOption: resolve<string>('dependencyPublishingOption', 'Default'),
   };
 
   // Replace existing configuration with the same name, or append

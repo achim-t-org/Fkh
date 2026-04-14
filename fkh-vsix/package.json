@@ -285,6 +285,79 @@
             "Update launch.json files in app folders under the repository root."
           ],
           "description": "After creating a container, automatically add or update a launch configuration in launch.json files found in app folders."
+        },
+        "fkh.CreateContainer.startupObjectId": {
+          "type": "number",
+          "default": 22,
+          "description": "The ID of the startup object in the launch configuration."
+        },
+        "fkh.CreateContainer.startupObjectType": {
+          "type": "string",
+          "default": "Page",
+          "description": "The type of the startup object in the launch configuration."
+        },
+        "fkh.CreateContainer.startupCompany": {
+          "type": "string",
+          "default": "",
+          "description": "The company to use at startup in the launch configuration."
+        },
+        "fkh.CreateContainer.schemaUpdateMode": {
+          "type": "string",
+          "default": "Synchronize",
+          "enum": ["Synchronize", "Recreate", "ForceSync"],
+          "description": "Schema update mode for the launch configuration."
+        },
+        "fkh.CreateContainer.launchBrowser": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to launch the browser when starting the debugger."
+        },
+        "fkh.CreateContainer.usePublicURLFromServer": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to use the public URL from the server."
+        },
+        "fkh.CreateContainer.breakOnError": {
+          "type": "string",
+          "default": "All",
+          "enum": ["None", "All"],
+          "description": "Break on error setting for the launch configuration."
+        },
+        "fkh.CreateContainer.breakOnRecordWrite": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to break on record write."
+        },
+        "fkh.CreateContainer.enableLongRunningSqlStatements": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to enable long running SQL statement tracking."
+        },
+        "fkh.CreateContainer.longRunningSqlStatementsThreshold": {
+          "type": "number",
+          "default": 500,
+          "description": "Threshold in milliseconds for long running SQL statements."
+        },
+        "fkh.CreateContainer.numberOfSqlStatements": {
+          "type": "number",
+          "default": 10,
+          "description": "Number of SQL statements to track."
+        },
+        "fkh.CreateContainer.enableSqlInformationDebugger": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to enable the SQL information debugger."
+        },
+        "fkh.CreateContainer.forceUpgrade": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to force upgrade when publishing."
+        },
+        "fkh.CreateContainer.dependencyPublishingOption": {
+          "type": "string",
+          "default": "Default",
+          "enum": ["Default", "Ignore", "Strict"],
+          "description": "Dependency publishing option for the launch configuration."
         }
       }
     }
