@@ -15,7 +15,7 @@ export async function updateLaunchJsonAfterCreate(
   serverUrl: string,
   project: string,
 ): Promise<void> {
-  const mode = vscode.workspace.getConfiguration('fkh').get<string>('CreateContainer.updateLaunchJson', 'none');
+  const mode = vscode.workspace.getConfiguration('fkh').get<string>('CreateContainer.updateLaunchJson', 'project');
   if (mode === 'none') { return; }
 
   const repoRoot = getGitRootUri();
