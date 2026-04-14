@@ -1,4 +1,5 @@
 using Azure.Identity;
+using Azure.Monitor.Query;
 using Azure.ResourceManager;
 using Azure.ResourceManager.Compute;
 using Azure.ResourceManager.ContainerService;
@@ -53,12 +54,16 @@ public class FkhStatus : FkhServiceBase
         var nodesTask = client.ListNodeAsync();
         var appPodsTask = client.ListNamespacedPodAsync(Namespace);
         var allDeploymentsTask = client.ListNamespacedDeploymentAsync(Namespace);
+        var nodeMetricsTask = GetCurrentNodeMetricsAsync(client);
+        var historicalTask = GetHistoricalNodeMetricsAsync();
 
-        await Task.WhenAll(nodesTask, appPodsTask, allDeploymentsTask);
+        await Task.WhenAll(nodesTask, appPodsTask, allDeploymentsTask, nodeMetricsTask, historicalTask);
 
         var nodes = await nodesTask;
         var appPods = await appPodsTask;
         var allDeployments = await allDeploymentsTask;
+        var currentMetrics = await nodeMetricsTask;
+        var historicalMetrics = await historicalTask;
 
         // ── Linux pods (mssql, system services) ─────────────────────────────────
         var linuxNodes = nodes.Items
@@ -70,26 +75,21 @@ public class FkhStatus : FkhServiceBase
         {
             var name = node.Metadata.Name;
             var ready = node.Status.Conditions.Any(c => c.Type == "Ready" && c.Status == "True");
-            var cpuCap = node.Status.Capacity.TryGetValue("cpu", out var cpu) ? cpu.ToString() : "?";
-            var memCap = node.Status.Capacity.TryGetValue("memory", out var mem) ? FormatMemory(mem.ToString()) : "?";
-            var cpuAlloc = node.Status.Allocatable.TryGetValue("cpu", out var cpuA) ? cpuA.ToString() : "?";
-            var memAlloc = node.Status.Allocatable.TryGetValue("memory", out var memA) ? FormatMemory(memA.ToString()) : "?";
-            var diskCap = node.Status.Capacity.TryGetValue("ephemeral-storage", out var disk) ? FormatStorage(disk.ToString()) : "?";
-            var diskAlloc = node.Status.Allocatable.TryGetValue("ephemeral-storage", out var diskA) ? FormatStorage(diskA.ToString()) : "?";
+            var cpuCapCores = node.Status.Capacity.TryGetValue("cpu", out var cpu) ? cpu.ToDouble() : 0;
+            var memCapBytes = node.Status.Capacity.TryGetValue("memory", out var mem) ? mem.ToDouble() : 0;
+            var diskCapBytes = node.Status.Capacity.TryGetValue("ephemeral-storage", out var disk) ? ParseStorageBytes(disk.ToString()) : 0;
+            var diskAllocBytes = node.Status.Allocatable.TryGetValue("ephemeral-storage", out var diskA) ? ParseStorageBytes(diskA.ToString()) : 0;
 
             var podsOnNode = appPods.Items.Where(p => p.Spec.NodeName == name)
                 .Select(p => p.Metadata.Labels.TryGetValue("app", out var app) ? app : p.Metadata.Name)
                 .OrderBy(p => p).ToList();
 
-            linuxStatus.Add(new
-            {
-                Name = name,
-                Status = ready ? "Ready" : "NotReady",
-                Cpu = $"{cpuAlloc}/{cpuCap}",
-                Memory = $"{memAlloc}/{memCap}",
-                Disk = $"{diskAlloc}/{diskCap}",
-                Pods = podsOnNode,
-            });
+            var nodeStatus = BuildNodeMetricsOutput(name, cpuCapCores, memCapBytes, diskCapBytes, diskAllocBytes, currentMetrics, historicalMetrics);
+            nodeStatus["Name"] = name;
+            nodeStatus["Status"] = ready ? "Ready" : "NotReady";
+            nodeStatus["Pods"] = podsOnNode;
+
+            linuxStatus.Add(nodeStatus);
         }
 
         // ── MSSQL pod status ────────────────────────────────────────────────────
@@ -182,12 +182,10 @@ public class FkhStatus : FkhServiceBase
         {
             var name = node.Metadata.Name;
             var ready = node.Status.Conditions.Any(c => c.Type == "Ready" && c.Status == "True");
-            var cpuCap = node.Status.Capacity.TryGetValue("cpu", out var cpu) ? cpu.ToString() : "?";
-            var memCap = node.Status.Capacity.TryGetValue("memory", out var mem) ? FormatMemory(mem.ToString()) : "?";
-            var cpuAlloc = node.Status.Allocatable.TryGetValue("cpu", out var cpuA) ? cpuA.ToString() : "?";
-            var memAlloc = node.Status.Allocatable.TryGetValue("memory", out var memA) ? FormatMemory(memA.ToString()) : "?";
-            var diskCap = node.Status.Capacity.TryGetValue("ephemeral-storage", out var disk) ? FormatStorage(disk.ToString()) : "?";
-            var diskAlloc = node.Status.Allocatable.TryGetValue("ephemeral-storage", out var diskA) ? FormatStorage(diskA.ToString()) : "?";
+            var cpuCapCores = node.Status.Capacity.TryGetValue("cpu", out var cpu) ? cpu.ToDouble() : 0;
+            var memCapBytes = node.Status.Capacity.TryGetValue("memory", out var mem) ? mem.ToDouble() : 0;
+            var diskCapBytes = node.Status.Capacity.TryGetValue("ephemeral-storage", out var disk) ? ParseStorageBytes(disk.ToString()) : 0;
+            var diskAllocBytes = node.Status.Allocatable.TryGetValue("ephemeral-storage", out var diskA) ? ParseStorageBytes(diskA.ToString()) : 0;
 
             var cnsReady = cnsPods.Any(p =>
                 p.Spec.NodeName == name
@@ -222,17 +220,14 @@ public class FkhStatus : FkhServiceBase
                 .OrderBy(c => c.Name)
                 .ToList();
 
-            vmResults.Add(new
-            {
-                Name = name,
-                Status = ready ? "Ready" : "NotReady",
-                Cns = cnsReady ? "Ready" : "NotReady",
-                Cpu = $"{cpuAlloc}/{cpuCap}",
-                Memory = $"{memAlloc}/{memCap}",
-                Disk = $"{diskAlloc}/{diskCap}",
-                ContainerCount = containersOnNode.Count,
-                Containers = containersOnNode,
-            });
+            var nodeStatus = BuildNodeMetricsOutput(name, cpuCapCores, memCapBytes, diskCapBytes, diskAllocBytes, currentMetrics, historicalMetrics);
+            nodeStatus["Name"] = name;
+            nodeStatus["Status"] = ready ? "Ready" : "NotReady";
+            nodeStatus["Cns"] = cnsReady ? "Ready" : "NotReady";
+            nodeStatus["ContainerCount"] = containersOnNode.Count;
+            nodeStatus["Containers"] = containersOnNode;
+
+            vmResults.Add(nodeStatus);
         }
 
         // Summary stats
@@ -432,6 +427,11 @@ public class FkhStatus : FkhServiceBase
             var gi = ki / (1024.0 * 1024.0);
             return $"{gi:F1}Gi";
         }
+        if (long.TryParse(value, out var bytes))
+        {
+            var gi = bytes / (1024.0 * 1024.0 * 1024.0);
+            return $"{gi:F1}Gi";
+        }
         return value;
     }
 
@@ -444,5 +444,231 @@ public class FkhStatus : FkhServiceBase
         if (bytes >= 1024)
             return $"{bytes / 1024.0:F0}Ki";
         return $"{bytes:F0}B";
+    }
+
+    private static string FormatCpu(double cores)
+    {
+        var millicores = (int)Math.Round(cores * 1000);
+        if (millicores >= 1000 && millicores % 1000 == 0)
+            return $"{millicores / 1000}";
+        return $"{millicores}m";
+    }
+
+    private static double ParseStorageBytes(string value)
+    {
+        if (value.EndsWith("Ki") && long.TryParse(value[..^2], out var ki))
+            return ki * 1024.0;
+        if (long.TryParse(value, out var bytes))
+            return bytes;
+        return 0;
+    }
+
+    // ── Node metrics helpers ────────────────────────────────────────────────────
+
+    private class CurrentNodeMetrics
+    {
+        public double CpuCores { get; set; }
+        public double MemoryBytes { get; set; }
+    }
+
+    private class HistoricalNodeMetrics
+    {
+        public double CpuNanoCoresAvg30m { get; set; }
+        public double CpuNanoCoresAvg60m { get; set; }
+        public double CpuNanoCoresMax5m { get; set; }
+        public double MemoryBytesAvg30m { get; set; }
+        public double MemoryBytesAvg60m { get; set; }
+        public double MemoryBytesMax5m { get; set; }
+        public double DiskUsedPercentAvg30m { get; set; }
+        public double DiskUsedPercentAvg60m { get; set; }
+        public double DiskUsedPercentMax5m { get; set; }
+    }
+
+    private async Task<Dictionary<string, CurrentNodeMetrics>> GetCurrentNodeMetricsAsync(Kubernetes client)
+    {
+        var result = new Dictionary<string, CurrentNodeMetrics>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            var raw = await client.CustomObjects.ListClusterCustomObjectAsync(
+                "metrics.k8s.io", "v1beta1", "nodes");
+            var jsonStr = JsonSerializer.Serialize(raw);
+            using var doc = JsonDocument.Parse(jsonStr);
+
+            foreach (var item in doc.RootElement.GetProperty("items").EnumerateArray())
+            {
+                var name = item.GetProperty("metadata").GetProperty("name").GetString();
+                var usage = item.GetProperty("usage");
+                var cpuStr = usage.GetProperty("cpu").GetString()!;
+                var memStr = usage.GetProperty("memory").GetString()!;
+
+                result[name!] = new CurrentNodeMetrics
+                {
+                    CpuCores = new ResourceQuantity(cpuStr).ToDouble(),
+                    MemoryBytes = new ResourceQuantity(memStr).ToDouble(),
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to fetch current node metrics");
+        }
+        return result;
+    }
+
+    private async Task<Dictionary<string, HistoricalNodeMetrics>> GetHistoricalNodeMetricsAsync()
+    {
+        var result = new Dictionary<string, HistoricalNodeMetrics>(StringComparer.OrdinalIgnoreCase);
+
+        if (string.IsNullOrEmpty(LogAnalyticsWorkspaceId))
+            return result;
+
+        try
+        {
+#pragma warning disable CS0618
+            var credential = new ManagedIdentityCredential(ClientId);
+#pragma warning restore CS0618
+            var logsClient = new LogsQueryClient(credential);
+
+            var kql = @"
+let cpuMem = Perf
+| where ObjectName == 'K8SNode'
+| where CounterName in ('cpuUsageNanoCores', 'memoryWorkingSetBytes')
+| where TimeGenerated > ago(65m)
+| project TimeGenerated, Computer, Metric = CounterName, Val = CounterValue;
+let disk = InsightsMetrics
+| where Namespace == 'disk' and Name == 'used_percent'
+| where TimeGenerated > ago(65m)
+| extend Computer = tostring(parse_json(Tags).hostName)
+| where isnotempty(Computer)
+| project TimeGenerated, Computer, Metric = 'diskUsedPercent', Val;
+let allData = union cpuMem, disk;
+let avgs = allData
+| summarize
+    Avg30m = avgif(Val, TimeGenerated > ago(30m)),
+    Avg60m = avg(Val)
+  by Computer, Metric;
+let max5m = allData
+| summarize AvgVal = avg(Val) by Computer, Metric, bin(TimeGenerated, 5m)
+| summarize Max5m = max(AvgVal) by Computer, Metric;
+avgs
+| join kind=leftouter max5m on Computer, Metric
+| project Computer, Metric, Avg30m, Avg60m, Max5m";
+
+            var response = await logsClient.QueryWorkspaceAsync(
+                LogAnalyticsWorkspaceId, kql, new QueryTimeRange(TimeSpan.FromMinutes(65)));
+
+            foreach (var row in response.Value.Table.Rows)
+            {
+                var computer = row[0]?.ToString() ?? "";
+                var metric = row[1]?.ToString() ?? "";
+                var avg30m = row[2] is not null ? Convert.ToDouble(row[2]) : 0;
+                var avg60m = row[3] is not null ? Convert.ToDouble(row[3]) : 0;
+                var max5m = row[4] is not null ? Convert.ToDouble(row[4]) : 0;
+
+                if (!result.ContainsKey(computer))
+                    result[computer] = new HistoricalNodeMetrics();
+
+                var metrics = result[computer];
+                switch (metric)
+                {
+                    case "cpuUsageNanoCores":
+                        metrics.CpuNanoCoresAvg30m = avg30m;
+                        metrics.CpuNanoCoresAvg60m = avg60m;
+                        metrics.CpuNanoCoresMax5m = max5m;
+                        break;
+                    case "memoryWorkingSetBytes":
+                        metrics.MemoryBytesAvg30m = avg30m;
+                        metrics.MemoryBytesAvg60m = avg60m;
+                        metrics.MemoryBytesMax5m = max5m;
+                        break;
+                    case "diskUsedPercent":
+                        metrics.DiskUsedPercentAvg30m = avg30m;
+                        metrics.DiskUsedPercentAvg60m = avg60m;
+                        metrics.DiskUsedPercentMax5m = max5m;
+                        break;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to fetch historical node metrics from Log Analytics");
+        }
+        return result;
+    }
+
+    private Dictionary<string, object> BuildNodeMetricsOutput(
+        string nodeName, double cpuCapCores, double memCapBytes,
+        double diskCapBytes, double diskAllocBytes,
+        Dictionary<string, CurrentNodeMetrics> currentMetrics,
+        Dictionary<string, HistoricalNodeMetrics> historicalMetrics)
+    {
+        var output = new Dictionary<string, object>();
+        var capCpuStr = FormatCpu(cpuCapCores);
+        var capMemStr = FormatBytes(memCapBytes);
+
+        // ── Current CPU / Memory ────────────────────────────────────────────
+        if (currentMetrics.TryGetValue(nodeName, out var cur))
+        {
+            var cpuPct = cpuCapCores > 0 ? (int)Math.Round(cur.CpuCores / cpuCapCores * 100) : 0;
+            output["Cpu"] = $"{FormatCpu(cur.CpuCores)}/{capCpuStr} ({cpuPct}% utilization)";
+
+            var memPct = memCapBytes > 0 ? (int)Math.Round(cur.MemoryBytes / memCapBytes * 100) : 0;
+            output["Memory"] = $"{FormatBytes(cur.MemoryBytes)}/{capMemStr} ({memPct}% utilization)";
+        }
+        else
+        {
+            output["Cpu"] = capCpuStr;
+            output["Memory"] = capMemStr;
+        }
+
+        // ── Current Disk ────────────────────────────────────────────────────
+        var diskUsedPct = diskCapBytes > 0
+            ? (int)Math.Round((diskCapBytes - diskAllocBytes) / diskCapBytes * 100)
+            : 0;
+        output["Disk"] = $"{FormatBytes(diskAllocBytes)}/{FormatBytes(diskCapBytes)} ({diskUsedPct}% full)";
+
+        // ── Historical from Log Analytics ───────────────────────────────────
+        if (historicalMetrics.TryGetValue(nodeName, out var hist))
+        {
+            // CPU
+            if (hist.CpuNanoCoresAvg30m > 0 || hist.CpuNanoCoresAvg60m > 0)
+            {
+                var cores30 = hist.CpuNanoCoresAvg30m / 1_000_000_000;
+                var cores60 = hist.CpuNanoCoresAvg60m / 1_000_000_000;
+                var coresMax = hist.CpuNanoCoresMax5m / 1_000_000_000;
+
+                output["CpuAvg30m"] = $"{FormatCpu(cores30)}/{capCpuStr} ({Pct(cores30, cpuCapCores)}% utilization)";
+                output["CpuAvg60m"] = $"{FormatCpu(cores60)}/{capCpuStr} ({Pct(cores60, cpuCapCores)}% utilization)";
+                output["CpuMax5m"] = $"{FormatCpu(coresMax)}/{capCpuStr} ({Pct(coresMax, cpuCapCores)}% utilization)";
+            }
+
+            // Memory
+            if (hist.MemoryBytesAvg30m > 0 || hist.MemoryBytesAvg60m > 0)
+            {
+                output["MemoryAvg30m"] = $"{FormatBytes(hist.MemoryBytesAvg30m)}/{capMemStr} ({Pct(hist.MemoryBytesAvg30m, memCapBytes)}% utilization)";
+                output["MemoryAvg60m"] = $"{FormatBytes(hist.MemoryBytesAvg60m)}/{capMemStr} ({Pct(hist.MemoryBytesAvg60m, memCapBytes)}% utilization)";
+                output["MemoryMax5m"] = $"{FormatBytes(hist.MemoryBytesMax5m)}/{capMemStr} ({Pct(hist.MemoryBytesMax5m, memCapBytes)}% utilization)";
+            }
+
+            // Disk
+            if (hist.DiskUsedPercentAvg30m > 0 || hist.DiskUsedPercentAvg60m > 0)
+            {
+                output["DiskAvg30m"] = FormatDiskFromPercent(hist.DiskUsedPercentAvg30m, diskCapBytes);
+                output["DiskAvg60m"] = FormatDiskFromPercent(hist.DiskUsedPercentAvg60m, diskCapBytes);
+                output["DiskMax5m"] = FormatDiskFromPercent(hist.DiskUsedPercentMax5m, diskCapBytes);
+            }
+        }
+
+        return output;
+    }
+
+    private static int Pct(double value, double total) =>
+        total > 0 ? (int)Math.Round(value / total * 100) : 0;
+
+    private static string FormatDiskFromPercent(double usedPercent, double capacityBytes)
+    {
+        var pct = (int)Math.Round(usedPercent);
+        var freeBytes = capacityBytes * (100 - usedPercent) / 100;
+        return $"{FormatBytes(freeBytes)}/{FormatBytes(capacityBytes)} ({pct}% full)";
     }
 }
