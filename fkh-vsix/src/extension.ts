@@ -9,6 +9,7 @@ let projectsProvider: ProjectsTreeProvider;
 let containersProvider: ContainersTreeProvider;
 let imagesProvider: ImagesTreeProvider;
 let vmsProvider: VMsTreeProvider;
+let currentAccountLabel: string | undefined;
 
 const containerLogContents = new Map<string, string>();
 const containerLogProvider: vscode.TextDocumentContentProvider = {
@@ -18,7 +19,22 @@ const containerLogProvider: vscode.TextDocumentContentProvider = {
 };
 
 function getBackendUrl(): string | undefined {
-  const url = vscode.workspace.getConfiguration('fkh').get<string>('backendUrl', '').trim();
+  const raw = vscode.workspace.getConfiguration('fkh').get<string | Record<string, string>>('backendUrl', '');
+
+  let url: string | undefined;
+  if (typeof raw === 'string') {
+    url = raw.trim();
+  } else if (typeof raw === 'object' && raw !== null) {
+    // Map of GitHub account label → backend URL
+    if (currentAccountLabel && raw[currentAccountLabel]) {
+      url = raw[currentAccountLabel].trim();
+    } else {
+      // Fall back to the first entry if the current account isn't mapped
+      const first = Object.values(raw)[0];
+      url = first?.trim();
+    }
+  }
+
   if (!url) {
     vscode.window.showErrorMessage(
       'Fkh: Backend URL is not configured. Set "fkh.backendUrl" in your settings.',
@@ -171,6 +187,27 @@ export function activate(context: vscode.ExtensionContext) {
         if (confirm !== 'Remove') { return; }
         await invokeFunctionByName('RemoveImage', { repository: item.imageInfo.repository });
       }
+    }),
+    vscode.commands.registerCommand('fkh.switchAccount', async () => {
+      try {
+        const session = await vscode.authentication.getSession(
+          'github',
+          ['read:user', 'read:org'],
+          { createIfNone: true, clearSessionPreference: true }
+        );
+        if (session) {
+          currentAccountLabel = session.account.label;
+          functionCatalog = undefined;
+          vscode.window.showInformationMessage(`Fkh: Signed in as ${session.account.label}`);
+          await containersProvider.refresh();
+          projectsProvider.refresh();
+          imagesProvider.refresh();
+          await vmsProvider.refresh();
+          vscode.commands.executeCommand('setContext', 'fkh.isAdmin', vmsProvider.visible);
+        }
+      } catch {
+        vscode.window.showErrorMessage('GitHub sign-in was cancelled or failed.');
+      }
     })
   );
 }
@@ -219,14 +256,22 @@ async function getGitHubSession(): Promise<vscode.AuthenticationSession | undefi
       ['read:user', 'read:org'],
       { createIfNone: false, silent: true }
     );
-    if (existing) { return existing; }
+    if (existing) {
+      currentAccountLabel = existing.account.label;
+      return existing;
+    }
 
-    // No silent session — prompt interactively
-    return await vscode.authentication.getSession(
+    // No silent session — prompt interactively and show account picker if
+    // multiple GitHub accounts are signed in.
+    const session = await vscode.authentication.getSession(
       'github',
       ['read:user', 'read:org'],
-      { createIfNone: true }
+      { createIfNone: true, clearSessionPreference: true }
     );
+    if (session) {
+      currentAccountLabel = session.account.label;
+    }
+    return session;
   } catch {
     vscode.window.showErrorMessage('GitHub sign-in was cancelled or failed.');
     return undefined;

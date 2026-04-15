@@ -116,6 +116,11 @@
         "command": "fkh.waitForContainer",
         "title": "Wait for Ready",
         "icon": "$(sync)"
+      },
+      {
+        "command": "fkh.switchAccount",
+        "title": "Fkh: Switch GitHub Account",
+        "icon": "$(account)"
       }
     ],
     "viewsContainers": {
@@ -276,9 +281,19 @@
       "title": "Fkh",
       "properties": {
         "fkh.backendUrl": {
-          "type": "string",
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          ],
           "default": "",
-          "description": "URL of the Fkh backend, e.g. https://fkh-<org_name>-backend.azurewebsites.net/api"
+          "description": "URL of the Fkh backend. Use a string for a single backend, or an object mapping GitHub account names to URLs (e.g. { \"user1\": \"https://fkh-org1-backend.azurewebsites.net/api\", \"user2\": \"https://fkh-org2-backend.azurewebsites.net/api\" })."
         },
         "fkh.timezone": {
           "type": "string",
