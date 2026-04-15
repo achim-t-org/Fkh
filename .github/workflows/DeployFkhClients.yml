@@ -19,6 +19,7 @@ env:
 
 jobs:
   deployFkhClients-vsix:
+    if: github.repository_owner == env.PUBLISH_OWNER && github.event.repository.name == env.PUBLISH_REPO
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -67,7 +68,7 @@ jobs:
           path: fkh-vsix/*.vsix
 
       - name: Publish to Marketplace
-        if: steps.check-vsce.outputs.available == 'true' && github.repository_owner == env.PUBLISH_OWNER && github.event.repository.name == env.PUBLISH_REPO
+        if: steps.check-vsce.outputs.available == 'true'
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.production }}" == "true" ]]; then
             npx vsce publish
@@ -78,6 +79,7 @@ jobs:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
   deployFkhClients-cli:
+    if: github.repository_owner == env.PUBLISH_OWNER && github.event.repository.name == env.PUBLISH_REPO
     runs-on: windows-latest
     permissions:
       contents: read
@@ -92,7 +94,6 @@ jobs:
         uses: actions/checkout@v6
 
       - name: NuGet login (OIDC trusted publishing)
-        if: github.repository_owner == env.PUBLISH_OWNER && github.event.repository.name == env.PUBLISH_REPO
         uses: NuGet/login@v1
         id: nuget-login
         with:
@@ -104,7 +105,7 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: Azure Login
-        if: vars.AZURE_KEY_VAULT_CERTIFICATE != '' && github.repository_owner == env.PUBLISH_OWNER && github.event.repository.name == env.PUBLISH_REPO
+        if: vars.AZURE_KEY_VAULT_CERTIFICATE != ''
         uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_KEY_VAULT_CLIENT_ID }}
@@ -112,7 +113,7 @@ jobs:
           subscription-id: ${{ secrets.AZURE_KEY_VAULT_SUBSCRIPTION_ID }}
 
       - name: Get access token for Key Vault
-        if: vars.AZURE_KEY_VAULT_CERTIFICATE != '' && github.repository_owner == env.PUBLISH_OWNER && github.event.repository.name == env.PUBLISH_REPO
+        if: vars.AZURE_KEY_VAULT_CERTIFICATE != ''
         id: get-token
         run: |
           TOKEN=$(az account get-access-token --resource https://vault.azure.net --query accessToken -o tsv)
@@ -133,11 +134,11 @@ jobs:
         run: dotnet build -c Release
 
       - name: Install AzureSignTool
-        if: vars.AZURE_KEY_VAULT_CERTIFICATE != '' && github.repository_owner == env.PUBLISH_OWNER && github.event.repository.name == env.PUBLISH_REPO
+        if: vars.AZURE_KEY_VAULT_CERTIFICATE != ''
         run: dotnet tool install --global AzureSignTool
 
       - name: Sign assemblies
-        if: vars.AZURE_KEY_VAULT_CERTIFICATE != '' && github.repository_owner == env.PUBLISH_OWNER && github.event.repository.name == env.PUBLISH_REPO
+        if: vars.AZURE_KEY_VAULT_CERTIFICATE != ''
         run: |
           AzureSignTool sign \
             --azure-key-vault-url ${{ secrets.AZURE_KEY_VAULT_URL }} \
@@ -152,11 +153,11 @@ jobs:
         run: dotnet pack -c Release -o ./nupkg --no-build
 
       - name: Install NuGetKeyVaultSignTool
-        if: vars.AZURE_KEY_VAULT_CERTIFICATE != '' && github.repository_owner == env.PUBLISH_OWNER && github.event.repository.name == env.PUBLISH_REPO
+        if: vars.AZURE_KEY_VAULT_CERTIFICATE != ''
         run: dotnet tool install --global NuGetKeyVaultSignTool
 
       - name: Sign NuGet package
-        if: vars.AZURE_KEY_VAULT_CERTIFICATE != '' && github.repository_owner == env.PUBLISH_OWNER && github.event.repository.name == env.PUBLISH_REPO
+        if: vars.AZURE_KEY_VAULT_CERTIFICATE != ''
         run: |
           NuGetKeyVaultSignTool sign ./nupkg/*.nupkg \
             --azure-key-vault-url ${{ secrets.AZURE_KEY_VAULT_URL }} \
@@ -172,9 +173,7 @@ jobs:
           path: fkh-cli/nupkg/*.nupkg
 
       - name: Publish to NuGet
-        if: github.repository_owner == env.PUBLISH_OWNER && github.event.repository.name == env.PUBLISH_REPO
         run: dotnet nuget push ./nupkg/*.nupkg --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: Publish to GitHub Packages
-        if: github.repository_owner == env.PUBLISH_OWNER && github.event.repository.name == env.PUBLISH_REPO
         run: dotnet nuget push ./nupkg/*.nupkg --api-key ${{ secrets.GITHUB_TOKEN }} --source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json --skip-duplicate

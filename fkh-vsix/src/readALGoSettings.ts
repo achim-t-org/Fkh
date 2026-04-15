@@ -87,18 +87,41 @@ export async function getProjects(): Promise<string[]> {
   const gitRoot = getGitRootUri();
   if (!gitRoot) { return []; }
 
+  const repoName = getRepoName();
+
   const entries = await vscode.workspace.fs.readDirectory(gitRoot);
-  const projects: string[] = [];
+  const candidates: string[] = [];
   for (const [name, type] of entries) {
     if (type !== vscode.FileType.Directory) { continue; }
     if (await uriExists(vscode.Uri.joinPath(gitRoot, name, ...ALGoSettingsPath))) {
-      projects.push(name);
+      candidates.push(name);
     }
   }
 
   // If no subfolders have .AL-Go, check if root has one
-  if (projects.length === 0 && await uriExists(vscode.Uri.joinPath(gitRoot, ...ALGoSettingsPath))) {
-    projects.push('.');
+  if (candidates.length === 0 && await uriExists(vscode.Uri.joinPath(gitRoot, ...ALGoSettingsPath))) {
+    candidates.push('.');
+  }
+
+  const projects: string[] = [];
+  for (const project of candidates) {
+    const settings = await readSettings({
+      baseFolder: gitRoot,
+      repoName,
+      project,
+      buildMode: 'Default',
+      workflowName: '',
+      userName: '',
+      branchName: '',
+      orgSettingsVariableValue: '',
+      repoSettingsVariableValue: '',
+      environmentSettingsVariableValue: '',
+      environmentName: '',
+      customSettings: '',
+    });
+    const fkh = settings.fkh as Record<string, unknown> | undefined;
+    if (fkh?.ignoreProject === true) { continue; }
+    projects.push(project);
   }
 
   return projects;
@@ -248,6 +271,7 @@ async function uriExists(uri: vscode.Uri): Promise<boolean> {
     return false;
   }
 }
+
 
 async function readSettingsFile(uri: vscode.Uri): Promise<Record<string, unknown> | undefined> {
   if (!await uriExists(uri)) { return undefined; }
