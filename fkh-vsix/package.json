@@ -121,6 +121,16 @@
         "command": "fkh.switchAccount",
         "title": "Fkh: Switch GitHub Account",
         "icon": "$(account)"
+      },
+      {
+        "command": "fkh.showAllContainers",
+        "title": "Show All Containers",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "fkh.showMyContainers",
+        "title": "Show My Containers",
+        "icon": "$(eye-closed)"
       }
     ],
     "viewsContainers": {
@@ -171,6 +181,16 @@
         {
           "command": "fkh.refreshContainers",
           "when": "view == fkhContainers",
+          "group": "navigation"
+        },
+        {
+          "command": "fkh.showAllContainers",
+          "when": "view == fkhContainers && fkh.isAdmin && !fkh.showAllContainers",
+          "group": "navigation"
+        },
+        {
+          "command": "fkh.showMyContainers",
+          "when": "view == fkhContainers && fkh.isAdmin && fkh.showAllContainers",
           "group": "navigation"
         },
         {

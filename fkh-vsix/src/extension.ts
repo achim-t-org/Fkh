@@ -83,7 +83,7 @@ function getBackendUrl(): string | undefined {
 export function activate(context: vscode.ExtensionContext) {
   outputChannel = vscode.window.createOutputChannel('Fkh');
 
-  projectsProvider = new ProjectsTreeProvider(getRepoName, () => containersProvider.getContainers());
+  projectsProvider = new ProjectsTreeProvider(getRepoName, () => containersProvider.getMyContainers());
   projectsView = vscode.window.createTreeView('fkhProjects', {
     treeDataProvider: projectsProvider,
   });
@@ -127,6 +127,18 @@ export function activate(context: vscode.ExtensionContext) {
       await containersProvider.refresh();
       projectsProvider.refresh();
     }),
+    vscode.commands.registerCommand('fkh.showAllContainers', async () => {
+      containersProvider.showAll = true;
+      vscode.commands.executeCommand('setContext', 'fkh.showAllContainers', true);
+      await containersProvider.refresh();
+      projectsProvider.refresh();
+    }),
+    vscode.commands.registerCommand('fkh.showMyContainers', async () => {
+      containersProvider.showAll = false;
+      vscode.commands.executeCommand('setContext', 'fkh.showAllContainers', false);
+      await containersProvider.refresh();
+      projectsProvider.refresh();
+    }),
     vscode.commands.registerCommand('fkh.refreshImages', () => imagesProvider.refresh()),
     vscode.commands.registerCommand('fkh.refreshVMs', async () => {
       await vmsProvider.refresh();
@@ -142,15 +154,18 @@ export function activate(context: vscode.ExtensionContext) {
     }),
     vscode.commands.registerCommand('fkh.startContainer', async (item: ContainerTreeItem | ProjectTreeItem) => {
       if (!item.containerInfo) { return; }
-      await invokeContainerAction('StartContainer', item.containerInfo.name);
+      const name = containersProvider.showAll ? item.containerInfo.appLabel : item.containerInfo.name;
+      await invokeContainerAction('StartContainer', name);
     }),
     vscode.commands.registerCommand('fkh.stopContainer', async (item: ContainerTreeItem | ProjectTreeItem) => {
       if (!item.containerInfo) { return; }
-      await invokeContainerAction('StopContainer', item.containerInfo.name);
+      const name = containersProvider.showAll ? item.containerInfo.appLabel : item.containerInfo.name;
+      await invokeContainerAction('StopContainer', name);
     }),
     vscode.commands.registerCommand('fkh.extendAutoStop', async (item: ContainerTreeItem | ProjectTreeItem) => {
       if (!item.containerInfo) { return; }
-      await invokeContainerAction('ExtendAutoStop', item.containerInfo.name);
+      const name = containersProvider.showAll ? item.containerInfo.appLabel : item.containerInfo.name;
+      await invokeContainerAction('ExtendAutoStop', name);
     }),
     vscode.commands.registerCommand('fkh.setAutoStop', async (item: ContainerTreeItem | ProjectTreeItem) => {
       if (!item.containerInfo) { return; }
@@ -159,21 +174,24 @@ export function activate(context: vscode.ExtensionContext) {
         placeHolder: '2h',
       });
       if (value === undefined || value.trim() === '') { return; }
-      await invokeFunctionByName('SetAutoStop', { name: item.containerInfo.name, autostop: value });
+      const name = containersProvider.showAll ? item.containerInfo.appLabel : item.containerInfo.name;
+      await invokeFunctionByName('SetAutoStop', { name, autostop: value });
     }),
     vscode.commands.registerCommand('fkh.removeContainer', async (item: ContainerTreeItem | ProjectTreeItem) => {
       if (!item.containerInfo) { return; }
+      const name = containersProvider.showAll ? item.containerInfo.appLabel : item.containerInfo.name;
       const confirm = await vscode.window.showWarningMessage(
-        `Are you sure you want to remove '${item.containerInfo.name}'? This will delete the container and its database.`,
+        `Are you sure you want to remove '${name}'? This will delete the container and its database.`,
         { modal: true },
         'Remove'
       );
       if (confirm !== 'Remove') { return; }
-      await invokeContainerAction('RemoveContainer', item.containerInfo.name);
+      await invokeContainerAction('RemoveContainer', name);
     }),
     vscode.commands.registerCommand('fkh.waitForContainer', async (item: ContainerTreeItem | ProjectTreeItem) => {
       if (!item.containerInfo) { return; }
-      await invokeFunctionByName('WaitForContainer', { name: item.containerInfo.name });
+      const name = containersProvider.showAll ? item.containerInfo.appLabel : item.containerInfo.name;
+      await invokeFunctionByName('WaitForContainer', { name });
     }),
     vscode.commands.registerCommand('fkh.run', async () => {
       const catalog = await getFunctionCatalog();
@@ -768,6 +786,7 @@ async function invokeFunctionByName(functionName: string, prefilled: Record<stri
 async function invokeContainerAction(
   functionName: string,
   containerName: string,
+  extraParams?: Record<string, string>,
 ): Promise<void> {
   const baseUrl = getBackendUrl();
   if (!baseUrl) { return; }
@@ -783,7 +802,7 @@ async function invokeContainerAction(
     },
     async () => {
       try {
-        const body: FunctionInvokeRequest = { parameters: { name: containerName } };
+        const body: FunctionInvokeRequest = { parameters: { name: containerName, ...extraParams } };
 
         const response = await fetch(`${baseUrl}/${functionName}`, {
           method: 'POST',

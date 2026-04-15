@@ -218,12 +218,10 @@ public abstract class FunctionBase
             if (string.Equals(parameter.Name, "name", StringComparison.OrdinalIgnoreCase)
                 && !string.IsNullOrWhiteSpace(value))
             {
-                var useNameAsIs = parameters.TryGetValue("useNameAsIs", out var asIs)
-                    && string.Equals(asIs, "true", StringComparison.OrdinalIgnoreCase);
-                if (useNameAsIs)
+                if (auth.IsAdmin)
                 {
                     if (!value.All(c => char.IsLetterOrDigit(c) || c == '-'))
-                        return Respond(req, HttpStatusCode.BadRequest, "Parameter 'name' may only contain alphanumeric characters and hyphens when 'useNameAsIs' is enabled.");
+                        return Respond(req, HttpStatusCode.BadRequest, "Parameter 'name' may only contain alphanumeric characters and hyphens.");
                 }
                 else
                 {
@@ -241,12 +239,6 @@ public abstract class FunctionBase
         parameters["_isAdmin"] = auth.IsAdmin.ToString();
         foreach (var kv in internalParams)
             parameters[kv.Key] = kv.Value;
-
-        // ── Validate useNameAsIs is admin-only ───────────────────────────────────
-        if (parameters.TryGetValue("useNameAsIs", out var useNameAsIsVal)
-            && string.Equals(useNameAsIsVal, "true", StringComparison.OrdinalIgnoreCase)
-            && !auth.IsAdmin)
-            return Respond(req, HttpStatusCode.Forbidden, "The 'useNameAsIs' parameter is restricted to administrators.");
 
         // ── Execute operation ─────────────────────────────────────────────────────
         return await RunOperationAsync(req, logger, operationName, auth.Username,
@@ -393,7 +385,7 @@ public abstract class FunctionBase
         if (errorResponse is not null) return errorResponse;
 
         // ── Parse and validate request parameters ───────────────────────────────
-        var parametersResult = await ParseAndValidateParametersAsync(req, auth!.Function);
+        var parametersResult = await ParseAndValidateParametersAsync(req, auth!.Function, auth.IsAdmin);
         if (!parametersResult.Success)
             return Respond(req, HttpStatusCode.BadRequest, parametersResult.ErrorMessage!);
 
@@ -402,12 +394,6 @@ public abstract class FunctionBase
         // Inject the authenticated GitHub username so services can use it
         parametersResult.Parameters!["_githubUsername"] = auth.Username;
         parametersResult.Parameters!["_isAdmin"] = auth.IsAdmin.ToString();
-
-        // ── Validate useNameAsIs is admin-only ───────────────────────────────────
-        if (parametersResult.Parameters!.TryGetValue("useNameAsIs", out var useNameAsIsVal2)
-            && string.Equals(useNameAsIsVal2, "true", StringComparison.OrdinalIgnoreCase)
-            && !auth.IsAdmin)
-            return Respond(req, HttpStatusCode.Forbidden, "The 'useNameAsIs' parameter is restricted to administrators.");
 
         // Resolve artifact shorthand (e.g. "///us/latest") to a full URL
         var artifactError = await ResolveArtifactAsync(req, logger, parametersResult.Parameters);
@@ -641,7 +627,8 @@ public abstract class FunctionBase
 
     private static async Task<ParameterValidationResult> ParseAndValidateParametersAsync(
         HttpRequestData req,
-        FunctionDefinition function)
+        FunctionDefinition function,
+        bool isAdmin)
     {
         string raw;
         using (var reader = new StreamReader(req.Body))
@@ -707,14 +694,12 @@ public abstract class FunctionBase
             if (string.Equals(parameter.Name, "name", StringComparison.OrdinalIgnoreCase)
                 && !string.IsNullOrWhiteSpace(value))
             {
-                var useNameAsIs = incoming.TryGetValue("useNameAsIs", out var asIs)
-                    && string.Equals(asIs, "true", StringComparison.OrdinalIgnoreCase);
-                if (useNameAsIs)
+                if (isAdmin)
                 {
                     if (!value.All(c => char.IsLetterOrDigit(c) || c == '-'))
                     {
                         return ParameterValidationResult.Fail(
-                            "Parameter 'name' may only contain alphanumeric characters and hyphens when 'useNameAsIs' is enabled.");
+                            "Parameter 'name' may only contain alphanumeric characters and hyphens.");
                     }
                 }
                 else

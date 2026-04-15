@@ -23,15 +23,6 @@ public static class FunctionCatalog
                 },
                 new()
                 {
-                    Name = "useNameAsIs",
-                    Type = "boolean",
-                    Description = "Use the name as-is without prefixing with your GitHub username. Name may contain hyphens. (admin only)",
-                    Required = false,
-                    AdminOnly = true,
-                    DefaultValue = "false"
-                },
-                new()
-                {
                     Name = "artifactUrl",
                     Type = "string",
                     Description = "Artifact URL used by the container provisioning workflow.",
@@ -134,15 +125,6 @@ public static class FunctionCatalog
                     Description = "Name of the container to remove (same name used when creating it).",
                     Required = true,
                     DefaultValue = null
-                },
-                new()
-                {
-                    Name = "useNameAsIs",
-                    Type = "boolean",
-                    Description = "Use the name as-is without prefixing with your GitHub username. Name may contain hyphens. (admin only)",
-                    Required = false,
-                    AdminOnly = true,
-                    DefaultValue = "false"
                 }
             }
         },
@@ -160,15 +142,6 @@ public static class FunctionCatalog
                     Description = "Name of the container to stop (same name used when creating it).",
                     Required = true,
                     DefaultValue = null
-                },
-                new()
-                {
-                    Name = "useNameAsIs",
-                    Type = "boolean",
-                    Description = "Use the name as-is without prefixing with your GitHub username. Name may contain hyphens. (admin only)",
-                    Required = false,
-                    AdminOnly = true,
-                    DefaultValue = "false"
                 }
             }
         },
@@ -197,15 +170,6 @@ public static class FunctionCatalog
                 },
                 new()
                 {
-                    Name = "useNameAsIs",
-                    Type = "boolean",
-                    Description = "Use the name as-is without prefixing with your GitHub username. Name may contain hyphens. (admin only)",
-                    Required = false,
-                    AdminOnly = true,
-                    DefaultValue = "false"
-                },
-                new()
-                {
                     Name = "autostop",
                     Type = "string",
                     Description = "When to auto-stop the container. Use '<n>h' for hours from now (e.g. '4h') or a time of day in UTC (e.g. '18:00' or '6PM'). Leave empty for no auto-stop.",
@@ -228,15 +192,6 @@ public static class FunctionCatalog
                     Description = "Name of the container to extend auto-stop for.",
                     Required = true,
                     DefaultValue = null
-                },
-                new()
-                {
-                    Name = "useNameAsIs",
-                    Type = "boolean",
-                    Description = "Use the name as-is without prefixing with your GitHub username. Name may contain hyphens. (admin only)",
-                    Required = false,
-                    AdminOnly = true,
-                    DefaultValue = "false"
                 }
             }
         },
@@ -254,15 +209,6 @@ public static class FunctionCatalog
                     Description = "Name of the container to set auto-stop for.",
                     Required = true,
                     DefaultValue = null
-                },
-                new()
-                {
-                    Name = "useNameAsIs",
-                    Type = "boolean",
-                    Description = "Use the name as-is without prefixing with your GitHub username. Name may contain hyphens. (admin only)",
-                    Required = false,
-                    AdminOnly = true,
-                    DefaultValue = "false"
                 },
                 new()
                 {
@@ -289,15 +235,6 @@ public static class FunctionCatalog
                     Description = "Name of the container to clear auto-stop for.",
                     Required = true,
                     DefaultValue = null
-                },
-                new()
-                {
-                    Name = "useNameAsIs",
-                    Type = "boolean",
-                    Description = "Use the name as-is without prefixing with your GitHub username. Name may contain hyphens. (admin only)",
-                    Required = false,
-                    AdminOnly = true,
-                    DefaultValue = "false"
                 }
             }
         },
@@ -429,15 +366,6 @@ public static class FunctionCatalog
                     Description = "Name of the container to wait for (same name used when creating it).",
                     Required = true,
                     DefaultValue = null
-                },
-                new()
-                {
-                    Name = "useNameAsIs",
-                    Type = "boolean",
-                    Description = "Use the name as-is without prefixing with your GitHub username. Name may contain hyphens. (admin only)",
-                    Required = false,
-                    AdminOnly = true,
-                    DefaultValue = "false"
                 }
             }
         },
@@ -455,15 +383,6 @@ public static class FunctionCatalog
                     Description = "Name of the container to get logs from.",
                     Required = true,
                     DefaultValue = null
-                },
-                new()
-                {
-                    Name = "useNameAsIs",
-                    Type = "boolean",
-                    Description = "Use the name as-is without prefixing with your GitHub username. Name may contain hyphens. (admin only)",
-                    Required = false,
-                    AdminOnly = true,
-                    DefaultValue = "false"
                 },
                 new()
                 {
@@ -489,15 +408,6 @@ public static class FunctionCatalog
                     Description = "Name of the container to download the event log from.",
                     Required = true,
                     DefaultValue = null
-                },
-                new()
-                {
-                    Name = "useNameAsIs",
-                    Type = "boolean",
-                    Description = "Use the name as-is without prefixing with your GitHub username. Name may contain hyphens. (admin only)",
-                    Required = false,
-                    AdminOnly = true,
-                    DefaultValue = "false"
                 }
             }
         },
@@ -515,15 +425,6 @@ public static class FunctionCatalog
                     Description = "Name of the container whose database to run the SQL against.",
                     Required = true,
                     DefaultValue = null
-                },
-                new()
-                {
-                    Name = "useNameAsIs",
-                    Type = "boolean",
-                    Description = "Use the name as-is without prefixing with your GitHub username. Name may contain hyphens. (admin only)",
-                    Required = false,
-                    AdminOnly = true,
-                    DefaultValue = "false"
                 },
                 new()
                 {
@@ -549,15 +450,6 @@ public static class FunctionCatalog
                     Description = "Name of the container to run the script in.",
                     Required = true,
                     DefaultValue = null
-                },
-                new()
-                {
-                    Name = "useNameAsIs",
-                    Type = "boolean",
-                    Description = "Use the name as-is without prefixing with your GitHub username. Name may contain hyphens. (admin only)",
-                    Required = false,
-                    AdminOnly = true,
-                    DefaultValue = "false"
                 },
                 new()
                 {
@@ -591,15 +483,6 @@ public static class FunctionCatalog
                     Description = "Name of the container to publish the app to.",
                     Required = true,
                     DefaultValue = null
-                },
-                new()
-                {
-                    Name = "useNameAsIs",
-                    Type = "boolean",
-                    Description = "Use the name as-is without prefixing with your GitHub username. Name may contain hyphens. (admin only)",
-                    Required = false,
-                    AdminOnly = true,
-                    DefaultValue = "false"
                 },
                 new()
                 {

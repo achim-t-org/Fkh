@@ -273,14 +273,15 @@ public abstract class FkhServiceBase
 
     /// <summary>
     /// Resolves the app label from parameters.
-    /// Uses 'name' directly if 'useNameAsIs' is true (admin), otherwise combines username with 'name'.
+    /// For admins: if name contains a '-', it is used as the full name; otherwise username is prefixed.
+    /// For non-admins: username is always prefixed (name must not contain '-').
     /// </summary>
     protected static string ResolveAppName(Dictionary<string, string> parameters)
     {
         var name = parameters["name"];
-        var useNameAsIs = parameters.TryGetValue("useNameAsIs", out var asIs)
-            && string.Equals(asIs, "true", StringComparison.OrdinalIgnoreCase);
-        if (useNameAsIs)
+        var isAdmin = parameters.TryGetValue("_isAdmin", out var adminVal)
+            && string.Equals(adminVal, "true", StringComparison.OrdinalIgnoreCase);
+        if (isAdmin && name.Contains('-'))
         {
             return SanitizeAppName(name);
         }

@@ -177,7 +177,9 @@ export class ContainersTreeProvider implements vscode.TreeDataProvider<Container
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
   private containers: ContainerInfo[] = [];
+  private myContainers: ContainerInfo[] = [];
   private initialized = false;
+  private _showAll = false;
   private _getBackendUrl: () => string | undefined;
   private _getGitHubSession: () => Promise<vscode.AuthenticationSession | undefined>;
 
@@ -193,8 +195,16 @@ export class ContainersTreeProvider implements vscode.TreeDataProvider<Container
     return this.containers;
   }
 
+  getMyContainers(): ContainerInfo[] {
+    return this.myContainers;
+  }
+
+  get showAll(): boolean { return this._showAll; }
+  set showAll(value: boolean) { this._showAll = value; }
+
   async refresh(): Promise<void> {
-    this.containers = await this.fetchContainers();
+    this.myContainers = await this.fetchContainers(false);
+    this.containers = this._showAll ? await this.fetchContainers(true) : this.myContainers;
     this.initialized = true;
     this._onDidChangeTreeData.fire(undefined);
   }
@@ -220,7 +230,7 @@ export class ContainersTreeProvider implements vscode.TreeDataProvider<Container
             : new vscode.ThemeIcon('vm', new vscode.ThemeColor('testing.iconSkipped'));
 
         const item = new ContainerTreeItem(
-          `${container.name} (${container.status})`,
+          `${this._showAll ? container.appLabel : container.name} (${container.status})`,
           vscode.TreeItemCollapsibleState.Collapsed,
           container
         );
@@ -238,7 +248,7 @@ export class ContainersTreeProvider implements vscode.TreeDataProvider<Container
     return [];
   }
 
-  private async fetchContainers(): Promise<ContainerInfo[]> {
+  private async fetchContainers(showAll?: boolean): Promise<ContainerInfo[]> {
     const baseUrl = this._getBackendUrl();
     if (!baseUrl) { return []; }
 
@@ -253,7 +263,7 @@ export class ContainersTreeProvider implements vscode.TreeDataProvider<Container
           Authorization: `Bearer ${session.accessToken}`,
         },
         body: JSON.stringify({ parameters: { _timezone: vscode.workspace.getConfiguration('fkh').get<string>('timezone', '').trim()
-          || Intl.DateTimeFormat().resolvedOptions().timeZone } }),
+          || Intl.DateTimeFormat().resolvedOptions().timeZone, ...(showAll ? { all: 'true' } : {}) } }),
       });
 
       if (!response.ok) { return []; }
