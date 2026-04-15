@@ -177,6 +177,7 @@ public static class FunctionCatalog
             Name = "StopAllContainers",
             Description = "Stops all running containers in the cluster by scaling their deployments to 0 replicas (admin only).",
             Route = "StopAllContainers",
+            AdminOnly = true,
             Parameters = new List<FunctionParameterDefinition>()
         },
         new FunctionDefinition
@@ -225,6 +226,67 @@ public static class FunctionCatalog
                     Name = "name",
                     Type = "string",
                     Description = "Name of the container to extend auto-stop for.",
+                    Required = true,
+                    DefaultValue = null
+                },
+                new()
+                {
+                    Name = "useNameAsIs",
+                    Type = "boolean",
+                    Description = "Use the name as-is without prefixing with your GitHub username. Name may contain hyphens. (admin only)",
+                    Required = false,
+                    AdminOnly = true,
+                    DefaultValue = "false"
+                }
+            }
+        },
+        new FunctionDefinition
+        {
+            Name = "SetAutoStop",
+            Description = "Sets the auto-stop time of a running container. Use '<n>h' for hours from now (e.g. '2h') or a time of day (e.g. '18:00' or '6PM').",
+            Route = "SetAutoStop",
+            Parameters = new List<FunctionParameterDefinition>
+            {
+                new()
+                {
+                    Name = "name",
+                    Type = "string",
+                    Description = "Name of the container to set auto-stop for.",
+                    Required = true,
+                    DefaultValue = null
+                },
+                new()
+                {
+                    Name = "useNameAsIs",
+                    Type = "boolean",
+                    Description = "Use the name as-is without prefixing with your GitHub username. Name may contain hyphens. (admin only)",
+                    Required = false,
+                    AdminOnly = true,
+                    DefaultValue = "false"
+                },
+                new()
+                {
+                    Name = "autostop",
+                    Type = "string",
+                    Description = "When to auto-stop the container. Use '<n>h' for hours from now (e.g. '2h') or a time of day (e.g. '18:00' or '6PM').",
+                    Required = true,
+                    DefaultValue = null
+                }
+            }
+        },
+        new FunctionDefinition
+        {
+            Name = "ClearAutoStop",
+            Description = "Clears the auto-stop time of a container (admin only).",
+            Route = "ClearAutoStop",
+            AdminOnly = true,
+            Parameters = new List<FunctionParameterDefinition>
+            {
+                new()
+                {
+                    Name = "name",
+                    Type = "string",
+                    Description = "Name of the container to clear auto-stop for.",
                     Required = true,
                     DefaultValue = null
                 },
@@ -350,6 +412,7 @@ public static class FunctionCatalog
             Name = "ListVMs",
             Description = "Lists Windows VMs in the Kubernetes cluster. Admin only.",
             Route = "ListVMs",
+            AdminOnly = true,
             Parameters = new List<FunctionParameterDefinition>()
         },
         new FunctionDefinition

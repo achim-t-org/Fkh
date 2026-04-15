@@ -89,16 +89,33 @@ public class FkhScaleContainer : FkhServiceBase
         return new { Container = appName, AutoStop = $"{newStopAt:yyyy-MM-dd HH:mm} UTC" };
     }
 
+    public async Task<object> SetAutoStopAsync(Dictionary<string, string> parameters)
+    {
+        var appName = ResolveAppName(parameters);
+        var deploymentName = $"{appName}-deployment";
+
+        parameters.TryGetValue("autostop", out var autoStopValue);
+        parameters.TryGetValue("_timezone", out var autoStopTz);
+        var autoStop = ParseAutoStop(autoStopValue, autoStopTz)
+            ?? throw new ArgumentException("Invalid autostop value. Use '<n>h' (e.g. '2h') or a time of day (e.g. '18:00' or '6PM').");
+
+        var client = await GetKubernetesClientAsync();
+        await SetAutoStopAnnotationAsync(client, deploymentName, autoStop.Value.StopAt);
+        return new { Container = appName, AutoStop = $"{autoStop.Value.StopAt:yyyy-MM-dd HH:mm} UTC ({autoStop.Value.Description})" };
+    }
+
+    public async Task<object> ClearAutoStopForContainerAsync(Dictionary<string, string> parameters)
+    {
+        var appName = ResolveAppName(parameters);
+        var deploymentName = $"{appName}-deployment";
+
+        var client = await GetKubernetesClientAsync();
+        await ClearAutoStopAnnotationAsync(client, deploymentName);
+        return new { Container = appName, AutoStop = (string?)null };
+    }
+
     public async Task<object> StopAllContainersAsync(Dictionary<string, string> parameters)
     {
-        var isAdmin = parameters.TryGetValue("_isAdmin", out var adminValue)
-            && string.Equals(adminValue, "true", StringComparison.OrdinalIgnoreCase);
-
-        if (!isAdmin)
-        {
-            throw new UnauthorizedAccessException("StopAllContainers is restricted to administrators.");
-        }
-
         var client = await GetKubernetesClientAsync();
         var allDeployments = await client.ListNamespacedDeploymentAsync(Namespace);
 

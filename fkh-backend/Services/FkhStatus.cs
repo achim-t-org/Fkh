@@ -19,12 +19,6 @@ public class FkhStatus : FkhServiceBase
 
     public async Task<object> GetStatusAsync(Dictionary<string, string> parameters)
     {
-        var isAdmin = parameters.TryGetValue("_isAdmin", out var adminValue)
-            && string.Equals(adminValue, "true", StringComparison.OrdinalIgnoreCase);
-
-        if (!isAdmin)
-            throw new UnauthorizedAccessException("Status is restricted to administrators.");
-
 #pragma warning disable CS0618
         var credential = new ManagedIdentityCredential(ClientId);
 #pragma warning restore CS0618

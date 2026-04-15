@@ -9,14 +9,6 @@ public class FkhListVMs : FkhServiceBase
 
     public async Task<object> ListVMsAsync(Dictionary<string, string> parameters)
     {
-        var isAdmin = parameters.TryGetValue("_isAdmin", out var adminValue)
-            && string.Equals(adminValue, "true", StringComparison.OrdinalIgnoreCase);
-
-        if (!isAdmin)
-        {
-            throw new UnauthorizedAccessException("ListVMs is restricted to administrators.");
-        }
-
         var client = await GetKubernetesClientAsync();
         var nodes = await client.ListNodeAsync();
 

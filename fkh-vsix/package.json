@@ -78,6 +78,11 @@
         "icon": "$(watch)"
       },
       {
+        "command": "fkh.setAutoStop",
+        "title": "Set Auto-Stop",
+        "icon": "$(clock)"
+      },
+      {
         "command": "fkh.removeContainer",
         "title": "Remove",
         "icon": "$(trash)"
@@ -94,7 +99,7 @@
       },
       {
         "command": "fkh.getContainerEventLog",
-        "title": "Get Event Log",
+        "title": "Get Container Event Log",
         "icon": "$(file-binary)"
       },
       {
@@ -222,6 +227,11 @@
         },
         {
           "command": "fkh.extendAutoStop",
+          "when": "(view == fkhContainers || view == fkhProjects) && viewItem =~ /container-(running|starting)/",
+          "group": "1_actions"
+        },
+        {
+          "command": "fkh.setAutoStop",
           "when": "(view == fkhContainers || view == fkhProjects) && viewItem =~ /container-(running|starting)/",
           "group": "1_actions"
         },

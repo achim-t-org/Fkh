@@ -105,6 +105,15 @@ export function activate(context: vscode.ExtensionContext) {
       if (!item.containerInfo) { return; }
       await invokeContainerAction('ExtendAutoStop', item.containerInfo.name);
     }),
+    vscode.commands.registerCommand('fkh.setAutoStop', async (item: ContainerTreeItem | ProjectTreeItem) => {
+      if (!item.containerInfo) { return; }
+      const value = await vscode.window.showInputBox({
+        prompt: 'Auto-stop time (e.g. "2h", "18:00", "6PM")',
+        placeHolder: '2h',
+      });
+      if (value === undefined || value.trim() === '') { return; }
+      await invokeFunctionByName('SetAutoStop', { name: item.containerInfo.name, autostop: value });
+    }),
     vscode.commands.registerCommand('fkh.removeContainer', async (item: ContainerTreeItem | ProjectTreeItem) => {
       if (!item.containerInfo) { return; }
       const confirm = await vscode.window.showWarningMessage(
