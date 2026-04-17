@@ -228,6 +228,11 @@ graph TB
             MSSQL --- PVC
         end
 
+        SVC_MSSQL["mssql-service<br/>(ClusterIP :1433)"]
+        NP["NetworkPolicy<br/>(app-type: windows-servicetier only)"]
+        SVC_MSSQL --> MSSQL
+        NP -.->|"restrict ingress"| MSSQL
+
         subgraph WP["Windows Pool (autoscaler 0–N)"]
             BC1["bc-container-1<br/>replicas: 1 (running)"]
             BC2["bc-container-2<br/>replicas: 0 (stopped)"]
@@ -238,18 +243,13 @@ graph TB
         subgraph SP["Spot Pool (optional, autoscaler 0–N)"]
             BC3["bc-container-3<br/>replicas: 1 (spot)"]
         end
-    end
 
-    SVC_MSSQL["mssql-service<br/>(ClusterIP :1433)"]
-    NP["NetworkPolicy<br/>(app-type: windows-servicetier only)"]
-    SVC_MSSQL --> MSSQL
-    NP -.->|"restrict ingress"| MSSQL
+        BC1 -->|"TCP 1433"| SVC_MSSQL
+        BC3 -->|"TCP 1433"| SVC_MSSQL
+    end
 
     SVC1["LoadBalancer<br/>{app}.{region}.cloudapp.azure.com"]
     SVC1 --> BC1
-
-    BC1 -->|"TCP 1433"| SVC_MSSQL
-    BC3 -->|"TCP 1433"| SVC_MSSQL
 
     subgraph "Stop / Start"
         STOP["StopContainer<br/>replicas: 1 → 0"]
@@ -259,11 +259,13 @@ graph TB
     STOP -.-> BC2
     START -.-> BC2
 
-    subgraph "Temporary SQL Access"
+    subgraph "Temporary SQL Access (external)"
+        EXT_USER["User's IP"]
         EXT_SVC["mssql-ext-{user}<br/>(LoadBalancer, IP-restricted)"]
         EXT_NP["mssql-allow-ip-{user}<br/>(NetworkPolicy)"]
     end
 
+    EXT_USER --> EXT_SVC
     EXT_SVC -->|":1433"| MSSQL
     EXT_NP -.->|"allow user IP"| MSSQL
 ```
