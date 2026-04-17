@@ -11,8 +11,12 @@ graph LR
         CLI["CLI Tool"]
     end
 
+    GA["GitHub Actions<br/>(CreateImages)"]
+    GA2["GitHub Actions"]
+    USER["User"]
     FUNC["Fkh Backend<br/>(Azure Function)"]
     GH["GitHub API"]
+    GHTEAMS["GitHub<br/>Org Teams"]
 
     subgraph AKS["AKS Cluster"]
         direction TB
@@ -23,13 +27,24 @@ graph LR
 
     ACR["Container<br/>Registry"]
     BLOB["Blob Storage<br/>(.bak files)"]
+    AAD["Azure AD<br/>App Registration"]
 
-    VSIX & CLI -->|"GitHub token"| FUNC
+    USER --> VSIX
+    USER --> CLI
+    USER -->|"team membership"| GHTEAMS
+    VSIX -->|"GitHub token"| FUNC
+    CLI -->|"GitHub token<br/>or OIDC token"| FUNC
     FUNC -->|"validate user"| GH
+    FUNC <-->|"check membership"| GHTEAMS
     FUNC -->|"manage containers"| AKS
     FUNC -->|"check/pull images"| ACR
     FUNC -->|"database backups"| BLOB
+    FUNC -->|"dispatch workflow<br/>(GitHub App)"| GA
     BC & SPOT -->|"TCP 1433"| SQL
+    GA -->|"OIDC"| AAD
+    GA2 -->|"OIDC token"| CLI
+    AAD -->|"federated credential"| ACR
+    AAD -->|"federated credential"| BLOB
 ```
 
 ## Request Flow
@@ -77,14 +92,15 @@ graph TB
 | Component | Path | Description |
 |-----------|------|-------------|
 | **VS Code Extension** | `fkh-vsix/` | Registers commands to create/remove containers. Uses VS Code's built-in GitHub auth to obtain a Bearer token and calls the Function App API. Fetches the function catalog for dynamic parameter prompts. Auto-detects public IP for SQL access. Parameter defaults can be set via `fkh.<Function>.<param>` settings. |
-| **CLI Tool** | `fkh-cli/` | Standalone .NET executable (`fkh.exe`). Reads GitHub token from `GH_TOKEN`, `GITHUB_TOKEN`, or `gh auth token`. Interactively prompts for parameters with masked password input. Auto-detects public IP for SQL access. |
+| **CLI Tool** | `fkh-cli/` | Standalone .NET executable (`fkh.exe`). Authenticates via `--oidcToken` (GitHub Actions OIDC), `OIDC_TOKEN` env var, `GH_TOKEN`, `GITHUB_TOKEN`, or `gh auth token`. Interactively prompts for parameters with masked password input. Auto-detects public IP for SQL access. |
 
 ### Azure Functions Backend
 
 | Component | Path | Description |
 |-----------|------|-------------|
-| **FunctionBase** | `fkh-backend/FunctionBase.cs` | Base class for all HTTP functions. Extracts Bearer token, validates it against GitHub API, checks team membership, parses and validates parameters against the function catalog, and injects the GitHub username. |
+| **FunctionBase** | `fkh-backend/FunctionBase.cs` | Base class for all HTTP functions. Extracts Bearer token, validates it against GitHub API (PAT) or GitHub Actions OIDC (JWT), checks team membership, parses and validates parameters against the function catalog, and injects the GitHub username. Includes brute-force protection (IP blocking after 3 failed attempts within 5 minutes). |
 | **GitHubAuthService** | `fkh-backend/Services/GitHubAuthService.cs` | Calls `GET /user` and `GET /orgs/{org}/teams/{team}/memberships/{username}` to authenticate and authorize requests. Allowed org/team pairs loaded from `ALLOWED_ORG_TEAMS` env var. |
+| **GitHubOidcService** | `fkh-backend/Services/GitHubOidcService.cs` | Validates GitHub Actions OIDC JWTs against GitHub's OpenID Connect discovery endpoint. Checks the `repository` claim against the `ALLOWED_OIDC_REPOS` allow-list. OIDC callers are granted admin privileges. |
 | **GitHubAppTokenService** | `fkh-backend/Services/GitHubAppTokenService.cs` | Creates JWTs signed with the GitHub App private key, exchanges for installation access tokens, and dispatches the `createImages` workflow when an image is missing from ACR. |
 | **FkhCreateContainer** | `fkh-backend/Services/FkhCreateContainer.cs` | Orchestrates container creation: ACR image check → database backup SAS URL → k8s exec to download and restore database → create K8s deployment, service, and secret. |
 | **FkhRemoveContainer** | `fkh-backend/Services/FkhRemoveContainer.cs` | Removes Kubernetes resources (deployment, service, secret) and drops the database for a given container. |
@@ -203,11 +219,195 @@ replaces the existing grant (updating the allowed IP and extending the timer).
 
 ## Deployment
 
-Infrastructure is provisioned via `terraform/deploy.ps1`, which:
+### Overview
 
-1. Creates state storage (resource group + storage account + blob container)
-2. Recovers secrets (SQL SA password, GitHub App key) from existing state or prompts
-3. Runs a targeted bootstrap apply (AKS, storage, identity, function)
-4. Runs a full `terraform apply` (Kubernetes resources, monitoring, GitHub)
-5. Publishes the Azure Function code via `dotnet publish` + `az functionapp deployment`
-6. Syncs GitHub Actions secrets (OIDC credentials, ACR login server, DBS storage account)
+There are two ways to deploy the infrastructure:
+
+| Method | Script / Workflow | When to use |
+|--------|-------------------|-------------|
+| **Local deploy** | `terraform/deploy.ps1` | First-time setup, or full redeploy from a developer workstation |
+| **Full deploy workflow** | `.github/workflows/DeployFkhFullStack.yml` | Same as `deploy.ps1` but runs as a GitHub Actions workflow (manual trigger) |
+| **Backend-only workflow** | `.github/workflows/UpdateFkhBackEnd.yml` | Publish function code only — no Terraform changes |
+
+Both the local script and the `DeployFkhFullStack` workflow perform the **same steps**. The workflow reimplements the `deploy.ps1` logic as individual workflow steps. The only differences are:
+
+- **Authentication** — `deploy.ps1` uses an interactive `az login`; the workflow uses OIDC (federated credential on the Deploy App Registration).
+- **Secrets** — `deploy.ps1` recovers secrets from Terraform state on re-deploys (or prompts interactively); the workflow gets them from GitHub Actions secrets.
+
+### Deploy Steps
+
+Both `deploy.ps1` and `DeployFkhFullStack` run the following steps in order:
+
+- **Ensure state storage** — Idempotently creates a resource group (`fkh-<org>-state`), a storage account (`fkh<org>state`), and a `tfstate` blob container if they don't already exist. Grants `Storage Blob Data Contributor` on the state account (to the current user for `deploy.ps1`, to the OIDC service principal for the workflow).
+- **Terraform init** — Initializes with the Azure blob backend (uses Azure AD auth, not storage keys).
+- **Resolve secrets** — `deploy.ps1` reads `TF_VAR_sql_sa_password` and `TF_VAR_github_app_private_key` from existing Terraform state to avoid re-prompting, then interactively prompts for any still missing. The workflow receives them from GitHub Actions secrets (`SQL_SA_PASSWORD`, `GH_APP_PRIVATE_KEY`).
+- **Bootstrap apply** — Targeted `terraform apply` for core Azure resources (resource group, AKS, ACR, storage accounts, function app, managed identity, federated credentials) so the Kubernetes provider can initialize.
+- **Fetch AKS credentials** — Runs `az aks get-credentials` so subsequent steps can talk to the cluster.
+- **Check / import GitHub teams** — Runs `checkGitHubTeam.ps1` to import existing GitHub teams into Terraform state, avoiding conflicts.
+- **Full Terraform apply** — Applies all remaining resources (Kubernetes namespace, SQL Server pod, network policies, GitHub teams, monitoring).
+- **Publish function code** — Runs `func azure functionapp publish` with the .NET isolated worker (`deploy.ps1` delegates to `deploy-functionupdate.ps1`).
+- **Sync GitHub Actions secrets** — Uses `gh secret set` to push `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `ACR_LOGIN_SERVER`, and `DBS_STORAGE_ACCOUNT` to the repository for the `CreateImages` workflow.
+
+### Organization Configuration (`.tfvars`)
+
+Each organization has a file under `terraform/organizations/<org>.tfvars`. Copy `example.tfvars` as a starting point.
+
+| Variable | Description |
+|----------|-------------|
+| `subscription_id` | Azure subscription to deploy into |
+| `tenant_id` | Azure AD tenant ID |
+| `location` | Azure region (e.g. `swedencentral`) |
+| `org_name` | Short identifier used in resource names (`fkh-<org>-*`) |
+| `github_org` | GitHub organization name (case-sensitive) |
+| `github_repo` | Repository name (your fork of Fkh) |
+| `github_team_name` | Team controlling user access (created if missing) |
+| `github_team_members` | List of GitHub usernames to add to the team |
+| `github_admin_team_name` | Team controlling admin access |
+| `github_admin_team_members` | Admin usernames |
+| `allowed_org_teams` | Org/team pairs the Function App accepts for user auth |
+| `admin_org_teams` | Org/team pairs that grant admin privileges |
+| `allowed_oidc_repos` | Repos allowed to call the Function App via GitHub Actions OIDC |
+| `github_app_id` | GitHub App ID (triggers image builds) |
+| `github_app_installation_id` | Installation ID of the GitHub App |
+| `contact_email_for_letsencrypt` | Email for Let's Encrypt certificates |
+| AKS sizing | `linux_vm_size`, `windows_vm_size`, `windows_min/max_node_count`, spot pool settings, `windows_overprovision`, `windows_prepull_images` |
+| SQL | `sql_storage_size`, `namespace` |
+
+**Secrets** (never committed to tfvars — set via environment variables):
+
+| Environment Variable | Description |
+|----------------------|-------------|
+| `TF_VAR_github_token` | GitHub PAT with `admin:org` + `repo` + `read:org` scopes |
+| `TF_VAR_sql_sa_password` | SA password for the SQL Server pod (≥ 8 characters) |
+| `TF_VAR_github_app_private_key` | PEM-encoded private key of the GitHub App |
+
+### App Registrations and Identities
+
+There are two distinct identity mechanisms:
+
+#### 1. Managed Identity (runtime — created by Terraform)
+
+Terraform creates a **user-assigned managed identity** (`identity.tf`) that the Function App uses at runtime to access Azure resources. No credentials are stored — Azure handles authentication at the infrastructure level.
+
+| Role Assignment | Scope | Purpose |
+|-----------------|-------|---------|
+| Azure Kubernetes Service Contributor | AKS cluster | Manage containers, exec into pods |
+| Storage Blob Data Contributor | DBS storage account | Generate SAS URLs for database backups |
+| AcrPush | Container Registry | Push images (used by GitHub Actions via federated credential) |
+| Log Analytics Reader | Log Analytics workspace | Query image pull timestamps |
+
+The same identity has a **federated credential for GitHub Actions OIDC** (`identity.tf`):
+
+```
+Issuer:   https://token.actions.githubusercontent.com
+Subject:  repo:<org>/<repo>:ref:refs/heads/main
+Audience: api://AzureADTokenExchange
+```
+
+This lets the `CreateImages` workflow authenticate to Azure as the managed identity (passwordless) to push images to ACR and upload database backups to Blob Storage.
+
+#### 2. Deploy App Registration (created manually)
+
+For the **deploy workflows** (`DeployFkhFullStack`, `UpdateFkhBackEnd`), you must create a separate Azure AD App Registration with:
+
+- A **federated credential** for GitHub Actions OIDC:
+  ```
+  Issuer:   https://token.actions.githubusercontent.com
+  Subject:  repo:<org>/<repo>:ref:refs/heads/main
+  Audience: api://AzureADTokenExchange
+  ```
+- **Role assignments** on the Azure subscription:
+  - `Contributor` — create and manage all resources
+  - `User Access Administrator` — create role assignments for managed identities
+
+This App Registration's credentials are stored as GitHub Actions secrets (`AZURE_DEPLOY_CLIENT_ID`, `AZURE_DEPLOY_TENANT_ID`, `AZURE_DEPLOY_SUBSCRIPTION_ID`).
+
+### GitHub App
+
+A **GitHub App** is required to trigger image-build workflows when a user requests a BC version whose image doesn't exist in ACR yet. The Function App uses the GitHub App to dispatch the `CreateImages` workflow.
+
+Configuration:
+
+| Setting | Where it goes |
+|---------|---------------|
+| App ID | `github_app_id` in `.tfvars` |
+| Installation ID | `github_app_installation_id` in `.tfvars` |
+| Private key (.pem) | `TF_VAR_github_app_private_key` env var → stored in Function App settings as `GITHUB_APP_PRIVATE_KEY` |
+
+The `GitHubAppTokenService` in the backend creates short-lived JWTs signed with the private key, exchanges them for installation access tokens, and uses those to call `POST /repos/{owner}/{repo}/actions/workflows/CreateImages.yml/dispatches`.
+
+### GitHub Actions Secrets and Variables
+
+#### Secrets set automatically by `deploy.ps1` (Step 11)
+
+These are synced from Terraform outputs for the `CreateImages` workflow:
+
+| Secret | Value source |
+|--------|-------------|
+| `AZURE_CLIENT_ID` | Managed identity client ID |
+| `AZURE_TENANT_ID` | Terraform `tenant_id` output |
+| `AZURE_SUBSCRIPTION_ID` | Terraform `subscription_id` output |
+| `ACR_LOGIN_SERVER` | ACR login server FQDN |
+| `DBS_STORAGE_ACCOUNT` | DBS storage account name |
+
+#### Secrets set manually (for deploy workflows)
+
+| Secret | Purpose |
+|--------|---------|
+| `AZURE_DEPLOY_CLIENT_ID` | Deploy App Registration client ID |
+| `AZURE_DEPLOY_TENANT_ID` | Azure AD tenant ID |
+| `AZURE_DEPLOY_SUBSCRIPTION_ID` | Azure subscription ID |
+| `SQL_SA_PASSWORD` | SQL Server SA password |
+| `GH_APP_PRIVATE_KEY` | GitHub App PEM private key |
+| `GH_PAT` | GitHub PAT (`admin:org` + `repo` + `read:org`) |
+
+#### Secrets for client publishing (`DeployFkhClients`)
+
+| Secret / Variable | Purpose |
+|-------------------|---------|
+| `VSCE_PAT` | VS Code Marketplace publish token |
+| `AZURE_KEY_VAULT_CLIENT_ID` | App Registration for code signing via Azure Key Vault |
+| `AZURE_KEY_VAULT_TENANT_ID` | Tenant for Key Vault access |
+| `AZURE_KEY_VAULT_SUBSCRIPTION_ID` | Subscription for Key Vault access |
+| `AZURE_KEY_VAULT_URL` | Key Vault URL for code signing |
+| `AZURE_KEY_VAULT_CERTIFICATE` (variable) | Certificate name in Key Vault |
+
+#### Variables (non-secret)
+
+| Variable | Purpose |
+|----------|---------|
+| `TFVARS_FILE` | Path to the organization `.tfvars` file (e.g. `organizations/freddydk.tfvars`) |
+
+### Deployment Flow Diagram
+
+```mermaid
+graph TB
+    subgraph "Shared Deploy Steps"
+        S1["Ensure state storage<br/>(create RG + Storage + Blob if missing)"]
+        S2["terraform init<br/>(Azure blob backend)"]
+        S3["Resolve secrets"]
+        S4["Bootstrap apply<br/>(AKS, ACR, MI, Function)"]
+        S5["az aks get-credentials"]
+        S6["checkGitHubTeam.ps1<br/>(import existing teams)"]
+        S7["terraform apply<br/>(all resources)"]
+        S8["func publish"]
+        S9["gh secret set<br/>(sync CreateImages secrets)"]
+        S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7 --> S8 --> S9
+    end
+
+    LOCAL["deploy.ps1<br/>(interactive az login)"] --> S1
+    WF["DeployFkhFullStack<br/>(OIDC federated cred)"] --> S1
+
+    LOCAL -.->|"secrets from state<br/>or interactive prompt"| S3
+    WF -.->|"secrets from<br/>GitHub Actions secrets"| S3
+
+    subgraph "Identities"
+        DEPLOY_APP["Deploy App Registration<br/>(Contributor + UAA)"]
+        MI["Managed Identity<br/>(AKS + ACR + Storage)"]
+        GH_APP["GitHub App<br/>(workflow dispatch)"]
+    end
+
+    LOCAL -.->|"az login<br/>(interactive)"| DEPLOY_APP
+    WF -.->|"OIDC"| DEPLOY_APP
+    S7 --> MI
+```
