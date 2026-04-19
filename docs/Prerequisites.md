@@ -59,11 +59,11 @@ You'll need to set up Azure OIDC and configure GitHub secrets before running the
 | `GITHUB_APP_PRIVATE_KEY` | PEM-encoded private key of the GitHub App (from [Create the GitHub App](GitHubApp.md)) |
 | `GH_PAT` | GitHub PAT with scopes: `admin:org`, `repo`, `read:org` |
 
-**GitHub variable** (Settings → Secrets and variables → Actions → Variables):
+**GitHub variables** (Settings → Secrets and variables → Actions → Variables):
 
 | Variable | Value |
 |----------|-------|
-| `TFVARS` | **(Recommended)** The full contents of your `.tfvars` file. Paste the entire file content as the variable value. |
+| `TFVARS` | **(Recommended)** The full contents of your `.tfvars` file. Paste the entire file content as the variable value. All values are masked in workflow logs. |
 | `TFVARS_FILE` | (Fallback) Path to a committed `.tfvars` file, e.g. `organizations/my-org.tfvars`. Only used if `TFVARS` is not set. |
 
 ## For End Users (VS Code only)

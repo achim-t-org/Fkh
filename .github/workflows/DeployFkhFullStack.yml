@@ -67,22 +67,29 @@ jobs:
       - name: Resolve tfvars file
         id: tfvars
         shell: pwsh
-        env:
-          TFVARS_CONTENT: ${{ vars.TFVARS }}
-          TFVARS_FILE_PATH: ${{ vars.TFVARS_FILE }}
         run: |
-          if ($env:TFVARS_CONTENT) {
+          # Mask all lines of TFVARS content before anything else can log them
+          $tfvarsContent = @"
+          ${{ vars.TFVARS }}
+          "@.Trim()
+          if ($tfvarsContent) {
+            foreach ($rawLine in $tfvarsContent -split "`n") {
+              $trimmed = $rawLine.Trim()
+              if ($trimmed -and -not $trimmed.StartsWith('#')) {
+                Write-Host "::add-mask::$trimmed"
+              }
+            }
             $tfvarsFile = "organizations/_from_variable.tfvars"
             New-Item -ItemType Directory -Path (Split-Path $tfvarsFile) -Force | Out-Null
-            Set-Content -Path $tfvarsFile -Value $env:TFVARS_CONTENT -Encoding UTF8
+            Set-Content -Path $tfvarsFile -Value $tfvarsContent -Encoding UTF8
             Write-Host "Using TFVARS variable content."
-          } elseif ($env:TFVARS_FILE_PATH) {
-            $tfvarsFile = $env:TFVARS_FILE_PATH
+          } elseif ("${{ vars.TFVARS_FILE }}") {
+            $tfvarsFile = "${{ vars.TFVARS_FILE }}"
             Write-Host "Using TFVARS_FILE -> $tfvarsFile"
           } else {
             throw "Neither TFVARS nor TFVARS_FILE variable is set. Configure one in Settings -> Secrets and variables -> Actions -> Variables."
           }
-          # Mask all quoted string values from the tfvars file
+          # Also mask all quoted string values individually
           foreach ($line in Get-Content $tfvarsFile) {
             if ($line -match '=\s*"([^"]+)"') {
               $val = $Matches[1]
