@@ -57,8 +57,7 @@ public class FkhCreateContainer : FkhServiceBase
         var maxNode = await _userSettings.GetResolvedSettingAsync(githubUsername, isAdmin, "MaxContainers");
         var maxContainers = maxNode?.GetValue<int>() ?? -1;
 
-        var allDeployments = await client.ListNamespacedDeploymentAsync(Namespace,
-            labelSelector: "app-type=windows-servicetier");
+        var allDeployments = await client.ListNamespacedDeploymentAsync(Namespace);
         var usernamePrefix = $"{githubUsername.ToLowerInvariant()}-";
         var activeCount = allDeployments.Items
             .Count(d => d.Spec.Template.Metadata.Labels != null
@@ -454,6 +453,11 @@ public class FkhCreateContainer : FkhServiceBase
             {
                 Name = deploymentName,
                 NamespaceProperty = Namespace,
+                Labels = new Dictionary<string, string>
+                {
+                    ["app"] = appName,
+                    ["app-type"] = "windows-servicetier"
+                },
                 Annotations = annotations.Count > 0 ? annotations : null
             },
             Spec = new V1DeploymentSpec

@@ -42,8 +42,7 @@ public class FkhScaleContainer : FkhServiceBase
         var maxNode = await _userSettings.GetResolvedSettingAsync(githubUsername, isAdmin, "MaxContainers");
         var maxContainers = maxNode?.GetValue<int>() ?? -1;
 
-        var allDeployments = await client.ListNamespacedDeploymentAsync(Namespace,
-            labelSelector: "app-type=windows-servicetier");
+        var allDeployments = await client.ListNamespacedDeploymentAsync(Namespace);
         var usernamePrefix = $"{githubUsername.ToLowerInvariant()}-";
         var activeCount = allDeployments.Items
             .Count(d => d.Spec.Template.Metadata.Labels != null
