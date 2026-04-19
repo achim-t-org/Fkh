@@ -72,7 +72,8 @@ jobs:
           TFVARS_FILE_PATH: ${{ vars.TFVARS_FILE }}
         run: |
           if ($env:TFVARS_CONTENT) {
-            $tfvarsFile = "terraform/organizations/_from_variable.tfvars"
+            $tfvarsFile = "organizations/_from_variable.tfvars"
+            New-Item -ItemType Directory -Path (Split-Path $tfvarsFile) -Force | Out-Null
             Set-Content -Path $tfvarsFile -Value $env:TFVARS_CONTENT -Encoding UTF8
             Write-Host "Using TFVARS variable content."
           } elseif ($env:TFVARS_FILE_PATH) {
