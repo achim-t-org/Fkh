@@ -25,7 +25,12 @@
 #                              • read:org    (team membership checks)
 #
 # ── Required GitHub Variables (non-secret) ──────────────────────────────────
-#   TFVARS_FILE            - Path to the .tfvars file, e.g. organizations/freddydk.tfvars
+#   TFVARS              - (Recommended) The full contents of your .tfvars file,
+#                          stored as a GitHub variable. Avoids committing config
+#                          to the repository.
+#   TFVARS_FILE         - (Fallback) Path to a .tfvars file committed in the repo,
+#                          e.g. organizations/freddydk.tfvars.
+#                          Only used if TFVARS is not set.
 # ============================================================================
 
 name: Deploy Fkh Full Stack
@@ -58,6 +63,35 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      # ── Resolve tfvars ────────────────────────────────────────────────────
+      - name: Resolve tfvars file
+        id: tfvars
+        shell: pwsh
+        env:
+          TFVARS_CONTENT: ${{ vars.TFVARS }}
+          TFVARS_FILE_PATH: ${{ vars.TFVARS_FILE }}
+        run: |
+          if ($env:TFVARS_CONTENT) {
+            $tfvarsFile = "terraform/organizations/_from_variable.tfvars"
+            Set-Content -Path $tfvarsFile -Value $env:TFVARS_CONTENT -Encoding UTF8
+            Write-Host "Using TFVARS variable content."
+          } elseif ($env:TFVARS_FILE_PATH) {
+            $tfvarsFile = $env:TFVARS_FILE_PATH
+            Write-Host "Using TFVARS_FILE -> $tfvarsFile"
+          } else {
+            throw "Neither TFVARS nor TFVARS_FILE variable is set. Configure one in Settings -> Secrets and variables -> Actions -> Variables."
+          }
+          # Mask all quoted string values from the tfvars file
+          foreach ($line in Get-Content $tfvarsFile) {
+            if ($line -match '=\s*"([^"]+)"') {
+              $val = $Matches[1]
+              if ($val.Length -ge 4) {
+                Write-Host "::add-mask::$val"
+              }
+            }
+          }
+          "tfvars_file=$tfvarsFile" >> $env:GITHUB_OUTPUT
+
       # ── Tool setup ────────────────────────────────────────────────────────
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4
@@ -84,7 +118,7 @@ jobs:
         id: parse
         shell: pwsh
         run: |
-          $varFile = "${{ vars.TFVARS_FILE }}"
+          $varFile = "${{ steps.tfvars.outputs.tfvars_file }}"
           function Get-TfVar([string]$Name, [string]$File) {
             $line = Get-Content $File | Where-Object { $_ -match "^\s*$Name\s*=" } | Select-Object -First 1
             if ($line -match '=\s*"([^"]+)"') { return $Matches[1] }
@@ -169,7 +203,7 @@ jobs:
       - name: Terraform bootstrap apply
         run: |
           terraform apply \
-            -var-file="${{ vars.TFVARS_FILE }}" \
+            -var-file="${{ steps.tfvars.outputs.tfvars_file }}" \
             -target=azurerm_resource_group.this \
             -target=azurerm_kubernetes_cluster.this \
             -target=azurerm_kubernetes_cluster_node_pool.win \
@@ -201,13 +235,13 @@ jobs:
       - name: Check / import GitHub teams
         shell: pwsh
         run: |
-          ./checkGitHubTeam.ps1 -VarFile "${{ vars.TFVARS_FILE }}" -GithubToken "${{ secrets.GH_PAT }}"
+          ./checkGitHubTeam.ps1 -VarFile "${{ steps.tfvars.outputs.tfvars_file }}" -GithubToken "${{ secrets.GH_PAT }}"
 
       # ── Full Terraform apply ──────────────────────────────────────────────
       - name: Terraform apply
         run: |
           terraform apply \
-            -var-file="${{ vars.TFVARS_FILE }}" \
+            -var-file="${{ steps.tfvars.outputs.tfvars_file }}" \
             -auto-approve
 
       # ── Publish function code ─────────────────────────────────────────────

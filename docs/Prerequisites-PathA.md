@@ -23,7 +23,8 @@ Go to **Settings → Secrets and variables → Actions → Variables** and add:
 
 | Variable | Value |
 |----------|-------|
-| `TFVARS_FILE` | Path to your `.tfvars` file, e.g. `organizations/my-org.tfvars` |
+| `TFVARS` | **(Recommended)** The full contents of your `.tfvars` file. Paste the entire file content as the variable value. |
+| `TFVARS_FILE` | (Fallback) Path to a committed `.tfvars` file, e.g. `organizations/my-org.tfvars`. Only used if `TFVARS` is not set. |
 
 ## For End Users (VS Code only)
 

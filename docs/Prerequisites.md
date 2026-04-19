@@ -63,7 +63,8 @@ You'll need to set up Azure OIDC and configure GitHub secrets before running the
 
 | Variable | Value |
 |----------|-------|
-| `TFVARS_FILE` | Path to your `.tfvars` file, e.g. `organizations/my-org.tfvars` |
+| `TFVARS` | **(Recommended)** The full contents of your `.tfvars` file. Paste the entire file content as the variable value. |
+| `TFVARS_FILE` | (Fallback) Path to a committed `.tfvars` file, e.g. `organizations/my-org.tfvars`. Only used if `TFVARS` is not set. |
 
 ## For End Users (VS Code only)
 

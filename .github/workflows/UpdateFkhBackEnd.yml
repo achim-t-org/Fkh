@@ -19,8 +19,12 @@
 #   AZURE_DEPLOY_SUBSCRIPTION_ID   - Azure subscription ID
 #
 # ── Required GitHub Variables (non-secret) ──────────────────────────────────
-#   TFVARS_FILE            - Path to the .tfvars file, e.g. organizations/freddydk.tfvars
-#                            Used to derive the function app name from Terraform state.
+#   TFVARS              - (Recommended) The full contents of your .tfvars file,
+#                          stored as a GitHub variable. Avoids committing config
+#                          to the repository.
+#   TFVARS_FILE         - (Fallback) Path to a .tfvars file committed in the repo,
+#                          e.g. organizations/freddydk.tfvars.
+#                          Only used if TFVARS is not set.
 # ============================================================================
 
 name: Update Fkh Backend
@@ -46,6 +50,35 @@ jobs:
       # ── Checkout ──────────────────────────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v6
+
+      # ── Resolve tfvars ────────────────────────────────────────────────────
+      - name: Resolve tfvars file
+        id: tfvars
+        shell: pwsh
+        env:
+          TFVARS_CONTENT: ${{ vars.TFVARS }}
+          TFVARS_FILE_PATH: ${{ vars.TFVARS_FILE }}
+        run: |
+          if ($env:TFVARS_CONTENT) {
+            $tfvarsFile = "terraform/organizations/_from_variable.tfvars"
+            Set-Content -Path $tfvarsFile -Value $env:TFVARS_CONTENT -Encoding UTF8
+            Write-Host "Using TFVARS variable content."
+          } elseif ($env:TFVARS_FILE_PATH) {
+            $tfvarsFile = $env:TFVARS_FILE_PATH
+            Write-Host "Using TFVARS_FILE -> $tfvarsFile"
+          } else {
+            throw "Neither TFVARS nor TFVARS_FILE variable is set. Configure one in Settings -> Secrets and variables -> Actions -> Variables."
+          }
+          # Mask all quoted string values from the tfvars file
+          foreach ($line in Get-Content $tfvarsFile) {
+            if ($line -match '=\s*"([^"]+)"') {
+              $val = $Matches[1]
+              if ($val.Length -ge 4) {
+                Write-Host "::add-mask::$val"
+              }
+            }
+          }
+          "tfvars_file=$tfvarsFile" >> $env:GITHUB_OUTPUT
 
       # ── Tool setup ────────────────────────────────────────────────────────
       - name: Setup Terraform
@@ -75,7 +108,7 @@ jobs:
         working-directory: terraform
         run: |
           # Read from Terraform state
-          $varFile = "${{ vars.TFVARS_FILE }}"
+          $varFile = "${{ steps.tfvars.outputs.tfvars_file }}"
             function Get-TfVar([string]$Name, [string]$File) {
               $line = Get-Content $File | Where-Object { $_ -match "^\s*$Name\s*=" } | Select-Object -First 1
               if ($line -match '=\s*"([^"]+)"') { return $Matches[1] }

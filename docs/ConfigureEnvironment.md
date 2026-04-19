@@ -80,7 +80,7 @@ github_app_id              = "<app-id>"
 github_app_installation_id = "<installation-id>"
 ```
 
-For **Path A**: commit and push the tfvars file to your repository so the Deploy workflow can find it.
+For **Path A**: add the tfvars content as a `TFVARS` GitHub variable (Settings → Secrets and variables → Actions → Variables → New variable). Paste the entire file content as the value. This avoids committing configuration to the repository. Alternatively, commit the file and set `TFVARS_FILE` to its path instead.
 
 For **Path B**: the file stays local — `deploy.ps1` reads it directly.
 

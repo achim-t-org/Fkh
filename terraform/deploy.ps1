@@ -3,7 +3,9 @@
     Deploys an organization environment: checks GitHub team state, then runs terraform apply.
 
 .PARAMETER VarFile
-    Path to the organization .tfvars file, e.g. organizations/my-org.tfvars
+    Path to the organization .tfvars file, e.g. organizations/my-org.tfvars.
+    If omitted, the script reads the TFVARS GitHub variable from the current repo
+    (via 'gh variable get TFVARS') and writes it to a temporary file.
 
 .PARAMETER GithubToken
     GitHub personal access token with read:org scope.
@@ -15,9 +17,10 @@
 .EXAMPLE
     .\deploy.ps1 -VarFile organizations/my-org.tfvars
     .\deploy.ps1 -VarFile organizations/my-org.tfvars -AutoApprove
+    .\deploy.ps1   # reads TFVARS variable from the current GitHub repo
 #>
 param(
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory = $false)]
     [string] $VarFile,
 
     [Parameter(Mandatory = $false)]
@@ -100,6 +103,25 @@ $FunctionProjectPath = Resolve-Path $FunctionProjectPath
 
 if (-not (Test-Path $FunctionProjectPath)) {
     throw "Function project path not found: $FunctionProjectPath"
+}
+
+# ── Resolve VarFile ───────────────────────────────────────────────────────────
+
+if ([string]::IsNullOrWhiteSpace($VarFile)) {
+    $ghCommand = Get-Command gh -ErrorAction SilentlyContinue
+    if (-not $ghCommand) {
+        throw "VarFile is required when gh CLI is not available. Pass -VarFile or install gh CLI and set the TFVARS repo variable."
+    }
+
+    Write-Host "VarFile not specified — reading TFVARS variable from GitHub repo..." -ForegroundColor Cyan
+    $tfvarsContent = (& gh variable get TFVARS 2>$null)
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($tfvarsContent)) {
+        throw "Could not read TFVARS variable from the current GitHub repo. Set the TFVARS repo variable or pass -VarFile."
+    }
+
+    $VarFile = Join-Path $scriptDir "organizations" "_from_variable.tfvars"
+    Set-Content -Path $VarFile -Value $tfvarsContent -Encoding UTF8
+    Write-Host "Using TFVARS variable content -> $VarFile" -ForegroundColor Green
 }
 
 if (-not (Test-Path $VarFile)) {
