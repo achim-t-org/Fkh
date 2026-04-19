@@ -18,13 +18,16 @@
 #   AZURE_DEPLOY_TENANT_ID         - Azure AD tenant ID
 #   AZURE_DEPLOY_SUBSCRIPTION_ID   - Azure subscription ID
 #
+# ── Required GitHub Secrets (continued) ─────────────────────────────────────
+#   TFVARS_URL          - (Recommended) A secure download URL pointing to your
+#                          .tfvars file (e.g. Azure Blob SAS URL). The file is
+#                          downloaded at deploy time; all string values are masked
+#                          in workflow logs.
+#
 # ── Required GitHub Variables (non-secret) ──────────────────────────────────
-#   TFVARS              - (Recommended) The full contents of your .tfvars file,
-#                          stored as a GitHub variable. Avoids committing config
-#                          to the repository.
 #   TFVARS_FILE         - (Fallback) Path to a .tfvars file committed in the repo,
 #                          e.g. organizations/freddydk.tfvars.
-#                          Only used if TFVARS is not set.
+#                          Only used if TFVARS_URL is not set.
 # ============================================================================
 
 name: Update Fkh Backend
@@ -55,30 +58,26 @@ jobs:
       - name: Resolve tfvars file
         id: tfvars
         shell: pwsh
+        env:
+          TFVARS_URL: ${{ secrets.TFVARS_URL }}
         run: |
-          # Mask all lines of TFVARS content before anything else can log them
-          $tfvarsContent = @"
-          ${{ vars.TFVARS }}
-          "@.Trim()
-          if ($tfvarsContent) {
-            foreach ($rawLine in $tfvarsContent -split "`n") {
-              $trimmed = $rawLine.Trim()
-              if ($trimmed -and -not $trimmed.StartsWith('#')) {
-                Write-Host "::add-mask::$trimmed"
-              }
-            }
-            $tfvarsFile = "organizations/_from_variable.tfvars"
+          if ($env:TFVARS_URL) {
+            $tfvarsFile = "organizations/_from_url.tfvars"
             New-Item -ItemType Directory -Path (Split-Path $tfvarsFile) -Force | Out-Null
-            Set-Content -Path $tfvarsFile -Value $tfvarsContent -Encoding UTF8
-            Write-Host "Using TFVARS variable content."
+            Invoke-WebRequest -Uri $env:TFVARS_URL -OutFile $tfvarsFile -UseBasicParsing
+            Write-Host "Downloaded tfvars from TFVARS_URL."
           } elseif ("${{ vars.TFVARS_FILE }}") {
             $tfvarsFile = "${{ vars.TFVARS_FILE }}"
             Write-Host "Using TFVARS_FILE -> $tfvarsFile"
           } else {
-            throw "Neither TFVARS nor TFVARS_FILE variable is set. Configure one in Settings -> Secrets and variables -> Actions -> Variables."
+            throw "Neither TFVARS_URL (secret) nor TFVARS_FILE (variable) is set. Configure one in Settings -> Secrets and variables -> Actions."
           }
-          # Also mask all quoted string values individually
+          # Mask all non-empty, non-comment lines and all quoted string values
           foreach ($line in Get-Content $tfvarsFile) {
+            $trimmed = $line.Trim()
+            if ($trimmed -and -not $trimmed.StartsWith('#')) {
+              Write-Host "::add-mask::$trimmed"
+            }
             if ($line -match '=\s*"([^"]+)"') {
               $val = $Matches[1]
               if ($val.Length -ge 4) {

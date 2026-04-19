@@ -3,9 +3,8 @@
     Deploys an organization environment: checks GitHub team state, then runs terraform apply.
 
 .PARAMETER VarFile
-    Path to the organization .tfvars file, e.g. organizations/my-org.tfvars.
-    If omitted, the script reads the TFVARS GitHub variable from the current repo
-    (via 'gh variable get TFVARS') and writes it to a temporary file.
+    Path to the organization .tfvars file, e.g. organizations/my-org.tfvars,
+    or an https:// URL to download the file from.
 
 .PARAMETER GithubToken
     GitHub personal access token with read:org scope.
@@ -17,7 +16,7 @@
 .EXAMPLE
     .\deploy.ps1 -VarFile organizations/my-org.tfvars
     .\deploy.ps1 -VarFile organizations/my-org.tfvars -AutoApprove
-    .\deploy.ps1   # reads TFVARS variable from the current GitHub repo
+    .\deploy.ps1 -VarFile https://my-storage.blob.core.windows.net/config/my-org.tfvars
 #>
 param(
     [Parameter(Mandatory = $false)]
@@ -110,18 +109,24 @@ if (-not (Test-Path $FunctionProjectPath)) {
 if ([string]::IsNullOrWhiteSpace($VarFile)) {
     $ghCommand = Get-Command gh -ErrorAction SilentlyContinue
     if (-not $ghCommand) {
-        throw "VarFile is required when gh CLI is not available. Pass -VarFile or install gh CLI and set the TFVARS repo variable."
+        throw "VarFile is required when gh CLI is not available. Pass -VarFile or install gh CLI and set the TFVARS_URL repo variable."
     }
 
-    Write-Host "VarFile not specified — reading TFVARS variable from GitHub repo..." -ForegroundColor Cyan
-    $tfvarsContent = (& gh variable get TFVARS 2>$null)
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($tfvarsContent)) {
-        throw "Could not read TFVARS variable from the current GitHub repo. Set the TFVARS repo variable or pass -VarFile."
+    Write-Host "VarFile not specified — reading TFVARS_URL variable from GitHub repo..." -ForegroundColor Cyan
+    $tfvarsUrl = (& gh variable get TFVARS_URL 2>$null)
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($tfvarsUrl)) {
+        throw "Could not read TFVARS_URL variable from the current GitHub repo. Set the TFVARS_URL repo variable or pass -VarFile."
     }
 
-    $VarFile = Join-Path $scriptDir "organizations" "_from_variable.tfvars"
-    Set-Content -Path $VarFile -Value $tfvarsContent -Encoding UTF8
-    Write-Host "Using TFVARS variable content -> $VarFile" -ForegroundColor Green
+    $VarFile = Join-Path $scriptDir "organizations" "_from_url.tfvars"
+    Invoke-WebRequest -Uri $tfvarsUrl -OutFile $VarFile -UseBasicParsing
+    Write-Host "Downloaded tfvars from TFVARS_URL -> $VarFile" -ForegroundColor Green
+} elseif ($VarFile.StartsWith("https://")) {
+    $downloadedFile = Join-Path $scriptDir "organizations" "_from_url.tfvars"
+    New-Item -ItemType Directory -Path (Split-Path $downloadedFile) -Force | Out-Null
+    Invoke-WebRequest -Uri $VarFile -OutFile $downloadedFile -UseBasicParsing
+    Write-Host "Downloaded tfvars from URL -> $downloadedFile" -ForegroundColor Green
+    $VarFile = $downloadedFile
 }
 
 if (-not (Test-Path $VarFile)) {

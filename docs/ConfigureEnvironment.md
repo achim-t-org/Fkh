@@ -80,7 +80,7 @@ github_app_id              = "<app-id>"
 github_app_installation_id = "<installation-id>"
 ```
 
-For **Path A**: add the tfvars content as a `TFVARS` GitHub variable (Settings → Secrets and variables → Actions → Variables → New variable). Paste the entire file content as the value. This avoids committing configuration to the repository and all values are masked in workflow logs. Alternatively, commit the file and set `TFVARS_FILE` to its path instead.
+For **Path A**: upload the tfvars file to a secure location (e.g. Azure Blob Storage with a SAS URL) and add the download URL as a `TFVARS_URL` GitHub secret (Settings → Secrets and variables → Actions → Secrets → New secret). The workflow downloads the file at deploy time and masks all values in logs. Alternatively, commit the file to the repo and set the `TFVARS_FILE` variable to its path instead.
 
 For **Path B**: the file stays local — `deploy.ps1` reads it directly.
 

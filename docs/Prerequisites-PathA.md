@@ -16,6 +16,7 @@ Go to your fork's **Settings → Secrets and variables → Actions** and add the
 | `SQL_SA_PASSWORD` | SA password for the SQL Server in AKS (min 8 chars) |
 | `GH_APP_PRIVATE_KEY` | PEM-encoded private key of the GitHub App (from [Create the GitHub App](GitHubApp.md)) |
 | `GH_PAT` | GitHub PAT with scopes: `admin:org`, `repo`, `read:org` |
+| `TFVARS_URL` | **(Recommended)** A secure download URL to your `.tfvars` file (e.g. Azure Blob Storage SAS URL). Downloaded at deploy time; all values are masked in workflow logs. |
 
 ## GitHub Variables
 
@@ -23,8 +24,7 @@ Go to **Settings → Secrets and variables → Actions → Variables** and add:
 
 | Variable | Value |
 |----------|-------|
-| `TFVARS` | **(Recommended)** The full contents of your `.tfvars` file. Paste the entire file content as the variable value. All values are masked in workflow logs. |
-| `TFVARS_FILE` | (Fallback) Path to a committed `.tfvars` file, e.g. `organizations/my-org.tfvars`. Only used if `TFVARS` is not set. |
+| `TFVARS_FILE` | (Fallback) Path to a committed `.tfvars` file, e.g. `organizations/my-org.tfvars`. Only used if `TFVARS_URL` is not set. |
 
 ## For End Users (VS Code only)
 
