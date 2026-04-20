@@ -58,6 +58,7 @@ jobs:
       - name: Resolve tfvars file
         id: tfvars
         shell: pwsh
+        working-directory: terraform
         env:
           TFVARS_URL: ${{ secrets.TFVARS_URL }}
         run: |
