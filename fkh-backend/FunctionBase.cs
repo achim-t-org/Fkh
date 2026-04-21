@@ -662,6 +662,21 @@ public abstract class FunctionBase
             await response.WriteAsJsonAsync(new { message = retryEx.Message, retryAfterSeconds = retryEx.RetryAfterSeconds });
             return response;
         }
+        catch (HttpRequestException ex) when (IsConnectivityError(ex))
+        {
+            logger.LogWarning(ex, "Connectivity error during {Operation} for user {Username}. Checking cluster power state.", operationName, username);
+            var powerState = await GetClusterPowerStateForErrorAsync(logger);
+            if (powerState != null && !string.Equals(powerState, "Running", StringComparison.OrdinalIgnoreCase))
+            {
+                var message = string.Equals(powerState, "Stopped", StringComparison.OrdinalIgnoreCase)
+                    ? "The cluster is currently stopped. Use 'fkh startfkh' to start it before running other commands."
+                    : $"The cluster is currently {powerState.ToLowerInvariant()}. Please wait for it to be fully running.";
+                return Respond(req, HttpStatusCode.ServiceUnavailable, message);
+            }
+            // Cluster reports Running but API unreachable — transient issue
+            return Respond(req, HttpStatusCode.ServiceUnavailable,
+                "The cluster API is not reachable yet. It may still be starting up — please try again in a minute.");
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to execute {Operation} for user {Username}.", operationName, username);
@@ -672,6 +687,46 @@ public abstract class FunctionBase
             if (frames != null)
                 detail += "\n" + string.Join("\n", frames);
             return Respond(req, HttpStatusCode.InternalServerError, detail);
+        }
+    }
+
+    private static bool IsConnectivityError(HttpRequestException ex)
+    {
+        // DNS resolution failure, connection refused, or similar network errors
+        if (ex.InnerException is System.Net.Sockets.SocketException)
+            return true;
+        // Some HttpRequestException variants don't wrap a SocketException
+        var msg = ex.Message;
+        return msg.Contains("No such host", StringComparison.OrdinalIgnoreCase)
+            || msg.Contains("Connection refused", StringComparison.OrdinalIgnoreCase)
+            || msg.Contains("actively refused", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static async Task<string?> GetClusterPowerStateForErrorAsync(ILogger logger)
+    {
+        try
+        {
+            var subscriptionId = Environment.GetEnvironmentVariable("AKS_SUBSCRIPTION_ID");
+            var resourceGroup = Environment.GetEnvironmentVariable("AKS_RESOURCE_GROUP");
+            var clusterName = Environment.GetEnvironmentVariable("AKS_CLUSTER_NAME");
+            var clientId = Environment.GetEnvironmentVariable("AZURE_CLIENT_ID");
+            if (subscriptionId is null || resourceGroup is null || clusterName is null || clientId is null)
+                return null;
+
+#pragma warning disable CS0618
+            var credential = new Azure.Identity.ManagedIdentityCredential(clientId);
+#pragma warning restore CS0618
+            var armClient = new Azure.ResourceManager.ArmClient(credential);
+            var aksId = Azure.ResourceManager.ContainerService.ContainerServiceManagedClusterResource
+                .CreateResourceIdentifier(subscriptionId, resourceGroup, clusterName);
+            var cluster = armClient.GetContainerServiceManagedClusterResource(aksId);
+            var data = (await cluster.GetAsync()).Value.Data;
+            return data.PowerStateCode?.ToString();
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to check AKS cluster power state during error recovery.");
+            return null;
         }
     }
 

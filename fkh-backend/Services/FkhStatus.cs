@@ -23,6 +23,20 @@ public class FkhStatus : FkhServiceBase
         var credential = new ManagedIdentityCredential(ClientId);
 #pragma warning restore CS0618
 
+        // Check cluster power state first — if not running, return minimal status
+        var powerState = await GetClusterPowerStateAsync(credential);
+        if (!string.Equals(powerState, "Running", StringComparison.OrdinalIgnoreCase))
+        {
+            return new
+            {
+                Timestamp = DateTimeOffset.UtcNow,
+                ClusterPowerState = powerState ?? "Unknown",
+                Message = string.Equals(powerState, "Stopped", StringComparison.OrdinalIgnoreCase)
+                    ? "The cluster is stopped. Use 'fkh startfkh' to start it."
+                    : $"The cluster is currently {powerState?.ToLowerInvariant() ?? "unknown"}. Please wait for it to be fully running.",
+            };
+        }
+
         // Run independent data collection tasks in parallel
         var kubeTask = GetKubernetesStatusAsync();
         var storageTask = GetStorageStatusAsync(credential);
@@ -34,11 +48,30 @@ public class FkhStatus : FkhServiceBase
         return new
         {
             Timestamp = DateTimeOffset.UtcNow,
+            ClusterPowerState = powerState,
             Kubernetes = await kubeTask,
             Storage = await storageTask,
             Quota = await quotaTask,
             Security = await securityTask,
         };
+    }
+
+    private async Task<string?> GetClusterPowerStateAsync(Azure.Core.TokenCredential credential)
+    {
+        try
+        {
+            var armClient = new ArmClient(credential);
+            var aksId = ContainerServiceManagedClusterResource
+                .CreateResourceIdentifier(SubscriptionId, ResourceGroup, ClusterName);
+            var cluster = armClient.GetContainerServiceManagedClusterResource(aksId);
+            var data = (await cluster.GetAsync()).Value.Data;
+            return data.PowerStateCode?.ToString();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to check AKS cluster power state");
+            return null;
+        }
     }
 
     private async Task<object> GetKubernetesStatusAsync()
@@ -127,6 +160,48 @@ public class FkhStatus : FkhServiceBase
                 }
                 catch { /* metrics may not be available */ }
 
+                // Get database list with sizes and state
+                List<object>? databases = null;
+                try
+                {
+                    var dbQuery = $"{SqlcmdPath} -S localhost -U sa -P \"$MSSQL_SA_PASSWORD\" -C -h -1 -W -s \"|\" " +
+                        "-Q \"SELECT d.name, d.state_desc, d.recovery_model_desc, " +
+                        "CAST(SUM(CASE WHEN mf.type = 0 THEN mf.size END) * 8.0 / 1024 AS DECIMAL(10,1)) AS DataSizeMB, " +
+                        "CAST(SUM(CASE WHEN mf.type = 1 THEN mf.size END) * 8.0 / 1024 AS DECIMAL(10,1)) AS LogSizeMB, " +
+                        "d.compatibility_level " +
+                        "FROM sys.databases d " +
+                        "JOIN sys.master_files mf ON d.database_id = mf.database_id " +
+                        "WHERE d.name NOT IN ('master','tempdb','model','msdb') " +
+                        "GROUP BY d.name, d.state_desc, d.recovery_model_desc, d.compatibility_level " +
+                        "ORDER BY d.name\"";
+                    var dbResult = await ExecInMssqlPodAsync(client, mssqlPod.Metadata.Name, dbQuery);
+                    var dbLines = dbResult.Stdout
+                        .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                        .Where(l => l.Contains('|'))
+                        .ToList();
+
+                    databases = new List<object>();
+                    foreach (var line in dbLines)
+                    {
+                        var parts = line.Split('|', StringSplitOptions.TrimEntries);
+                        if (parts.Length >= 5 && !parts[0].StartsWith("---") && !parts[0].StartsWith("("))
+                        {
+                            databases.Add(new
+                            {
+                                Name = parts[0],
+                                State = parts[1],
+                                RecoveryModel = parts[2],
+                                DataSizeMB = parts[3],
+                                LogSizeMB = parts[4],
+                                CompatibilityLevel = parts.Length >= 6 ? parts[5] : null,
+                            });
+                        }
+                    }
+
+                    if (databases.Count == 0) databases = null;
+                }
+                catch { /* sqlcmd may fail */ }
+
                 mssqlStatus = new
                 {
                     Pod = mssqlPod.Metadata.Name,
@@ -134,6 +209,8 @@ public class FkhStatus : FkhServiceBase
                     Phase = mssqlPod.Status.Phase,
                     SqlDataDrive = sqlDiskUsage,
                     ResourceUsage = memoryUsage,
+                    DatabaseCount = databases?.Count,
+                    Databases = databases,
                 };
             }
         }

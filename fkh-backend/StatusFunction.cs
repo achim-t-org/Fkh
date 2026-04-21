@@ -21,5 +21,5 @@ public class StatusFunction : FunctionBase
     [Function("Status")]
     public Task<HttpResponseData> RunAsync(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "Status")] HttpRequestData req)
-        => ExecuteAsync(req, _logger, _gitHub, "Status", _status.GetStatusAsync);
+        => ExecuteAsync(req, _logger, _gitHub, "Status", _status.GetStatusAsync, skipClusterCheck: true);
 }
