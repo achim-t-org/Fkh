@@ -48,14 +48,16 @@ public class FkhStatus : FkhServiceBase
         // Collect node info, pod info, and metrics concurrently
         var nodesTask = client.ListNodeAsync();
         var appPodsTask = client.ListNamespacedPodAsync(Namespace);
+        var allPodsTask = client.ListPodForAllNamespacesAsync();
         var allDeploymentsTask = client.ListNamespacedDeploymentAsync(Namespace);
         var nodeMetricsTask = GetCurrentNodeMetricsAsync(client);
         var historicalTask = GetHistoricalNodeMetricsAsync();
 
-        await Task.WhenAll(nodesTask, appPodsTask, allDeploymentsTask, nodeMetricsTask, historicalTask);
+        await Task.WhenAll(nodesTask, appPodsTask, allPodsTask, allDeploymentsTask, nodeMetricsTask, historicalTask);
 
         var nodes = await nodesTask;
         var appPods = await appPodsTask;
+        var allPods = await allPodsTask;
         var allDeployments = await allDeploymentsTask;
         var currentMetrics = await nodeMetricsTask;
         var historicalMetrics = await historicalTask;
@@ -225,10 +227,10 @@ public class FkhStatus : FkhServiceBase
                 .OrderBy(c => c.Name)
                 .ToList();
 
-            // Sum all pod resource requests on this node
+            // Sum all pod resource requests on this node (all namespaces, including system pods)
             double totalReqCpuCores = 0;
             double totalReqMemBytes = 0;
-            foreach (var pod in podsOnNode)
+            foreach (var pod in allPods.Items.Where(p => p.Spec.NodeName == name))
             {
                 foreach (var container in pod.Spec.Containers ?? Enumerable.Empty<V1Container>())
                 {
