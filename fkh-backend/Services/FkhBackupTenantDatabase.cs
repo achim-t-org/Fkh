@@ -82,13 +82,12 @@ public class FkhBackupTenantDatabase : FkhServiceBase
             };
             var uploadSasUrl = blobUriBuilder.ToUri().ToString();
 
-            // Step 4: Upload the .bak file from the MSSQL pod to blob storage using curl
+            // Step 4: Upload the .bak file from the MSSQL pod to blob storage using wget
             Logger.LogInformation("Uploading backup to blob storage as '{BlobName}'...", blobName);
             var uploadScript =
-                $"curl -s -w '%{{http_code}}' -X PUT -H 'x-ms-blob-type: BlockBlob' --data-binary '@{bakFilePath}' '{uploadSasUrl}'";
+                $"wget --method=PUT --header='x-ms-blob-type: BlockBlob' --body-file='{bakFilePath}' -O - -S '{uploadSasUrl}' 2>&1 && echo 'UPLOAD_OK'";
             var uploadResult = await ExecInMssqlPodAsync(client, podName, uploadScript);
-            var httpCode = uploadResult.Stdout.Trim();
-            if (!httpCode.EndsWith("201") && !httpCode.EndsWith("200"))
+            if (!uploadResult.Stdout.Contains("UPLOAD_OK"))
             {
                 throw new InvalidOperationException(
                     $"Failed to upload backup to blob storage. HTTP response: {uploadResult}");
