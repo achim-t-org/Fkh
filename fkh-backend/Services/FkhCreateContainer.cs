@@ -106,7 +106,7 @@ public class FkhCreateContainer : FkhServiceBase
             }
             else if (!string.IsNullOrWhiteSpace(tenantDatabase))
             {
-                appSasUrl = await GetDatabaseBackupSasUrlAsync(imageTag, "-app");
+                appSasUrl = await GetDatabaseBackupSasUrlAsync(imageTag);
                 tenantSasUrl = await ResolveUseDatabaseAsync(tenantDatabase);
             }
             else

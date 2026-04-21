@@ -148,6 +148,19 @@ jobs:
           DBS_STORAGE_ACCOUNT: ${{ secrets.DBS_STORAGE_ACCOUNT }}
         run: |
           $ErrorActionPreference = "Stop"
+          $exists = $true
+          foreach($dbname in @('app','tenant')) {
+            $blobName = "$($env:IMAGE_TAG)-$dbname"
+            $existingBlob = az storage blob show --account-name $storageAccount --container-name $containerName --name $blobName --auth-mode login 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                $exists = $false
+                break
+            }
+          }
+          if ($exists) {
+              Write-Host "Blobs for app and tenant databases already exist. Skipping upload."
+              return
+          }
           Import-Module BcContainerHelper -disableNameChecking
           $credential = New-Object pscredential -ArgumentList 'admin', (ConvertTo-SecureString -String ([Guid]::NewGuid().ToString()) -AsPlainText -Force)
           New-BcContainer -accept_eula -containerName bcserver -artifactUrl $env:ARTIFACT_URL -auth UserPassword -Credential $credential -multitenant -myScripts @( @{ "SetupTenant.ps1" = {
