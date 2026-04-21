@@ -531,6 +531,50 @@ public static class FunctionCatalog
         },
         new FunctionDefinition
         {
+            Name = "ListPrepulled",
+            Description = "Lists images currently configured for pre-pulling on Windows nodes. Admin only.",
+            Route = "ListPrepulled",
+            AdminOnly = true,
+            Parameters = new List<FunctionParameterDefinition>()
+        },
+        new FunctionDefinition
+        {
+            Name = "AddPrepull",
+            Description = "Adds an image to the pre-pull list so it is cached on all Windows nodes. Admin only. Note: terraform apply will reset to tfvars values.",
+            Route = "AddPrepull",
+            AdminOnly = true,
+            Parameters = new List<FunctionParameterDefinition>
+            {
+                new()
+                {
+                    Name = "image",
+                    Type = "string",
+                    Description = "Full image reference to pre-pull (e.g. 'myacr.azurecr.io/businesscentral:latest').",
+                    Required = true,
+                    DefaultValue = null
+                }
+            }
+        },
+        new FunctionDefinition
+        {
+            Name = "RemovePrepull",
+            Description = "Removes an image from the pre-pull list. Admin only. Note: terraform apply will reset to tfvars values.",
+            Route = "RemovePrepull",
+            AdminOnly = true,
+            Parameters = new List<FunctionParameterDefinition>
+            {
+                new()
+                {
+                    Name = "image",
+                    Type = "string",
+                    Description = "Full image reference to remove from pre-pulling.",
+                    Required = true,
+                    DefaultValue = null
+                }
+            }
+        },
+        new FunctionDefinition
+        {
             Name = "Status",
             Description = "Returns system status including Kubernetes nodes, BC containers, SQL, storage, quotas, and security. Admin only.",
             Route = "Status",
