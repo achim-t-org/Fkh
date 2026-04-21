@@ -198,7 +198,7 @@ public class FkhStatus : FkhServiceBase
                         }
                     }
 
-                    if (databases.Count == 0) databases = null;
+                    // keep empty list so "databases: []" always appears
                 }
                 catch { /* sqlcmd may fail */ }
 
