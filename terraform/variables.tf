@@ -83,9 +83,33 @@ variable "windows_spot_max_node_count" {
 }
 
 variable "windows_overprovision" {
-  description = "Keep a low-priority placeholder pod on Windows VMs to reserve room for one BC container (500m CPU + 3Gi). When a real container is created it preempts the placeholder instantly, and the autoscaler provisions a new VM in the background."
+  description = "Keep a low-priority placeholder pod on Windows VMs to reserve spare capacity. When a real container is created it preempts the placeholder instantly, and the autoscaler provisions a new VM in the background."
   type        = bool
   default     = false
+}
+
+variable "windows_overprovision_cpu" {
+  description = "CPU request for the overprovision placeholder pod (e.g. '250m', '500m')."
+  type        = string
+  default     = "250m"
+}
+
+variable "windows_overprovision_memory" {
+  description = "Memory request for the overprovision placeholder pod (e.g. '3Gi', '6Gi')."
+  type        = string
+  default     = "3Gi"
+}
+
+variable "container_default_cpu" {
+  description = "Default CPU request for BC containers when not specified by the user (e.g. '250m', '500m')."
+  type        = string
+  default     = "250m"
+}
+
+variable "container_default_memory" {
+  description = "Default memory request for BC containers when not specified by the user (e.g. '3Gi', '4Gi')."
+  type        = string
+  default     = "3Gi"
 }
 
 variable "windows_prepull_images" {

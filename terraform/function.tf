@@ -92,6 +92,8 @@ resource "azurerm_windows_function_app" "this" {
     GITHUB_REPO_NAME                         = var.github_repo
     DBS_STORAGE_ACCOUNT_NAME                 = azurerm_storage_account.dbs.name
     LOG_ANALYTICS_WORKSPACE_ID               = azurerm_log_analytics_workspace.this.id
+    CONTAINER_DEFAULT_CPU                     = var.container_default_cpu
+    CONTAINER_DEFAULT_MEMORY                  = var.container_default_memory
     APPINSIGHTS_INSTRUMENTATIONKEY          = azurerm_application_insights.this.instrumentation_key
     APPLICATIONINSIGHTS_CONNECTION_STRING   = azurerm_application_insights.this.connection_string
   }

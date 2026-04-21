@@ -65,9 +65,9 @@ public static class FunctionCatalog
                 {
                     Name = "cpu",
                     Type = "string",
-                    Description = "CPU cores to request for the container (e.g. '500m', '1', '2').",
+                    Description = "CPU cores to request for the container (e.g. '250m', '500m', '1', '2').",
                     Required = false,
-                    DefaultValue = "500m"
+                    DefaultValue = Environment.GetEnvironmentVariable("CONTAINER_DEFAULT_CPU") ?? "250m"
                 },
                 new()
                 {
@@ -75,7 +75,7 @@ public static class FunctionCatalog
                     Type = "string",
                     Description = "Memory to request for the container (e.g. '3Gi', '4Gi', '8Gi').",
                     Required = false,
-                    DefaultValue = "3Gi"
+                    DefaultValue = Environment.GetEnvironmentVariable("CONTAINER_DEFAULT_MEMORY") ?? "3Gi"
                 },
                 new()
                 {

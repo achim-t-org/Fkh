@@ -151,6 +151,11 @@ public class FkhStatus : FkhServiceBase
             .Where(p => p.Metadata.Name.StartsWith("azure-cns", StringComparison.OrdinalIgnoreCase))
             .ToList();
 
+        // Image pre-pull pods
+        var prepullPods = appPods.Items
+            .Where(p => p.Metadata.Labels.TryGetValue("fkh/purpose", out var purpose) && purpose == "image-prepull")
+            .ToList();
+
         // BC deployments (windows-servicetier)
         var bcDeployments = allDeployments.Items
             .Where(d => d.Spec.Template.Metadata.Labels != null
@@ -248,6 +253,27 @@ public class FkhStatus : FkhServiceBase
             nodeStatus["Name"] = name;
             nodeStatus["Status"] = ready ? "Ready" : "NotReady";
             nodeStatus["Cns"] = cnsReady ? "Ready" : "NotReady";
+
+            // Image pre-pull status for this node
+            var prepullPod = prepullPods.FirstOrDefault(p => p.Spec.NodeName == name);
+            if (prepullPod != null)
+            {
+                var initStatuses = prepullPod.Status?.InitContainerStatuses;
+                var totalInit = prepullPod.Spec.InitContainers?.Count ?? 0;
+                if (totalInit > 0 && initStatuses != null)
+                {
+                    var completedInit = initStatuses.Count(s => s.State?.Terminated?.Reason == "Completed");
+                    if (completedInit >= totalInit && prepullPod.Status?.Phase == "Running")
+                        nodeStatus["ImagePrepull"] = $"Ready ({totalInit}/{totalInit} images cached)";
+                    else
+                        nodeStatus["ImagePrepull"] = $"Pulling ({completedInit}/{totalInit})";
+                }
+                else
+                {
+                    nodeStatus["ImagePrepull"] = prepullPod.Status?.Phase ?? "Unknown";
+                }
+            }
+
             nodeStatus["CpuRequested"] = $"{FormatCpu(totalReqCpuCores)}/{FormatCpu(allocCpuCores)} ({Pct(totalReqCpuCores, allocCpuCores)}% allocated)";
             nodeStatus["MemoryRequested"] = $"{FormatBytes(totalReqMemBytes)}/{FormatBytes(allocMemBytes)} ({Pct(totalReqMemBytes, allocMemBytes)}% allocated)";
             nodeStatus["ContainerCount"] = containersOnNode.Count;

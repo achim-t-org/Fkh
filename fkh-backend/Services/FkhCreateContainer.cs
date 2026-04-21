@@ -27,8 +27,10 @@ public class FkhCreateContainer : FkhServiceBase
         var adminUsername = parameters["adminUsername"];
         var adminPassword = parameters["adminPassword"];
         var githubUsername = parameters["_githubUsername"];
-        var cpuRequest = parameters.TryGetValue("cpu", out var cpu) ? cpu : "500m";
-        var memoryRequest = parameters.TryGetValue("memory", out var mem) ? mem : "3Gi";
+        var defaultCpu = Environment.GetEnvironmentVariable("CONTAINER_DEFAULT_CPU") ?? "250m";
+        var defaultMemory = Environment.GetEnvironmentVariable("CONTAINER_DEFAULT_MEMORY") ?? "3Gi";
+        var cpuRequest = parameters.TryGetValue("cpu", out var cpu) ? cpu : defaultCpu;
+        var memoryRequest = parameters.TryGetValue("memory", out var mem) ? mem : defaultMemory;
         var repo = parameters.TryGetValue("repo", out var r) ? r : null;
         var project = parameters.TryGetValue("project", out var p) ? p : null;
         var useSpot = parameters.TryGetValue("spot", out var spotValue)

@@ -453,12 +453,12 @@ resource "kubernetes_deployment" "overprovision" {
 
           resources {
             requests = {
-              cpu    = "500m"
-              memory = "3Gi"
+              cpu    = var.windows_overprovision_cpu
+              memory = var.windows_overprovision_memory
             }
             limits = {
-              cpu    = "500m"
-              memory = "3Gi"
+              cpu    = var.windows_overprovision_cpu
+              memory = var.windows_overprovision_memory
             }
           }
         }

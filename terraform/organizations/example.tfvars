@@ -20,7 +20,11 @@ linux_vm_size   = "Standard_D2s_v5"    # v6 not supported for sqlserver
 windows_vm_size = "Standard_D2s_v5"    # v6 not supported for hyhervisor gen1
 windows_min_node_count = 0  # Set to 1 to keep a warm Windows node (~$70-100/mo)
 windows_max_node_count = 10 # Maximum Windows nodes the autoscaler can scale to
-windows_overprovision  = false  # Set to true to keep spare capacity for instant container scheduling
+windows_overprovision        = false   # Set to true to keep spare capacity for instant container scheduling
+windows_overprovision_cpu    = "250m"  # CPU reserved by the overprovision placeholder
+windows_overprovision_memory = "3Gi"   # Memory reserved by the overprovision placeholder
+container_default_cpu        = "250m"  # Default CPU request for BC containers
+container_default_memory     = "3Gi"   # Default memory request for BC containers
 windows_spot_enabled        = false  # Set to true to add a Spot pricing Windows pool for lower cost
 windows_spot_vm_size        = "Standard_D2ds_v5"  # VM size for spot nodes
 windows_spot_min_node_count = 0      # Minimum spot nodes (0 = scale to zero when idle)
