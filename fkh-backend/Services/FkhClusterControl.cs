@@ -19,10 +19,10 @@ public class FkhClusterControl : FkhServiceBase
             return new { Message = "Cluster is already stopped.", PowerState = "Stopped" };
 
         Logger.LogInformation("Stopping AKS cluster {Cluster} in resource group {RG}...", ClusterName, ResourceGroup);
-        await cluster.StopAsync(Azure.WaitUntil.Completed);
-        Logger.LogInformation("AKS cluster {Cluster} stopped.", ClusterName);
+        await cluster.StopAsync(Azure.WaitUntil.Started);
+        Logger.LogInformation("AKS cluster {Cluster} stop initiated.", ClusterName);
 
-        return new { Message = "Cluster stopped.", PowerState = "Stopped" };
+        return new { Message = "Cluster stop initiated. It may take a few minutes to fully stop.", PowerState = "Stopping" };
     }
 
     public async Task<object> StartClusterAsync(Dictionary<string, string> parameters)
@@ -35,10 +35,10 @@ public class FkhClusterControl : FkhServiceBase
             return new { Message = "Cluster is already running.", PowerState = "Running" };
 
         Logger.LogInformation("Starting AKS cluster {Cluster} in resource group {RG}...", ClusterName, ResourceGroup);
-        await cluster.StartAsync(Azure.WaitUntil.Completed);
-        Logger.LogInformation("AKS cluster {Cluster} started.", ClusterName);
+        await cluster.StartAsync(Azure.WaitUntil.Started);
+        Logger.LogInformation("AKS cluster {Cluster} start initiated.", ClusterName);
 
-        return new { Message = "Cluster started.", PowerState = "Running" };
+        return new { Message = "Cluster start initiated. It may take a few minutes before the cluster is fully running.", PowerState = "Starting" };
     }
 
     private ContainerServiceManagedClusterResource GetClusterResource()

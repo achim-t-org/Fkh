@@ -27,7 +27,8 @@ public class FkhRemoveContainer : FkhServiceBase
         results.Add(await TryDeleteAsync("Service", () => client.DeleteNamespacedServiceAsync(serviceName, Namespace)));
         results.Add(await TryDeleteAsync("Secret", () => client.DeleteNamespacedSecretAsync(secretName, Namespace)));
 
-        // Drop database via k8s exec (ignore if it doesn't exist)
+        // Drop databases via k8s exec (ignore if they don't exist)
+        results.Add(await TryDropDatabaseAsync(client, $"{databaseName}-default"));
         results.Add(await TryDropDatabaseAsync(client, databaseName));
 
         Logger.LogInformation("Container '{AppName}' removal complete.", appName);

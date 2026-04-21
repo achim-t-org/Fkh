@@ -442,11 +442,13 @@ public abstract class FunctionBase
             var data = (await cluster.GetAsync()).Value.Data;
             var powerState = data.PowerStateCode?.ToString();
 
-            if (string.Equals(powerState, "Stopped", StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(powerState, "Running", StringComparison.OrdinalIgnoreCase))
             {
-                logger.LogWarning("AKS cluster {Cluster} is stopped. Rejecting request.", clusterName);
-                return Respond(req, HttpStatusCode.ServiceUnavailable,
-                    "The cluster is currently stopped. Use 'fkh startfkh' to start it before running other commands.");
+                logger.LogWarning("AKS cluster {Cluster} power state is '{PowerState}'. Rejecting request.", clusterName, powerState);
+                var message = string.Equals(powerState, "Stopped", StringComparison.OrdinalIgnoreCase)
+                    ? "The cluster is currently stopped. Use 'fkh startfkh' to start it before running other commands."
+                    : $"The cluster is currently {powerState?.ToLowerInvariant() ?? "unknown"}. Please wait for it to be fully running.";
+                return Respond(req, HttpStatusCode.ServiceUnavailable, message);
             }
         }
         catch (Exception ex)
