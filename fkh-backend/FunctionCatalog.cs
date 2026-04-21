@@ -407,6 +407,14 @@ public static class FunctionCatalog
                     Description = "Number of lines to retrieve from the end of the log.",
                     Required = false,
                     DefaultValue = "500"
+                },
+                new()
+                {
+                    Name = "previous",
+                    Type = "boolean",
+                    Description = "Get logs from the previous (crashed) container instance instead of the current one.",
+                    Required = false,
+                    DefaultValue = "false"
                 }
             }
         },
