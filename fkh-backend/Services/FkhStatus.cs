@@ -60,6 +60,9 @@ public class FkhStatus : FkhServiceBase
         var currentMetrics = await nodeMetricsTask;
         var historicalMetrics = await historicalTask;
 
+        // Fetch real disk usage from kubelet stats/summary (works on both Linux and Windows)
+        var nodeDiskStats = await GetNodeDiskStatsAsync(client, nodes.Items.Select(n => n.Metadata.Name));
+
         // ── Linux pods (mssql, system services) ─────────────────────────────────
         var linuxNodes = nodes.Items
             .Where(n => n.Metadata.Labels.TryGetValue("kubernetes.io/os", out var os) && os == "linux")
@@ -79,7 +82,7 @@ public class FkhStatus : FkhServiceBase
                 .Select(p => p.Metadata.Labels.TryGetValue("app", out var app) ? app : p.Metadata.Name)
                 .OrderBy(p => p).ToList();
 
-            var nodeStatus = BuildNodeMetricsOutput(name, cpuCapCores, memCapBytes, diskCapBytes, diskAllocBytes, currentMetrics, historicalMetrics);
+            var nodeStatus = BuildNodeMetricsOutput(name, cpuCapCores, memCapBytes, diskCapBytes, diskAllocBytes, currentMetrics, historicalMetrics, nodeDiskStats);
             nodeStatus["Name"] = name;
             nodeStatus["Status"] = ready ? "Ready" : "NotReady";
             nodeStatus["Pods"] = podsOnNode;
@@ -187,13 +190,15 @@ public class FkhStatus : FkhServiceBase
                 && p.Status.Phase == "Running"
                 && p.Status.ContainerStatuses?.All(c => c.Ready) == true);
 
+            // All pods on this node (for summing requests)
+            var podsOnNode = appPods.Items.Where(p => p.Spec.NodeName == name).ToList();
+
             // BC containers on this node
             var containersOnNode = bcDeployments
                 .Where(d =>
                 {
                     var appLabel = d.Spec.Template.Metadata.Labels.TryGetValue("app", out var app) ? app : "";
-                    return appPods.Items.Any(p => p.Spec.NodeName == name
-                        && p.Metadata.Labels.TryGetValue("app", out var podApp) && podApp == appLabel);
+                    return podsOnNode.Any(p => p.Metadata.Labels.TryGetValue("app", out var podApp) && podApp == appLabel);
                 })
                 .Select(d =>
                 {
@@ -210,15 +215,39 @@ public class FkhStatus : FkhServiceBase
                             memStr = FormatBytes(mv.ToDouble());
                     }
 
-                    return new { Name = appLabel, Status = status, Memory = memStr };
+                    // Requested resources from pod spec
+                    var pod = podsOnNode.FirstOrDefault(p => p.Metadata.Labels.TryGetValue("app", out var podApp) && podApp == appLabel);
+                    var reqCpu = pod?.Spec.Containers?.FirstOrDefault()?.Resources?.Requests?.TryGetValue("cpu", out var rc) == true ? rc.ToString() : null;
+                    var reqMem = pod?.Spec.Containers?.FirstOrDefault()?.Resources?.Requests?.TryGetValue("memory", out var rm) == true ? rm.ToString() : null;
+
+                    return new { Name = appLabel, Status = status, Memory = memStr, CpuRequest = reqCpu, MemoryRequest = reqMem };
                 })
                 .OrderBy(c => c.Name)
                 .ToList();
 
-            var nodeStatus = BuildNodeMetricsOutput(name, cpuCapCores, memCapBytes, diskCapBytes, diskAllocBytes, currentMetrics, historicalMetrics);
+            // Sum all pod resource requests on this node
+            double totalReqCpuCores = 0;
+            double totalReqMemBytes = 0;
+            foreach (var pod in podsOnNode)
+            {
+                foreach (var container in pod.Spec.Containers ?? Enumerable.Empty<V1Container>())
+                {
+                    if (container.Resources?.Requests?.TryGetValue("cpu", out var podCpu) == true)
+                        totalReqCpuCores += podCpu.ToDouble();
+                    if (container.Resources?.Requests?.TryGetValue("memory", out var podMem) == true)
+                        totalReqMemBytes += podMem.ToDouble();
+                }
+            }
+
+            var allocCpuCores = node.Status.Allocatable.TryGetValue("cpu", out var allocCpu) ? allocCpu.ToDouble() : cpuCapCores;
+            var allocMemBytes = node.Status.Allocatable.TryGetValue("memory", out var allocMem) ? allocMem.ToDouble() : memCapBytes;
+
+            var nodeStatus = BuildNodeMetricsOutput(name, cpuCapCores, memCapBytes, diskCapBytes, diskAllocBytes, currentMetrics, historicalMetrics, nodeDiskStats);
             nodeStatus["Name"] = name;
             nodeStatus["Status"] = ready ? "Ready" : "NotReady";
             nodeStatus["Cns"] = cnsReady ? "Ready" : "NotReady";
+            nodeStatus["CpuRequested"] = $"{FormatCpu(totalReqCpuCores)}/{FormatCpu(allocCpuCores)} ({Pct(totalReqCpuCores, allocCpuCores)}% allocated)";
+            nodeStatus["MemoryRequested"] = $"{FormatBytes(totalReqMemBytes)}/{FormatBytes(allocMemBytes)} ({Pct(totalReqMemBytes, allocMemBytes)}% allocated)";
             nodeStatus["ContainerCount"] = containersOnNode.Count;
             nodeStatus["Containers"] = containersOnNode;
 
@@ -609,7 +638,8 @@ avgs
         string nodeName, double cpuCapCores, double memCapBytes,
         double diskCapBytes, double diskAllocBytes,
         Dictionary<string, CurrentNodeMetrics> currentMetrics,
-        Dictionary<string, HistoricalNodeMetrics> historicalMetrics)
+        Dictionary<string, HistoricalNodeMetrics> historicalMetrics,
+        Dictionary<string, (double UsedBytes, double CapacityBytes)> nodeDiskStats)
     {
         var output = new Dictionary<string, object>();
         var capCpuStr = FormatCpu(cpuCapCores);
@@ -631,10 +661,22 @@ avgs
         }
 
         // ── Current Disk ────────────────────────────────────────────────────
-        var diskUsedPct = diskCapBytes > 0
-            ? (int)Math.Round((diskCapBytes - diskAllocBytes) / diskCapBytes * 100)
+        // Prefer real stats from kubelet stats/summary; fall back to Capacity-Allocatable
+        double diskUsedBytes, diskTotalBytes;
+        if (nodeDiskStats.TryGetValue(nodeName, out var realDisk) && realDisk.CapacityBytes > 0)
+        {
+            diskUsedBytes = realDisk.UsedBytes;
+            diskTotalBytes = realDisk.CapacityBytes;
+        }
+        else
+        {
+            diskUsedBytes = diskCapBytes - diskAllocBytes;
+            diskTotalBytes = diskCapBytes;
+        }
+        var diskUsedPct = diskTotalBytes > 0
+            ? (int)Math.Round(diskUsedBytes / diskTotalBytes * 100)
             : 0;
-        output["Disk"] = $"{FormatBytes(diskAllocBytes)}/{FormatBytes(diskCapBytes)} ({diskUsedPct}% full)";
+        output["Disk"] = $"{FormatBytes(diskUsedBytes)}/{FormatBytes(diskTotalBytes)} ({diskUsedPct}% full)";
 
         // ── Historical from Log Analytics ───────────────────────────────────
         if (historicalMetrics.TryGetValue(nodeName, out var hist))
@@ -671,13 +713,36 @@ avgs
         return output;
     }
 
+    private async Task<Dictionary<string, (double UsedBytes, double CapacityBytes)>> GetNodeDiskStatsAsync(
+        Kubernetes client, IEnumerable<string> nodeNames)
+    {
+        var result = new ConcurrentDictionary<string, (double UsedBytes, double CapacityBytes)>(StringComparer.OrdinalIgnoreCase);
+
+        var tasks = nodeNames.Select(async nodeName =>
+        {
+            try
+            {
+                var raw = await client.CoreV1.ConnectGetNodeProxyWithPathAsync(nodeName, "stats/summary");
+                using var doc = JsonDocument.Parse(raw);
+                var fs = doc.RootElement.GetProperty("node").GetProperty("fs");
+                var usedBytes = fs.TryGetProperty("usedBytes", out var used) ? used.GetDouble() : 0;
+                var capacityBytes = fs.TryGetProperty("capacityBytes", out var cap) ? cap.GetDouble() : 0;
+                result[nodeName] = (usedBytes, capacityBytes);
+            }
+            catch { /* stats/summary may not be accessible on all nodes */ }
+        });
+
+        await Task.WhenAll(tasks);
+        return result.ToDictionary(kvp => kvp.Key, kvp => kvp.Value, StringComparer.OrdinalIgnoreCase);
+    }
+
     private static int Pct(double value, double total) =>
         total > 0 ? (int)Math.Round(value / total * 100) : 0;
 
     private static string FormatDiskFromPercent(double usedPercent, double capacityBytes)
     {
         var pct = (int)Math.Round(usedPercent);
-        var freeBytes = capacityBytes * (100 - usedPercent) / 100;
-        return $"{FormatBytes(freeBytes)}/{FormatBytes(capacityBytes)} ({pct}% full)";
+        var usedBytes = capacityBytes * usedPercent / 100;
+        return $"{FormatBytes(usedBytes)}/{FormatBytes(capacityBytes)} ({pct}% full)";
     }
 }
