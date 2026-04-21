@@ -34,6 +34,10 @@
 name: Update Fkh Backend
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'fkh-backend/**'
   workflow_dispatch:
 
 permissions:
@@ -48,6 +52,7 @@ env:
 
 jobs:
   deployFkhBackend:
+    if: github.repository == 'Freddy-DK/Fkh'
     runs-on: ubuntu-latest
 
     steps:
