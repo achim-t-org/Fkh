@@ -4,8 +4,9 @@
 # Mirrors terraform/deploy-functionupdate.ps1 for CI/CD use.
 # Use this when backend code changes but infrastructure is unchanged.
 #
-# ── Azure AD App Registration (OIDC, passwordless) ─────────────────────────
-#   Uses the same App Registration as the Deploy workflow.
+# ── Deployment identity (OIDC, passwordless) ───────────────────────────────
+#   Uses the same identity as the Deploy workflow (App Registration or
+#   Managed Identity). See docs/AzureSetup-PathA.md for setup options.
 #   Federated credential config:
 #     - Issuer:   https://token.actions.githubusercontent.com
 #     - Subject:  repo:<org>/<repo>:ref:refs/heads/main
@@ -14,7 +15,7 @@
 #     • Contributor on the Function App resource group
 #
 # ── Required GitHub Secrets ─────────────────────────────────────────────────
-#   AZURE_DEPLOY_CLIENT_ID         - App Registration's Application (client) ID
+#   AZURE_DEPLOY_CLIENT_ID         - Client ID of the deployment identity (App Registration or Managed Identity)
 #   AZURE_DEPLOY_TENANT_ID         - Azure AD tenant ID
 #   AZURE_DEPLOY_SUBSCRIPTION_ID   - Azure subscription ID
 #

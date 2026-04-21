@@ -27,7 +27,7 @@ graph LR
 
     ACR["Container<br/>Registry"]
     BLOB["Blob Storage<br/>(.bak files)"]
-    AAD["Azure AD<br/>App Registration"]
+    AAD["Azure AD<br/>Deploy Identity"]
 
     USER --> VSIX
     USER --> CLI
@@ -332,7 +332,7 @@ There are two ways to deploy the infrastructure:
 
 Both the local script and the `DeployFkhFullStack` workflow perform the **same steps**. The workflow reimplements the `deploy.ps1` logic as individual workflow steps. The only differences are:
 
-- **Authentication** — `deploy.ps1` uses the user's own `az login` session (the user needs `Contributor` + `User Access Administrator` on the subscription); the workflow uses OIDC via the Deploy App Registration.
+- **Authentication** — `deploy.ps1` uses the user's own `az login` session (the user needs `Contributor` + `User Access Administrator` on the subscription); the workflow uses OIDC via the deploy identity (App Registration or Managed Identity).
 - **Secrets** — `deploy.ps1` recovers secrets from Terraform state on re-deploys (or prompts interactively); the workflow gets them from GitHub Actions secrets.
 
 ### Deploy Steps
@@ -407,11 +407,11 @@ Audience: api://AzureADTokenExchange
 
 This lets the `CreateImages` workflow authenticate to Azure as the managed identity (passwordless) to push images to ACR and upload database backups to Blob Storage.
 
-#### 2. Deploy App Registration (created manually, workflows only)
+#### 2. Deploy Identity (created manually, workflows only)
 
-The `DeployFkhFullStack` and `UpdateFkhBackEnd` **workflows** need an Azure AD App Registration to authenticate via OIDC. (`deploy.ps1` does **not** use this — it relies on the user's own `az login` session, which must have `Contributor` + `User Access Administrator` on the subscription.)
+The `DeployFkhFullStack` and `UpdateFkhBackEnd` **workflows** need an Azure identity to authenticate via OIDC. This can be either an **App Registration** or a **User-Assigned Managed Identity** — see [Azure Setup (Path A)](docs/AzureSetup-PathA.md) for both options. (`deploy.ps1` does **not** use this — it relies on the user's own `az login` session, which must have `Contributor` + `User Access Administrator` on the subscription.)
 
-Create an App Registration with:
+Whichever option you choose, configure:
 
 - A **federated credential** for GitHub Actions OIDC:
   ```
@@ -423,7 +423,7 @@ Create an App Registration with:
   - `Contributor` — create and manage all resources
   - `User Access Administrator` — create role assignments for managed identities
 
-This App Registration's credentials are stored as GitHub Actions secrets (`AZURE_DEPLOY_CLIENT_ID`, `AZURE_DEPLOY_TENANT_ID`, `AZURE_DEPLOY_SUBSCRIPTION_ID`).
+This identity's credentials are stored as GitHub Actions secrets (`AZURE_DEPLOY_CLIENT_ID`, `AZURE_DEPLOY_TENANT_ID`, `AZURE_DEPLOY_SUBSCRIPTION_ID`).
 
 ### GitHub App
 
@@ -457,7 +457,7 @@ These are synced from Terraform outputs for the `CreateImages` workflow:
 
 | Secret | Purpose |
 |--------|---------|
-| `AZURE_DEPLOY_CLIENT_ID` | Deploy App Registration client ID |
+| `AZURE_DEPLOY_CLIENT_ID` | Deploy identity client ID (App Registration or Managed Identity) |
 | `AZURE_DEPLOY_TENANT_ID` | Azure AD tenant ID |
 | `AZURE_DEPLOY_SUBSCRIPTION_ID` | Azure subscription ID |
 | `SQL_SA_PASSWORD` | SQL Server SA password |

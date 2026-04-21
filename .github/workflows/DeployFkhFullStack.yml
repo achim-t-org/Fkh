@@ -3,8 +3,9 @@
 # ============================================================================
 # Mirrors terraform/deploy.ps1 for CI/CD use.
 #
-# ── Azure AD App Registration (OIDC, passwordless) ─────────────────────────
-#   Create an App Registration in Azure AD and configure:
+# ── Deployment identity (OIDC, passwordless) ───────────────────────────────
+#   Create either an App Registration or a User-Assigned Managed Identity
+#   in Azure and configure:
 #     1. A federated credential for this repo:
 #        - Issuer:   https://token.actions.githubusercontent.com
 #        - Subject:  repo:<org>/<repo>:ref:refs/heads/main
@@ -12,9 +13,10 @@
 #     2. Role assignments on the target Azure subscription:
 #        • Contributor                (create/manage all resources)
 #        • User Access Administrator  (create role assignments for managed identities)
+#   See docs/AzureSetup-PathA.md for both options.
 #
 # ── Required GitHub Secrets ─────────────────────────────────────────────────
-#   AZURE_DEPLOY_CLIENT_ID        - App Registration's Application (client) ID
+#   AZURE_DEPLOY_CLIENT_ID        - Client ID of the deployment identity (App Registration or Managed Identity)
 #   AZURE_DEPLOY_TENANT_ID         - Azure AD tenant ID
 #   AZURE_DEPLOY_SUBSCRIPTION_ID   - Azure subscription ID
 #   SQL_SA_PASSWORD         - SA password for the SQL Server deployed in AKS

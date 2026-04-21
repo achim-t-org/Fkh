@@ -10,7 +10,7 @@ Go to your fork's **Settings → Secrets and variables → Actions** and add the
 
 | Secret | Value |
 |--------|-------|
-| `AZURE_DEPLOY_CLIENT_ID` | App Registration's Application (client) ID |
+| `AZURE_DEPLOY_CLIENT_ID` | Client ID of the deployment identity (App Registration or Managed Identity — see [Azure Setup](AzureSetup-PathA.md)) |
 | `AZURE_DEPLOY_TENANT_ID` | Azure AD tenant ID |
 | `AZURE_DEPLOY_SUBSCRIPTION_ID` | Target Azure subscription ID |
 | `SQL_SA_PASSWORD` | SA password for the SQL Server in AKS (min 8 chars) |
