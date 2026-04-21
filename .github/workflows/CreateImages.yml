@@ -163,10 +163,11 @@ jobs:
             if ("$databaseInstance" -ne "") {
                 $databaseServerInstance = "$databaseServer\$databaseInstance"
             }
-            Dismount-NavTenant -ServerInstance $ServerInstance -Tenant 'default' -Force | Out-Null
+            Dismount-NavTenant -ServerInstance $ServerInstance -Tenant 'default' -Force | Out-Host
             Backup-SqlDatabase -ServerInstance $databaseServerInstance -database 'default' -BackupFile 'c:\run\my\tenant.bak'
             Backup-SqlDatabase -ServerInstance $databaseServerInstance -database $databaseName -BackupFile "c:\run\my\app.bak"
-          }})
+            Mount-NavTenant -ServerInstance $ServerInstance -Tenant 'default' -DatabaseName 'default' -OverwriteTenantIdInDatabase -Force | Out-Host
+          }}) -ErrorAction SilentlyIgnore
           $storageAccount = $env:DBS_STORAGE_ACCOUNT
           $containerName = "cronus"
           foreach($dbname in @('app','tenant')) {
