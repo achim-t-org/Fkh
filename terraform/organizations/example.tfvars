@@ -33,6 +33,9 @@ windows_prepull_images = [  # Images to pre-pull on Windows nodes (speeds up con
   # "<acr-name>.azurecr.io/businesscentral:<tag>"
 ]
 
+# aad_app_client_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"    # Add AAD App Client Id for WebClient AAD App to support AAD Authentication in containers
+
+
 # SQL Server
 # sql_sa_password = ""  # set via TF_VAR_sql_sa_password environment variable
 namespace        = "app"
@@ -73,10 +76,6 @@ allowed_oidc_repos = [
 
 # Contact email for Let's Encrypt
 contact_email_for_letsencrypt = "admin@example.com"
-
-# GitHub App (see docs/GitHubApp.md)
-github_app_id              = ""   # App ID from the GitHub App settings page
-github_app_installation_id = ""   # Installation ID from the install URL
 
 # GitHub App installed in local fork of Fkh — triggers image-build workflows
 github_app_id              = ""  # paste your App ID here
