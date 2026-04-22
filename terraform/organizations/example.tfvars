@@ -33,7 +33,6 @@ windows_prepull_images = [  # Images to pre-pull on Windows nodes (speeds up con
   # "<acr-name>.azurecr.io/businesscentral:<tag>"
 ]
 
-# aad_app_client_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"    # Add AAD App Client Id for WebClient AAD App to support AAD Authentication in containers
 
 
 # SQL Server

@@ -4,60 +4,20 @@ By default, containers use **NavUserPassword** authentication (username + passwo
 
 ## Overview
 
-| Step | Who | When |
-|------|-----|------|
-| **Pre-step**: Create an AAD App Registration and configure `.tfvars` | Admin (once) | Before deploying |
-| **Deploy**: Run `DeployFkhFullStack` workflow or `deploy.ps1` | Admin (once) | Initial deploy or redeploy |
-| **Post-step**: Add the managed identity as an owner of the App Registration | Admin (once) | After first deploy |
-| **Use**: Pass `auth=AAD` when creating a container | Any user | Ongoing |
+AAD authentication works out of the box — no manual App Registration setup required. When a container is created with `authenticationEmail`, the Function automatically:
 
----
+1. Creates a dedicated AAD App Registration for that container
+2. Configures the correct redirect URI and token settings
+3. Passes the AAD app details to the container as environment variables
+4. Deletes the App Registration when the container is removed
 
-## Pre-step — Create AAD App Registration
-
-1. Go to **Azure Portal** → **Microsoft Entra ID** → **App registrations** → **New registration**.
-2. Set a display name, e.g. `fkh-bc-auth`.
-3. Under **Supported account types**, choose the option matching your tenant setup (single-tenant is typical).
-4. Leave **Redirect URI** blank — redirect URIs are added automatically when containers are created.
-5. Click **Register**.
-6. On the overview page, copy the **Application (client) ID**.
-7. Add it to your `.tfvars` file:
-
-   ```hcl
-   aad_app_client_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-   ```
-
-8. Deploy (or redeploy) using `DeployFkhFullStack` or `deploy.ps1`.
-
-### Required permissions
-
-The person creating the App Registration needs one of:
-- **Application Administrator** role in Microsoft Entra ID
-- **Cloud Application Administrator** role in Microsoft Entra ID
-- Or the legacy **Global Administrator** role (broader than needed)
-
-These are the same permissions already required for creating the deployment identity (Path A, Option 1).
-
----
-
-## Post-step — Add Managed Identity as Owner
-
-After the first deploy, the Function App's **managed identity** needs to be an owner of the App Registration so it can add redirect URIs when creating containers.
-
-### Azure Portal
-
-1. Go to **Azure Portal** → **Microsoft Entra ID** → **App registrations** → select the app you created above.
-2. Go to **Owners** → **Add owners**.
-3. Search for the managed identity name. It follows the pattern `fkh-<org_name>-identity` (e.g. `fkh-myorg-identity`).
-4. Select it and click **Add**.
-
-The `identity_client_id` is available as a Terraform output (`terraform output identity_client_id`) or in the `DeployFkhFullStack` workflow log.
+The managed identity authenticates to the Microsoft Graph API using `Application.ReadWrite.OwnedBy`, which limits it to managing only apps it created.
 
 ---
 
 ## Using AAD Authentication
 
-Once configured, pass `authenticationEmail` when creating a container:
+Pass `authenticationEmail` when creating a container:
 
 - **VS Code extension**: Set the `authenticationEmail` parameter to your email address
 - **CLI**: `fkh create --authenticationEmail user@contoso.com ...`
@@ -65,17 +25,21 @@ Once configured, pass `authenticationEmail` when creating a container:
 
 The container's web client URL will use the `/BC/SignIn` path for AAD login instead of the default username/password login.
 
-If `aad_app_client_id` is not configured, requesting AAD authentication returns a clear error message.
-
 ---
 
 ## How It Works
 
-1. When `auth=AAD` is requested, the Function App uses the Microsoft Graph API to add a redirect URI (`https://<container-fqdn>/BC/SignIn`) to the AAD App Registration.
-2. The container is created with the `authenticationEMail` environment variable set to `AAD AUTHENTICATION`, which tells the BC runtime to use AAD auth.
-3. Users sign in via the standard Microsoft login flow in the browser.
+1. When `authenticationEmail` is provided, the Function creates a new AAD App Registration named `fkh-<container>-auth` with a redirect URI of `https://<container-fqdn>/BC/SignIn`.
+2. The app's client ID is stored as a Kubernetes annotation (`fkh/aad-app-object-id`) on the deployment so it can be cleaned up later.
+3. The container receives `AadAppId`, `AadAppRedirectUri`, `AadTenantId`, and `authenticationEMail` as environment variables.
+4. Users sign in via the standard Microsoft login flow in the browser.
+5. When the container is removed, the Function deletes the AAD App Registration automatically.
 
-The managed identity authenticates to the Graph API using its Azure-managed credentials — no secrets or tokens are stored.
+---
+
+## Prerequisites
+
+The Function's managed identity needs the `Application.ReadWrite.OwnedBy` Microsoft Graph permission. This is granted automatically by Terraform during deployment — no manual steps required.
 
 ---
 
@@ -83,6 +47,5 @@ The managed identity authenticates to the Graph API using its Azure-managed cred
 
 | Error | Cause | Fix |
 |-------|-------|-----|
-| "AAD authentication is not configured" | `aad_app_client_id` is empty or not set | Add it to `.tfvars` and redeploy |
-| "AAD App Registration with client ID '...' not found" | Wrong client ID in `.tfvars` | Verify the Application (client) ID in the App Registration overview |
-| "The managed identity does not have permission to update AAD App Registration" | Managed identity is not an owner of the App Registration | Complete the **Post-step** above |
+| "Failed to create AAD App Registration" | Managed identity lacks Graph permissions | Re-run `terraform apply` to ensure the `Application.ReadWrite.OwnedBy` role is assigned |
+| "Insufficient privileges to complete the operation" | Same as above | Check the managed identity's Graph API permissions in Azure Portal → Enterprise Applications |

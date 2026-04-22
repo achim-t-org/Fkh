@@ -94,7 +94,6 @@ resource "azurerm_windows_function_app" "this" {
     LOG_ANALYTICS_WORKSPACE_ID               = azurerm_log_analytics_workspace.this.id
     CONTAINER_DEFAULT_CPU                     = var.container_default_cpu
     CONTAINER_DEFAULT_MEMORY                  = var.container_default_memory
-    AAD_APP_CLIENT_ID                        = var.aad_app_client_id
     AAD_TENANT_ID                            = var.tenant_id
     APPINSIGHTS_INSTRUMENTATIONKEY          = azurerm_application_insights.this.instrumentation_key
     APPLICATIONINSIGHTS_CONNECTION_STRING   = azurerm_application_insights.this.connection_string

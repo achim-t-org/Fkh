@@ -258,12 +258,6 @@ variable "default_user_settings" {
   EOT
 }
 
-variable "aad_app_client_id" {
-  description = "Client ID of a pre-created AAD App Registration for BC container AAD authentication. Leave empty to disable AAD auth. Terraform will grant the managed identity Application.Read.All and add it as an owner of this App Registration."
-  type        = string
-  default     = ""
-}
-
 variable "kubecost_enabled" {
   description = "Deploy Kubecost free tier for per-pod cost analysis."
   type        = bool

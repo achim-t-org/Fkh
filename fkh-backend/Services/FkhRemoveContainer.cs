@@ -2,7 +2,7 @@ using Azure.Identity;
 using k8s;
 using Microsoft.Extensions.Logging;
 using Microsoft.Graph;
-using Microsoft.Graph.Models;
+using Microsoft.Graph.Models.ODataErrors;
 
 namespace Fkh.Services;
 
@@ -25,6 +25,18 @@ public class FkhRemoveContainer : FkhServiceBase
         var client = await GetKubernetesClientAsync();
         var results = new List<string>();
 
+        // Read AAD app object ID from deployment annotation before deleting it
+        string? aadAppObjectId = null;
+        try
+        {
+            var deployment = await client.ReadNamespacedDeploymentAsync(deploymentName, Namespace);
+            deployment.Metadata?.Annotations?.TryGetValue("fkh/aad-app-object-id", out aadAppObjectId);
+        }
+        catch (k8s.Autorest.HttpOperationException ex) when (ex.Response.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            // Deployment doesn't exist — nothing to read
+        }
+
         // Delete Kubernetes resources (ignore NotFound)
         results.Add(await TryDeleteAsync("Deployment", () => client.DeleteNamespacedDeploymentAsync(deploymentName, Namespace)));
         results.Add(await TryDeleteAsync("Service", () => client.DeleteNamespacedServiceAsync(serviceName, Namespace)));
@@ -34,11 +46,10 @@ public class FkhRemoveContainer : FkhServiceBase
         results.Add(await TryDropDatabaseAsync(client, $"{databaseName}-default"));
         results.Add(await TryDropDatabaseAsync(client, databaseName));
 
-        // Remove AAD redirect URI if AAD auth is configured
-        if (!string.IsNullOrWhiteSpace(AadAppClientId))
+        // Delete the per-container AAD App Registration if one was created
+        if (!string.IsNullOrWhiteSpace(aadAppObjectId))
         {
-            var redirectUri = $"https://{appName}.{AksLocation}.cloudapp.azure.com/BC/SignIn";
-            results.Add(await TryRemoveAadRedirectUriAsync(redirectUri));
+            results.Add(await TryDeleteAadAppRegistrationAsync(aadAppObjectId));
         }
 
         Logger.LogInformation("Container '{AppName}' removal complete.", appName);
@@ -79,7 +90,7 @@ public class FkhRemoveContainer : FkhServiceBase
         }
     }
 
-    private async Task<string> TryRemoveAadRedirectUriAsync(string redirectUri)
+    private async Task<string> TryDeleteAadAppRegistrationAsync(string objectId)
     {
         try
         {
@@ -88,35 +99,18 @@ public class FkhRemoveContainer : FkhServiceBase
 #pragma warning restore CS0618
             var graphClient = new GraphServiceClient(credential);
 
-            var apps = await graphClient.Applications.GetAsync(r =>
-            {
-                r.QueryParameters.Filter = $"appId eq '{AadAppClientId}'";
-                r.QueryParameters.Select = new[] { "id", "web" };
-            });
-
-            var app = apps?.Value?.FirstOrDefault();
-            if (app is null)
-                return "AAD App Registration not found (skipped)";
-
-            var existingUris = app.Web?.RedirectUris ?? new List<string>();
-            var updatedUris = existingUris
-                .Where(u => !string.Equals(u, redirectUri, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-            if (updatedUris.Count == existingUris.Count)
-                return "AAD redirect URI not found (skipped)";
-
-            await graphClient.Applications[app.Id].PatchAsync(new Application
-            {
-                Web = new WebApplication { RedirectUris = updatedUris }
-            });
-
-            return "AAD redirect URI removed";
+            await graphClient.Applications[objectId].DeleteAsync();
+            Logger.LogInformation("AAD App Registration {ObjectId} deleted.", objectId);
+            return "AAD App Registration deleted";
+        }
+        catch (ODataError ex) when (ex.ResponseStatusCode == 404)
+        {
+            return "AAD App Registration not found (skipped)";
         }
         catch (Exception ex)
         {
-            Logger.LogWarning(ex, "Failed to remove AAD redirect URI '{RedirectUri}'", redirectUri);
-            return $"AAD redirect URI removal failed: {ex.Message}";
+            Logger.LogWarning(ex, "Failed to delete AAD App Registration '{ObjectId}'", objectId);
+            return $"AAD App Registration deletion failed: {ex.Message}";
         }
     }
 }

@@ -82,8 +82,3 @@ output "dbs_storage_account_name" {
   description = "Name of the storage account for database backups."
   value       = azurerm_storage_account.dbs.name
 }
-
-output "aad_app_client_id" {
-  description = "Client ID of the AAD App Registration for BC AAD authentication (empty if not configured)."
-  value       = var.aad_app_client_id
-}

@@ -25,7 +25,6 @@ public abstract class FkhServiceBase
     protected readonly string ContactEmail;
     protected readonly string DbsStorageAccountName;
     protected readonly string? LogAnalyticsWorkspaceId;
-    protected readonly string? AadAppClientId;
     protected readonly string? AadTenantId;
     protected readonly ILogger Logger;
 
@@ -55,7 +54,6 @@ public abstract class FkhServiceBase
         DbsStorageAccountName = Environment.GetEnvironmentVariable("DBS_STORAGE_ACCOUNT_NAME")
             ?? throw new InvalidOperationException("DBS_STORAGE_ACCOUNT_NAME is not configured.");
         LogAnalyticsWorkspaceId = Environment.GetEnvironmentVariable("LOG_ANALYTICS_WORKSPACE_ID");
-        AadAppClientId = Environment.GetEnvironmentVariable("AAD_APP_CLIENT_ID");
         AadTenantId = Environment.GetEnvironmentVariable("AAD_TENANT_ID");
     }
 
