@@ -355,6 +355,8 @@ static ParsedArgs ParseArgs(string[] args, FunctionCatalogResponse catalog)
 
         if (string.Equals(key, "ssms", StringComparison.OrdinalIgnoreCase))
         {
+            if (!string.Equals(function.Name, "AllowSqlAccess", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("--ssms is only valid for the allowsqlaccess command.");
             parsed.LaunchSsms = true;
             continue;
         }
@@ -715,6 +717,12 @@ static void PrintCommandUsage(FunctionDefinition function)
             Console.WriteLine(
                 $"        {parameter.Description}");
         }
+    }
+
+    if (string.Equals(function.Name, "AllowSqlAccess", StringComparison.OrdinalIgnoreCase))
+    {
+        Console.WriteLine("    --ssms");
+        Console.WriteLine("        Launch SSMS after successful connection (Windows only)");
     }
 }
 
@@ -1221,7 +1229,8 @@ static class ClientCommands
     [
         new UploadDatabaseCommand(),
         new DownloadDatabaseCommand(),
-        new StatusCommand()
+        new StatusCommand(),
+        new OpenCommand()
     ];
 }
 
@@ -1669,5 +1678,119 @@ sealed class StatusCommand : ClientCommand
         }
 
         return 0;
+    }
+}
+
+sealed class OpenCommand : ClientCommand
+{
+    public override string Name => "Open";
+    public override string Description => "Opens an interactive pwsh prompt inside a Kubernetes pod.";
+    public override List<ClientCommandParameter> Parameters =>
+    [
+        new() { Name = "name", Type = "string", Description = "Name of the pod to connect to.", Required = true }
+    ];
+
+    public override Task<int> ExecuteAsync(string[] args, CliSettings settings, bool asJson)
+    {
+        Dictionary<string, string> parameters;
+        try
+        {
+            parameters = ParseClientArgs(args);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Console.Error.WriteLine($"{Ansi.Red}{ex.Message}{Ansi.Reset}");
+            return Task.FromResult(1);
+        }
+
+        if (!parameters.TryGetValue("name", out var containerName) || string.IsNullOrWhiteSpace(containerName))
+        {
+            Console.Error.WriteLine($"{Ansi.Red}Missing required parameter --name{Ansi.Reset}");
+            return Task.FromResult(1);
+        }
+
+        // Resolve container name to app label (same as server-side ResolveAppName)
+        var githubUsername = GetGitHubUsername();
+        var appName = SanitizeAppName($"{githubUsername}-{containerName}");
+
+        Console.WriteLine($"{Ansi.Dim}Looking up pod for container '{containerName}' (app={appName})...{Ansi.Reset}");
+
+        // Find the pod name via label selector
+        var getPodPsi = new ProcessStartInfo
+        {
+            FileName = "kubectl",
+            ArgumentList = { "get", "pods", "-n", "app", "-l", $"app={appName}", "-o", "jsonpath={.items[0].metadata.name}" },
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+
+        using var getPodProcess = Process.Start(getPodPsi);
+        if (getPodProcess is null)
+        {
+            Console.Error.WriteLine($"{Ansi.Red}Could not start kubectl.{Ansi.Reset}");
+            return Task.FromResult(1);
+        }
+
+        var podName = getPodProcess.StandardOutput.ReadToEnd().Trim();
+        var podErr = getPodProcess.StandardError.ReadToEnd().Trim();
+        getPodProcess.WaitForExit();
+
+        if (string.IsNullOrWhiteSpace(podName))
+        {
+            Console.Error.WriteLine($"{Ansi.Red}No pod found for container '{containerName}' (app={appName}).{Ansi.Reset}");
+            if (!string.IsNullOrWhiteSpace(podErr))
+                Console.Error.WriteLine($"{Ansi.Red}{podErr}{Ansi.Reset}");
+            return Task.FromResult(1);
+        }
+
+        Console.WriteLine($"{Ansi.Cyan}Opening pwsh prompt in pod {podName}...{Ansi.Reset}");
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = "kubectl",
+            ArgumentList = { "exec", "-it", podName, "-n", "app", "--", "pwsh" },
+            UseShellExecute = false,
+        };
+
+        using var process = Process.Start(psi);
+        if (process is null)
+        {
+            Console.Error.WriteLine($"{Ansi.Red}Could not start kubectl.{Ansi.Reset}");
+            return Task.FromResult(1);
+        }
+
+        process.WaitForExit();
+        return Task.FromResult(process.ExitCode);
+    }
+
+    private static string GetGitHubUsername()
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = "gh",
+            ArgumentList = { "api", "user", "--jq", ".login" },
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+
+        using var process = Process.Start(psi) ?? throw new InvalidOperationException("Could not start 'gh'.");
+        var username = process.StandardOutput.ReadToEnd().Trim();
+        process.WaitForExit();
+
+        if (process.ExitCode != 0 || string.IsNullOrWhiteSpace(username))
+            throw new InvalidOperationException("Could not determine GitHub username. Run 'gh auth login' first.");
+
+        return username;
+    }
+
+    private static string SanitizeAppName(string name)
+    {
+        var appName = name.Replace('.', '-').Replace('_', '-').ToLowerInvariant();
+        if (appName.Length > 63) appName = appName[..63];
+        return appName.TrimEnd('-');
     }
 }
