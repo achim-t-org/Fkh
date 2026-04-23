@@ -43,8 +43,17 @@ sealed class EditCommand : ClientCommand
         if (!args.Any(a => string.Equals(a, "--wait", StringComparison.OrdinalIgnoreCase)))
         {
             var exePath = Environment.ProcessPath ?? "fkh";
-            Console.WriteLine($"{Ansi.Cyan}Launching edit in a new window...{Ansi.Reset}");
             var reArgs = args.Concat(new[] { "--wait" });
+
+            // When running under 'dotnet run', ProcessPath is dotnet.exe — we need
+            // to re-invoke as 'dotnet run -- <args>' instead of 'dotnet.exe <args>'.
+            if (exePath.EndsWith("dotnet.exe", StringComparison.OrdinalIgnoreCase) ||
+                exePath.EndsWith("dotnet", StringComparison.OrdinalIgnoreCase))
+            {
+                reArgs = new[] { "run", "--" }.Concat(reArgs);
+            }
+
+            Console.WriteLine($"{Ansi.Cyan}Launching edit in a new window...{Ansi.Reset}");
             if (!LaunchInNewTerminal(exePath, reArgs))
             {
                 Console.Error.WriteLine($"{Ansi.Yellow}Could not open a new terminal window — running inline.{Ansi.Reset}");

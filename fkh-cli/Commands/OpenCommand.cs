@@ -7,10 +7,11 @@ sealed class OpenCommand : ClientCommand
     public override List<ClientCommandParameter> Parameters =>
     [
         new() { Name = "name", Type = "string", Description = "Name of the pod to connect to.", Required = true },
-        new() { Name = "wait", Type = "flag", Description = "Block the process until the session ends (default opens a new window).", Required = false }
+        new() { Name = "wait", Type = "flag", Description = "Block the process until the session ends (default opens a new window).", Required = false },
+        new() { Name = "poormansterminal", Type = "flag", Description = "Use the backend-based terminal instead of kubectl exec, even if kubectl is available.", Required = false }
     ];
 
-    public override Task<int> ExecuteAsync(string[] args, CliSettings settings, bool asJson)
+    public override async Task<int> ExecuteAsync(string[] args, CliSettings settings, bool asJson)
     {
         Dictionary<string, string> parameters;
         try
@@ -20,13 +21,60 @@ sealed class OpenCommand : ClientCommand
         catch (InvalidOperationException ex)
         {
             Console.Error.WriteLine($"{Ansi.Red}{ex.Message}{Ansi.Reset}");
-            return Task.FromResult(1);
+            return 1;
         }
 
         if (!parameters.TryGetValue("name", out var containerName) || string.IsNullOrWhiteSpace(containerName))
         {
             Console.Error.WriteLine($"{Ansi.Red}Missing required parameter --name{Ansi.Reset}");
-            return Task.FromResult(1);
+            return 1;
+        }
+
+        var poorMansTerminal = args.Any(a => string.Equals(a, "--poormansterminal", StringComparison.OrdinalIgnoreCase));
+        var wait = args.Any(a => string.Equals(a, "--wait", StringComparison.OrdinalIgnoreCase));
+
+        if (poorMansTerminal || !IsKubectlAvailable())
+        {
+            if (!wait)
+            {
+                var exePath = Environment.ProcessPath ?? "fkh";
+                var relaunchArgs = args.ToList();
+                if (!relaunchArgs.Any(a => string.Equals(a, "--poormansterminal", StringComparison.OrdinalIgnoreCase)))
+                    relaunchArgs.Add("--poormansterminal");
+                relaunchArgs.Add("--wait");
+
+                IEnumerable<string> reArgs = relaunchArgs;
+                if (exePath.EndsWith("dotnet.exe", StringComparison.OrdinalIgnoreCase) ||
+                    exePath.EndsWith("dotnet", StringComparison.OrdinalIgnoreCase))
+                    reArgs = new[] { "run", "--" }.Concat(relaunchArgs);
+
+                Console.WriteLine($"{Ansi.Cyan}Launching backend terminal in a new window...{Ansi.Reset}");
+                if (LaunchInNewTerminal(exePath, reArgs))
+                    return 0;
+
+                Console.Error.WriteLine($"{Ansi.Yellow}Could not open a new terminal window — running inline.{Ansi.Reset}");
+            }
+
+            var backendUrl = settings.BackendUrl?.TrimEnd('/');
+            if (string.IsNullOrWhiteSpace(backendUrl))
+            {
+                var reason = poorMansTerminal ? "--poormansterminal requested" : "kubectl not found";
+                Console.Error.WriteLine($"{Ansi.Red}{reason} but no backend URL configured. Set a backend URL in settings or FKH_BACKEND_URL.{Ansi.Reset}");
+                return 1;
+            }
+
+            string token;
+            try { token = GetToken(parameters, settings.User); }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"{Ansi.Red}{ex.Message}{Ansi.Reset}");
+                return 1;
+            }
+
+            int width;
+            try { width = Console.WindowWidth; } catch { width = 220; }
+
+            return await new PoorMansTerminal(backendUrl, token, containerName, width).RunAsync();
         }
 
         // Resolve container name to app label (same as server-side ResolveAppName)
@@ -52,7 +100,7 @@ sealed class OpenCommand : ClientCommand
         if (getPodProcess is null)
         {
             Console.Error.WriteLine($"{Ansi.Red}Could not start kubectl.{Ansi.Reset}");
-            return Task.FromResult(1);
+            return 1;
         }
 
         var podName = getPodProcess.StandardOutput.ReadToEnd().Trim();
@@ -64,12 +112,10 @@ sealed class OpenCommand : ClientCommand
             Console.Error.WriteLine($"{Ansi.Red}No pod found for container '{containerName}' (app={appName}).{Ansi.Reset}");
             if (!string.IsNullOrWhiteSpace(podErr))
                 Console.Error.WriteLine($"{Ansi.Red}{podErr}{Ansi.Reset}");
-            return Task.FromResult(1);
+            return 1;
         }
 
         Console.WriteLine($"{Ansi.Cyan}Opening pwsh prompt in pod {podName}...{Ansi.Reset}");
-
-        var wait = args.Any(a => string.Equals(a, "--wait", StringComparison.OrdinalIgnoreCase));
 
         // kubectl on Windows doesn't propagate terminal size to the remote pty,
         // so the remote pwsh defaults to 80x24. Work around by using PowerShell's
@@ -93,11 +139,11 @@ sealed class OpenCommand : ClientCommand
             if (process is null)
             {
                 Console.Error.WriteLine($"{Ansi.Red}Could not start kubectl.{Ansi.Reset}");
-                return Task.FromResult(1);
+                return 1;
             }
 
             process.WaitForExit();
-            return Task.FromResult(process.ExitCode);
+            return process.ExitCode;
         }
 
         // Default: launch in a new terminal window so the current process returns immediately.
@@ -116,11 +162,24 @@ sealed class OpenCommand : ClientCommand
             if (fallback is null)
             {
                 Console.Error.WriteLine($"{Ansi.Red}Could not start kubectl.{Ansi.Reset}");
-                return Task.FromResult(1);
+                return 1;
             }
             fallback.WaitForExit();
-            return Task.FromResult(fallback.ExitCode);
+            return fallback.ExitCode;
         }
-        return Task.FromResult(0);
+        return 0;
+    }
+
+    private static bool IsKubectlAvailable()
+    {
+        try
+        {
+            var result = RunProcess("kubectl", ["version", "--client"]);
+            return result.ExitCode == 0;
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return false;
+        }
     }
 }

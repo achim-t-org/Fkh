@@ -66,7 +66,8 @@ public class FkhInvokeScript : FkhServiceBase
         var containerName = pod.Spec.Containers[0].Name;
 
         // Execute the script using PowerShell 7 (pwsh) inside the BC pod
-        var result = await ExecInBcPodPwshAsync(client, podName, containerName, script);
+        var fullScript = $". 'C:\\run\\prompt.ps1' -silent; {script}";
+        var result = await ExecInBcPodPwshAsync(client, podName, containerName, fullScript);
 
         return new
         {

@@ -31,7 +31,8 @@ abstract class ClientCommand
 
             if (string.Equals(key, "asJson", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(key, "nowait", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(key, "wait", StringComparison.OrdinalIgnoreCase))
+                string.Equals(key, "wait", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(key, "poormansterminal", StringComparison.OrdinalIgnoreCase))
                 continue;
 
             if (string.Equals(key, "ghUser", StringComparison.OrdinalIgnoreCase) ||
@@ -238,15 +239,24 @@ abstract class ClientCommand
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
+            // Build a cmd-safe command line with double-quote escaping
+            static string CmdEscape(string arg) =>
+                arg.Any(c => c is ' ' or '\t' or '&' or '|' or '<' or '>' or '^' or '"')
+                    ? "\"" + arg.Replace("\"", "\\\"") + "\""
+                    : arg;
+
+            var parts = new List<string> { CmdEscape(fileName) };
+            foreach (var arg in arguments)
+                parts.Add(CmdEscape(arg));
+            var cmdLine = string.Join(' ', parts);
+
+            // Close on success, pause on failure so the user can read the error
             var psi = new ProcessStartInfo
             {
                 FileName = "cmd.exe",
+                Arguments = $"/c \"{cmdLine} || (echo. & echo Press any key to close... & pause >nul)\"",
                 UseShellExecute = true,
             };
-            psi.ArgumentList.Add("/c");
-            psi.ArgumentList.Add(fileName);
-            foreach (var arg in arguments)
-                psi.ArgumentList.Add(arg);
             return Process.Start(psi) is not null;
         }
 
