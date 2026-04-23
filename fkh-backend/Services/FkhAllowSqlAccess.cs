@@ -170,17 +170,15 @@ public class FkhAllowSqlAccess : FkhServiceBase
             foreach (var db in databases)
             {
                 var safeDb = db.Replace("'", "''");
-                var r = await ExecInMssqlPodAsync(client, podName,
+                await ExecInMssqlPodAsync(client, podName,
                     $"{SqlcmdPath} -S localhost -U sa -P \"$MSSQL_SA_PASSWORD\" -C -Q " +
                     $"\"USE [{safeDb}]; DROP USER [{sqlLogin}]\" 2>/dev/null || true");
-                sqlLog.Add($"DropUser[{db}]: {r}");
             }
 
             // Drop login (now safe — no users reference it)
-            var dropLoginResult = await ExecInMssqlPodAsync(client, podName,
+            await ExecInMssqlPodAsync(client, podName,
                 $"{SqlcmdPath} -S localhost -U sa -P \"$MSSQL_SA_PASSWORD\" -C -Q " +
                 $"\"DROP LOGIN [{sqlLogin}]\" 2>/dev/null || true");
-            sqlLog.Add($"DropLogin: {dropLoginResult}");
 
             // Create login fresh
             var createResult = await ExecInMssqlPodAsync(client, podName,

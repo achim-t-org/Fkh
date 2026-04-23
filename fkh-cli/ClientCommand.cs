@@ -1,0 +1,361 @@
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+
+sealed class ClientCommandParameter
+{
+    public required string Name { get; init; }
+    public required string Type { get; init; }
+    public required string Description { get; init; }
+    public bool Required { get; init; }
+}
+
+abstract class ClientCommand
+{
+    public abstract string Name { get; }
+    public abstract string Description { get; }
+    public abstract List<ClientCommandParameter> Parameters { get; }
+    public abstract Task<int> ExecuteAsync(string[] args, CliSettings settings, bool asJson);
+
+    protected static Dictionary<string, string> ParseClientArgs(string[] args)
+    {
+        var parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 1; i < args.Length; i++)
+        {
+            var arg = args[i];
+            if (!arg.StartsWith("--", StringComparison.Ordinal))
+                throw new InvalidOperationException($"Unknown argument: {arg}");
+
+            var key = arg[2..];
+            if (string.IsNullOrWhiteSpace(key))
+                throw new InvalidOperationException("Parameter name cannot be empty after '--'.");
+
+            if (string.Equals(key, "asJson", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(key, "nowait", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(key, "wait", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (string.Equals(key, "ghUser", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(key, "backendUrl", StringComparison.OrdinalIgnoreCase))
+            {
+                i++;
+                if (i >= args.Length)
+                    throw new InvalidOperationException($"Missing value for --{key}");
+                continue;
+            }
+
+            i++;
+            if (i >= args.Length)
+                throw new InvalidOperationException($"Missing value for --{key}");
+
+            parameters[key] = args[i];
+        }
+        return parameters;
+    }
+
+    protected static string GetToken(Dictionary<string, string> parameters, string? user = null)
+    {
+        if (parameters.TryGetValue("oidcToken", out var oidc) && !string.IsNullOrWhiteSpace(oidc))
+        {
+            parameters.Remove("oidcToken");
+            return oidc;
+        }
+        return GetGitHubTokenStatic(user);
+    }
+
+    private static string GetGitHubTokenStatic(string? user = null)
+    {
+        var token = Environment.GetEnvironmentVariable("OIDC_TOKEN");
+        if (!string.IsNullOrWhiteSpace(token)) return token;
+
+        token = Environment.GetEnvironmentVariable("GH_TOKEN");
+        if (!string.IsNullOrWhiteSpace(token)) return token;
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = "gh",
+            ArgumentList = { "auth", "token" },
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        if (!string.IsNullOrWhiteSpace(user))
+        {
+            psi.ArgumentList.Add("-u");
+            psi.ArgumentList.Add(user);
+        }
+
+        using var process = Process.Start(psi) ?? throw new InvalidOperationException("Could not start 'gh'.");
+        var stdout = process.StandardOutput.ReadToEnd();
+        process.WaitForExit();
+
+        if (process.ExitCode != 0)
+            throw new InvalidOperationException("Could not get GitHub token from 'gh auth token'. Run 'gh auth login' first.");
+
+        token = stdout.Trim();
+        if (string.IsNullOrWhiteSpace(token))
+            throw new InvalidOperationException("'gh auth token' returned an empty token.");
+
+        return token;
+    }
+
+    // ── Shared K8s / process helpers ─────────────────────────────────────────
+
+    protected static (int ExitCode, string Stdout, string Stderr) RunProcess(string fileName, string[] args, string? workingDirectory = null)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = fileName,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        if (workingDirectory is not null)
+            psi.WorkingDirectory = workingDirectory;
+        foreach (var arg in args)
+            psi.ArgumentList.Add(arg);
+
+        using var process = Process.Start(psi);
+        if (process is null)
+            return (1, "", "Could not start process.");
+
+        var stdout = process.StandardOutput.ReadToEnd();
+        var stderr = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+        return (process.ExitCode, stdout, stderr);
+    }
+
+    protected static string? RunKubectl(params string[] args)
+    {
+        var result = RunProcess("kubectl", args);
+        return result.ExitCode == 0 ? result.Stdout?.Trim() : null;
+    }
+
+    protected static string GetGitHubUsername()
+    {
+        var result = RunProcess("gh", ["api", "user", "--jq", ".login"]);
+        if (result.ExitCode != 0 || string.IsNullOrWhiteSpace(result.Stdout))
+            throw new InvalidOperationException("Could not determine GitHub username. Run 'gh auth login' first.");
+        return result.Stdout.Trim();
+    }
+
+    protected static string SanitizeAppName(string name)
+    {
+        var appName = name.Replace('.', '-').Replace('_', '-').ToLowerInvariant();
+        if (appName.Length > 63) appName = appName[..63];
+        return appName.TrimEnd('-');
+    }
+
+    protected static bool DownloadFileFromPod(string podName, string remoteFile, string localFile)
+    {
+        // Chunked base64 download: pod reads file in 3MB chunks, base64-encodes each, writes one line per chunk
+        var script = "$f = [IO.File]::OpenRead('" + remoteFile + "'); try { $buf = New-Object byte[] 3145728; while (($n = $f.Read($buf, 0, $buf.Length)) -gt 0) { if ($n -lt $buf.Length) { $chunk = New-Object byte[] $n; [Array]::Copy($buf, $chunk, $n); [Console]::WriteLine([Convert]::ToBase64String($chunk)) } else { [Console]::WriteLine([Convert]::ToBase64String($buf)) } } } finally { $f.Close() }";
+        var psi = new ProcessStartInfo
+        {
+            FileName = "kubectl",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        foreach (var arg in new[] { "exec", podName, "-n", "app", "--", "pwsh", "-c", script })
+            psi.ArgumentList.Add(arg);
+
+        using var process = Process.Start(psi);
+        if (process is null) return false;
+
+        using (var fs = File.Create(localFile))
+        {
+            string? line;
+            while ((line = process.StandardOutput.ReadLine()) is not null)
+            {
+                if (line.Length == 0) continue;
+                var bytes = Convert.FromBase64String(line);
+                fs.Write(bytes, 0, bytes.Length);
+            }
+        }
+
+        var stderr = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+        if (process.ExitCode != 0)
+        {
+            Console.Error.WriteLine($"{Ansi.Red}{stderr}{Ansi.Reset}");
+            return false;
+        }
+        return true;
+    }
+
+    protected static bool UploadFileToPod(string podName, string remoteFile, string localFile)
+    {
+        // Chunked base64 upload: C# reads file in 3MB chunks, base64-encodes each line to stdin.
+        // Pod reads lines, decodes each, appends to file.
+        var script = "$f = [IO.File]::Create('" + remoteFile + "'); try { while (($line = [Console]::ReadLine()) -ne $null) { if ($line.Length -gt 0) { $bytes = [Convert]::FromBase64String($line); $f.Write($bytes, 0, $bytes.Length) } } } finally { $f.Close() }";
+        var psi = new ProcessStartInfo
+        {
+            FileName = "kubectl",
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        foreach (var arg in new[] { "exec", "-i", podName, "-n", "app", "--", "pwsh", "-c", script })
+            psi.ArgumentList.Add(arg);
+
+        using var process = Process.Start(psi);
+        if (process is null) return false;
+
+        using (var fs = File.OpenRead(localFile))
+        {
+            var buf = new byte[3 * 1024 * 1024]; // 3 MB chunks → ~4 MB base64 lines
+            int bytesRead;
+            while ((bytesRead = fs.Read(buf, 0, buf.Length)) > 0)
+            {
+                var b64 = Convert.ToBase64String(buf, 0, bytesRead);
+                process.StandardInput.WriteLine(b64);
+            }
+        }
+        process.StandardInput.Close();
+
+        var stderr = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+        if (process.ExitCode != 0)
+        {
+            Console.Error.WriteLine($"{Ansi.Red}{stderr}{Ansi.Reset}");
+            return false;
+        }
+        return true;
+    }
+
+    // ── Cross-platform helpers ───────────────────────────────────────────────
+
+    /// <summary>
+    /// Launch a command in a new terminal window. Returns true if launched successfully.
+    /// Falls back to inline execution if no supported terminal emulator is found.
+    /// </summary>
+    protected static bool LaunchInNewTerminal(string fileName, IEnumerable<string> arguments)
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                UseShellExecute = true,
+            };
+            psi.ArgumentList.Add("/c");
+            psi.ArgumentList.Add(fileName);
+            foreach (var arg in arguments)
+                psi.ArgumentList.Add(arg);
+            return Process.Start(psi) is not null;
+        }
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            // Write a temp script and open it in Terminal.app
+            var script = BuildShellScript(fileName, arguments);
+            var psi = new ProcessStartInfo
+            {
+                FileName = "open",
+                ArgumentList = { "-a", "Terminal", script },
+                UseShellExecute = false,
+            };
+            return Process.Start(psi) is not null;
+        }
+
+        // Linux: try common terminal emulators
+        var commandLine = BuildCommandLine(fileName, arguments);
+        string[][] terminals =
+        [
+            ["x-terminal-emulator", "-e", commandLine],
+            ["gnome-terminal", "--", "sh", "-c", commandLine],
+            ["konsole", "-e", "sh", "-c", commandLine],
+            ["xfce4-terminal", "-e", commandLine],
+            ["xterm", "-e", commandLine],
+        ];
+
+        foreach (var termArgs in terminals)
+        {
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = termArgs[0],
+                    UseShellExecute = false,
+                };
+                for (var i = 1; i < termArgs.Length; i++)
+                    psi.ArgumentList.Add(termArgs[i]);
+                if (Process.Start(psi) is not null)
+                    return true;
+            }
+            catch (System.ComponentModel.Win32Exception) { /* not found, try next */ }
+        }
+
+        return false;
+    }
+
+    private static string BuildShellScript(string fileName, IEnumerable<string> arguments)
+    {
+        var scriptPath = Path.Combine(Path.GetTempPath(), $"fkh-{Guid.NewGuid():N}.sh");
+        var cmdLine = BuildCommandLine(fileName, arguments);
+        File.WriteAllText(scriptPath, $"#!/bin/sh\n{cmdLine}\nrm -f \"{scriptPath}\"\n");
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            File.SetUnixFileMode(scriptPath, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        return scriptPath;
+    }
+
+    private static string BuildCommandLine(string fileName, IEnumerable<string> arguments)
+    {
+        var parts = new List<string> { ShellEscape(fileName) };
+        foreach (var arg in arguments)
+            parts.Add(ShellEscape(arg));
+        return string.Join(' ', parts);
+    }
+
+    private static string ShellEscape(string arg)
+    {
+        if (arg.Length > 0 && !arg.Any(c => c is ' ' or '\t' or '"' or '\'' or '\\' or '$' or '`' or '!' or '(' or ')' or '{' or '}' or '[' or ']' or '|' or '&' or ';' or '<' or '>' or '*' or '?' or '#' or '~'))
+            return arg;
+        return "'" + arg.Replace("'", "'\\''") + "'";
+    }
+
+    /// <summary>Returns the user's preferred editor command.</summary>
+    protected static string GetEditorCommand()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            return "notepad.exe";
+
+        var editor = Environment.GetEnvironmentVariable("VISUAL")
+            ?? Environment.GetEnvironmentVariable("EDITOR");
+        if (!string.IsNullOrWhiteSpace(editor))
+            return editor;
+
+        // Fallback: try common editors
+        foreach (var candidate in new[] { "nano", "vi" })
+        {
+            try
+            {
+                var result = RunProcess("which", [candidate]);
+                if (result.ExitCode == 0 && !string.IsNullOrWhiteSpace(result.Stdout))
+                    return candidate;
+            }
+            catch { /* not found */ }
+        }
+
+        return "vi";
+    }
+}
+
+static class ClientCommands
+{
+    public static List<ClientCommand> All { get; } =
+    [
+        new UploadDatabaseCommand(),
+        new DownloadDatabaseCommand(),
+        new StatusCommand(),
+        new OpenCommand(),
+        new EditCommand(),
+        new CopyFromContainerCommand(),
+        new CopyToContainerCommand()
+    ];
+}
