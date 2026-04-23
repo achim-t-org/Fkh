@@ -7,11 +7,9 @@
 #
 # ── Required GitHub Secrets ─────────────────────────────────────────────────
 #   AZURE_DEPLOY_CLIENT_ID        - Client ID of the deployment identity
-#   AZURE_DEPLOY_TENANT_ID        - Azure AD tenant ID
-#   AZURE_DEPLOY_SUBSCRIPTION_ID  - Azure subscription ID
+
 #   SQL_SA_PASSWORD                - SA password for the SQL Server in AKS
 #   GH_APP_PRIVATE_KEY             - PEM-encoded private key of the GitHub App
-#   GH_PAT                        - GitHub PAT (admin:org, repo, read:org)
 # ============================================================================
 
 name: Deploy Full Stack
@@ -51,8 +49,5 @@ jobs:
       fkh-repo: {{FKH_REPO}}
     secrets:
       AZURE_DEPLOY_CLIENT_ID: ${{ secrets.AZURE_DEPLOY_CLIENT_ID }}
-      AZURE_DEPLOY_TENANT_ID: ${{ secrets.AZURE_DEPLOY_TENANT_ID }}
-      AZURE_DEPLOY_SUBSCRIPTION_ID: ${{ secrets.AZURE_DEPLOY_SUBSCRIPTION_ID }}
       SQL_SA_PASSWORD: ${{ secrets.SQL_SA_PASSWORD }}
       GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
-      GH_PAT: ${{ secrets.GH_PAT }}

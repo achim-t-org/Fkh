@@ -22,8 +22,8 @@
 #   fkh-ref    - Git ref to checkout from the Fkh fork (default: main)
 #
 # ── Secrets (passed by the caller workflow) ─────────────────────────────────
-#   AZURE_DEPLOY_CLIENT_ID, AZURE_DEPLOY_TENANT_ID, AZURE_DEPLOY_SUBSCRIPTION_ID
-#   SQL_SA_PASSWORD, GH_APP_PRIVATE_KEY, GH_PAT
+#   AZURE_DEPLOY_CLIENT_ID, SQL_SA_PASSWORD, GH_APP_PRIVATE_KEY
+#   (tenant_id and subscription_id are read from config/deployment.tfvars)
 # ============================================================================
 
 name: Deploy Fkh Full Stack
@@ -43,15 +43,9 @@ on:
     secrets:
       AZURE_DEPLOY_CLIENT_ID:
         required: true
-      AZURE_DEPLOY_TENANT_ID:
-        required: true
-      AZURE_DEPLOY_SUBSCRIPTION_ID:
-        required: true
       SQL_SA_PASSWORD:
         required: true
       GH_APP_PRIVATE_KEY:
-        required: true
-      GH_PAT:
         required: true
 
 permissions:
@@ -59,12 +53,10 @@ permissions:
   contents: read
 
 env:
-  TF_VAR_github_token: ${{ secrets.GH_PAT }}
   TF_VAR_sql_sa_password: ${{ secrets.SQL_SA_PASSWORD }}
   TF_VAR_github_app_private_key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+  TF_VAR_create_images_repo: ${{ github.repository }}
   ARM_CLIENT_ID: ${{ secrets.AZURE_DEPLOY_CLIENT_ID }}
-  ARM_TENANT_ID: ${{ secrets.AZURE_DEPLOY_TENANT_ID }}
-  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_DEPLOY_SUBSCRIPTION_ID }}
   ARM_USE_OIDC: true
 
 jobs:
@@ -112,6 +104,41 @@ jobs:
           }
           "tfvars_file=$tfvarsFile" >> $env:GITHUB_OUTPUT
 
+      # ── Parse tfvars ──────────────────────────────────────────────────────
+      - name: Parse tfvars
+        id: parse
+        shell: pwsh
+        run: |
+          $varFile = "${{ steps.tfvars.outputs.tfvars_file }}"
+          function Get-TfVar([string]$Name, [string]$File) {
+            $line = Get-Content $File | Where-Object { $_ -match "^\s*$Name\s*=" } | Select-Object -First 1
+            if ($line -match '=\s*"([^"]+)"') { return $Matches[1] }
+            throw "Could not find $Name in $File"
+          }
+
+          $subscriptionId = Get-TfVar "subscription_id" $varFile
+          $tenantId       = Get-TfVar "tenant_id" $varFile
+          $deploymentName = Get-TfVar "fkhDeploymentName" $varFile
+          $githubAppId    = Get-TfVar "github_app_id" $varFile
+
+          $stateRg        = "fkh-$deploymentName-state"
+          $stateAccount   = "fkh$($deploymentName.Replace('-','').Substring(0, [Math]::Min($deploymentName.Replace('-','').Length, 14)))state"
+          $stateContainer = "tfstate"
+          $stateKey       = "$deploymentName.tfstate"
+
+          "state_rg=$stateRg"             >> $env:GITHUB_OUTPUT
+          "state_account=$stateAccount"   >> $env:GITHUB_OUTPUT
+          "state_container=$stateContainer" >> $env:GITHUB_OUTPUT
+          "state_key=$stateKey"           >> $env:GITHUB_OUTPUT
+          "subscription_id=$subscriptionId" >> $env:GITHUB_OUTPUT
+          "tenant_id=$tenantId"           >> $env:GITHUB_OUTPUT
+          "deployment_name=$deploymentName" >> $env:GITHUB_OUTPUT
+          "github_app_id=$githubAppId"    >> $env:GITHUB_OUTPUT
+
+          # Set ARM env vars for Terraform OIDC (used by all subsequent steps)
+          "ARM_TENANT_ID=$tenantId"             >> $env:GITHUB_ENV
+          "ARM_SUBSCRIPTION_ID=$subscriptionId" >> $env:GITHUB_ENV
+
       # ── Tool setup ────────────────────────────────────────────────────────
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4
@@ -130,35 +157,8 @@ jobs:
         uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_DEPLOY_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_DEPLOY_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_DEPLOY_SUBSCRIPTION_ID }}
-
-      # ── Parse tfvars for state backend ────────────────────────────────────
-      - name: Parse tfvars for state storage
-        id: parse
-        shell: pwsh
-        run: |
-          $varFile = "${{ steps.tfvars.outputs.tfvars_file }}"
-          function Get-TfVar([string]$Name, [string]$File) {
-            $line = Get-Content $File | Where-Object { $_ -match "^\s*$Name\s*=" } | Select-Object -First 1
-            if ($line -match '=\s*"([^"]+)"') { return $Matches[1] }
-            throw "Could not find $Name in $File"
-          }
-
-          $subscriptionId = Get-TfVar "subscription_id" $varFile
-          $orgName        = Get-TfVar "org_name" $varFile
-
-          $stateRg        = "fkh-$orgName-state"
-          $stateAccount   = "fkh$($orgName.Replace('-','').Substring(0, [Math]::Min($orgName.Replace('-','').Length, 14)))state"
-          $stateContainer = "tfstate"
-          $stateKey       = "$orgName.tfstate"
-
-          "state_rg=$stateRg"             >> $env:GITHUB_OUTPUT
-          "state_account=$stateAccount"   >> $env:GITHUB_OUTPUT
-          "state_container=$stateContainer" >> $env:GITHUB_OUTPUT
-          "state_key=$stateKey"           >> $env:GITHUB_OUTPUT
-          "subscription_id=$subscriptionId" >> $env:GITHUB_OUTPUT
-          "org_name=$orgName"             >> $env:GITHUB_OUTPUT
+          tenant-id: ${{ steps.parse.outputs.tenant_id }}
+          subscription-id: ${{ steps.parse.outputs.subscription_id }}
 
       # ── Ensure state storage exists ───────────────────────────────────────
       - name: Ensure Terraform state storage
@@ -247,15 +247,9 @@ jobs:
       # ── Fetch AKS credentials ────────────────────────────────────────────
       - name: Fetch AKS credentials
         run: |
-          AKS_RG="fkh-${{ steps.parse.outputs.org_name }}"
-          AKS_NAME="fkh-${{ steps.parse.outputs.org_name }}-aks"
+          AKS_RG="fkh-${{ steps.parse.outputs.deployment_name }}"
+          AKS_NAME="fkh-${{ steps.parse.outputs.deployment_name }}-aks"
           az aks get-credentials --resource-group "$AKS_RG" --name "$AKS_NAME" --overwrite-existing
-
-      # ── GitHub team check / import ────────────────────────────────────────
-      - name: Check / import GitHub teams
-        shell: pwsh
-        run: |
-          ./checkGitHubTeam.ps1 -VarFile "${{ steps.tfvars.outputs.tfvars_file }}" -GithubToken "${{ secrets.GH_PAT }}"
 
       # ── Full Terraform apply ──────────────────────────────────────────────
       - name: Terraform apply
@@ -286,16 +280,19 @@ jobs:
           }
 
       # ── Sync GitHub Actions secrets ───────────────────────────────────────
-      - name: Sync GitHub Actions secrets to Create Images repo
+      - name: Generate GitHub App token for secret sync
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ steps.parse.outputs.github_app_id }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+
+      - name: Sync GitHub Actions secrets to deployment repo
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          REPO=$(terraform output -raw create_images_repo)
-          if [ -z "$REPO" ]; then
-            echo "::warning::Could not determine create_images_repo — skipping secret sync."
-            exit 0
-          fi
+          REPO="${{ github.repository }}"
 
           gh secret set AZURE_CLIENT_ID       --repo "$REPO" --body "$(terraform output -raw identity_client_id)"
           gh secret set AZURE_TENANT_ID       --repo "$REPO" --body "$(terraform output -raw tenant_id)"

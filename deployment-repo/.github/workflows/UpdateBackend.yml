@@ -6,8 +6,7 @@
 #
 # ── Required GitHub Secrets ─────────────────────────────────────────────────
 #   AZURE_DEPLOY_CLIENT_ID        - Client ID of the deployment identity
-#   AZURE_DEPLOY_TENANT_ID        - Azure AD tenant ID
-#   AZURE_DEPLOY_SUBSCRIPTION_ID  - Azure subscription ID
+
 # ============================================================================
 
 name: Update Backend
@@ -41,5 +40,3 @@ jobs:
       fkh-repo: {{FKH_REPO}}
     secrets:
       AZURE_DEPLOY_CLIENT_ID: ${{ secrets.AZURE_DEPLOY_CLIENT_ID }}
-      AZURE_DEPLOY_TENANT_ID: ${{ secrets.AZURE_DEPLOY_TENANT_ID }}
-      AZURE_DEPLOY_SUBSCRIPTION_ID: ${{ secrets.AZURE_DEPLOY_SUBSCRIPTION_ID }}

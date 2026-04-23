@@ -57,7 +57,6 @@ You'll need to set up Azure OIDC and configure GitHub secrets before running the
 | `AZURE_SUBSCRIPTION_ID` | Target Azure subscription ID |
 | `SQL_SA_PASSWORD` | SA password for the SQL Server in AKS (min 8 chars) |
 | `GITHUB_APP_PRIVATE_KEY` | PEM-encoded private key of the GitHub App (from [Create the GitHub App](GitHubApp.md)) |
-| `GH_PAT` | GitHub PAT with scopes: `admin:org`, `repo`, `read:org` |
 | `TFVARS_URL` | **(Recommended)** A secure download URL to your `.tfvars` file (e.g. Azure Blob Storage SAS URL). Downloaded at deploy time; all values are masked in workflow logs. |
 
 **GitHub variables** (Settings → Secrets and variables → Actions → Variables):

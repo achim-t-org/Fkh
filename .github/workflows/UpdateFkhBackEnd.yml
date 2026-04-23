@@ -21,7 +21,8 @@
 #   fkh-ref    - Git ref to checkout from the Fkh fork (default: main)
 #
 # ── Secrets (passed by the caller workflow) ─────────────────────────────────
-#   AZURE_DEPLOY_CLIENT_ID, AZURE_DEPLOY_TENANT_ID, AZURE_DEPLOY_SUBSCRIPTION_ID
+#   AZURE_DEPLOY_CLIENT_ID
+#   (tenant_id and subscription_id are read from config/deployment.tfvars)
 # ============================================================================
 
 name: Update Fkh Backend
@@ -41,10 +42,6 @@ on:
     secrets:
       AZURE_DEPLOY_CLIENT_ID:
         required: true
-      AZURE_DEPLOY_TENANT_ID:
-        required: true
-      AZURE_DEPLOY_SUBSCRIPTION_ID:
-        required: true
 
 permissions:
   id-token: write
@@ -52,8 +49,6 @@ permissions:
 
 env:
   ARM_CLIENT_ID: ${{ secrets.AZURE_DEPLOY_CLIENT_ID }}
-  ARM_TENANT_ID: ${{ secrets.AZURE_DEPLOY_TENANT_ID }}
-  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_DEPLOY_SUBSCRIPTION_ID }}
   ARM_USE_OIDC: true
 
 jobs:
@@ -99,6 +94,29 @@ jobs:
           }
           "tfvars_file=$tfvarsFile" >> $env:GITHUB_OUTPUT
 
+      # ── Parse tfvars ──────────────────────────────────────────────────────
+      - name: Parse tfvars
+        id: parse
+        shell: pwsh
+        working-directory: fkh/terraform
+        run: |
+          $varFile = "${{ steps.tfvars.outputs.tfvars_file }}"
+          function Get-TfVar([string]$Name, [string]$File) {
+            $line = Get-Content $File | Where-Object { $_ -match "^\s*$Name\s*=" } | Select-Object -First 1
+            if ($line -match '=\s*"([^"]+)"') { return $Matches[1] }
+            throw "Could not find $Name in $File"
+          }
+
+          $subscriptionId = Get-TfVar "subscription_id" $varFile
+          $tenantId       = Get-TfVar "tenant_id" $varFile
+
+          "subscription_id=$subscriptionId" >> $env:GITHUB_OUTPUT
+          "tenant_id=$tenantId"             >> $env:GITHUB_OUTPUT
+
+          # Set ARM env vars for Terraform OIDC (used by all subsequent steps)
+          "ARM_TENANT_ID=$tenantId"             >> $env:GITHUB_ENV
+          "ARM_SUBSCRIPTION_ID=$subscriptionId" >> $env:GITHUB_ENV
+
       # ── Tool setup ────────────────────────────────────────────────────────
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4
@@ -117,8 +135,8 @@ jobs:
         uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_DEPLOY_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_DEPLOY_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_DEPLOY_SUBSCRIPTION_ID }}
+          tenant-id: ${{ steps.parse.outputs.tenant_id }}
+          subscription-id: ${{ steps.parse.outputs.subscription_id }}
 
       # ── Resolve function app name ─────────────────────────────────────────
       - name: Resolve function app name and resource group
@@ -135,17 +153,17 @@ jobs:
             }
 
             $subscriptionId = Get-TfVar "subscription_id" $varFile
-            $orgName        = Get-TfVar "org_name" $varFile
+            $deploymentName = Get-TfVar "fkhDeploymentName" $varFile
 
-            $stateRg        = "fkh-$orgName-state"
-            $stateAccount   = "fkh$($orgName.Replace('-','').Substring(0, [Math]::Min($orgName.Replace('-','').Length, 14)))state"
+            $stateRg        = "fkh-$deploymentName-state"
+            $stateAccount   = "fkh$($deploymentName.Replace('-','').Substring(0, [Math]::Min($deploymentName.Replace('-','').Length, 14)))state"
 
             # Initialize Terraform to read state
             terraform init -reconfigure `
               -backend-config="resource_group_name=$stateRg" `
               -backend-config="storage_account_name=$stateAccount" `
               -backend-config="container_name=tfstate" `
-              -backend-config="key=$orgName.tfstate" `
+              -backend-config="key=$deploymentName.tfstate" `
               -backend-config="subscription_id=$subscriptionId" `
               -backend-config="use_azuread_auth=true"
 

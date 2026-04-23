@@ -2,22 +2,9 @@
 
 ## GitHub Token (Path B only)
 
-> Skip this section if you're using **Path A** (GitHub Actions). The `GH_PAT` secret handles this.
+> Skip this section if you're using **Path A** (GitHub Actions). The GitHub App handles authentication.
 
-The deploy script automatically reads your GitHub token from the GitHub CLI (`gh auth token`). Just make sure you're logged in:
-
-```powershell
-gh auth login
-```
-
-When prompted, select scopes that include `admin:org` and `read:user`:
-
-| Scope | Why |
-|-------|-----|
-| `admin:org` | Terraform creates and manages GitHub teams |
-| `read:user` | Validate user identity |
-
-> Alternatively, you can set `TF_VAR_github_token` to a classic PAT with these scopes. Fine-grained tokens won't work — Terraform's GitHub provider requires classic token scopes.
+The deploy script no longer requires a GitHub PAT. Authentication for GitHub API calls is handled by the GitHub App configured in Step 3.
 
 ## Create Your Organization tfvars File
 
@@ -28,11 +15,10 @@ Copy-Item deployment-repo/config/deployment.tfvars terraform/organizations/<your
 Edit the file and fill in all values:
 
 ```hcl
-# Azure
 subscription_id = "00000000-0000-0000-0000-000000000000"
 tenant_id       = "00000000-0000-0000-0000-000000000000"
 location        = "westeurope"
-org_name        = "my-org"
+fkhDeploymentName = "my-deployment"
 
 # AKS
 aks_sku_tier    = "Free"    # Free (dev/test, no SLA) | Standard (99.95% SLA) | Premium (99.99% SLA)
@@ -144,7 +130,6 @@ $env:TF_VAR_github_app_private_key = Get-Content "<path-to>.pem" -Raw
 | GitHub team members | Usernames | ✅ | ✅ | ✅ |
 | GitHub App ID | Create the GitHub App | ✅ | ✅ | ✅ |
 | GitHub App Installation ID | Create the GitHub App | ✅ | ✅ | ✅ |
-| GitHub PAT | `gh auth login` or classic PAT | ❌ | `GH_PAT` secret | automatic via `gh` |
 | SQL SA password | You choose | ❌ | `SQL_SA_PASSWORD` secret | env var |
-| GitHub App private key | Create the GitHub App (.pem) | ❌ | `GITHUB_APP_PRIVATE_KEY` secret | env var |
+| GitHub App private key | Create the GitHub App (.pem) | ❌ | `GH_APP_PRIVATE_KEY` secret | env var |
 | Azure App Registration | Azure Portal (OIDC) | ❌ | `AZURE_DEPLOY_CLIENT_ID` secret | not needed |

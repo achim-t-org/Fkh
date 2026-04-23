@@ -16,8 +16,8 @@ variable "location" {
   default     = "westeurope"
 }
 
-variable "org_name" {
-  description = "Short identifier for the organization. Combined with the FKH prefix in resource names."
+variable "fkhDeploymentName" {
+  description = "Short identifier for this Fkh deployment. Used as a prefix for all Azure resource names (e.g. fkh-<name>-aks)."
   type        = string
 }
 
@@ -145,29 +145,6 @@ variable "sql_storage_size" {
 
 # ── GitHub ────────────────────────────────────────────────────────────────────
 
-variable "github_org" {
-  description = "The GitHub organization where the access team will be created."
-  type        = string
-}
-
-variable "github_token" {
-  description = "GitHub personal access token with admin:org scope. Set via TF_VAR_github_token, never in tfvars files."
-  type        = string
-  sensitive   = true
-}
-
-variable "github_team_name" {
-  description = "Name of the GitHub team that controls access to the provisioner. Created if it does not exist."
-  type        = string
-  default     = "Fkh-members"
-}
-
-variable "github_team_members" {
-  description = "List of GitHub usernames to add to the access team."
-  type        = list(string)
-  default     = []
-}
-
 # ── Function access config ────────────────────────────────────────────────────
 
 variable "allowed_org_teams" {
@@ -193,17 +170,6 @@ variable "allowed_oidc_repos" {
   default = []
 }
 
-variable "github_admin_team_name" {
-  description = "Name of the GitHub admin team. Created if it does not exist."
-  type        = string
-  default     = "Fkh-admins"
-}
-
-variable "github_admin_team_members" {
-  description = "List of GitHub usernames to add to the admin team."
-  type        = list(string)
-  default     = []
-}
 
 # ── Container image ──────────────────────────────────────────────────────────
 
@@ -232,8 +198,9 @@ variable "github_app_installation_id" {
 }
 
 variable "create_images_repo" {
-  description = "GitHub org/repo where the Create Images workflow runs (e.g. my-company/Fkh). Can be the Fkh fork (public, free) or the deployment repo (private, paid)."
+  description = "GitHub org/repo of the deployment repository where the CreateImages workflow runs. Automatically set from github.repository context when deploying via GitHub Actions."
   type        = string
+  default     = ""
 }
 
 variable "contact_email_for_letsencrypt" {
@@ -256,6 +223,12 @@ variable "default_user_settings" {
       }
     }
   EOT
+}
+
+variable "enable_aad_container_auth" {
+  description = "Grant the Function identity the Application.ReadWrite.OwnedBy Graph permission so containers can use AAD authentication. Requires the deployment identity to have the Privileged Role Administrator directory role in Entra ID."
+  type        = bool
+  default     = false
 }
 
 variable "kubecost_enabled" {

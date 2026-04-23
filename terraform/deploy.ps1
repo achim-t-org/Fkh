@@ -1,14 +1,10 @@
 <#
 .SYNOPSIS
-    Deploys an organization environment: checks GitHub team state, then runs terraform apply.
+    Deploys an Fkh environment: runs terraform apply and publishes the function.
 
 .PARAMETER VarFile
     Path to the organization .tfvars file, e.g. organizations/my-org.tfvars,
     or an https:// URL to download the file from.
-
-.PARAMETER GithubToken
-    GitHub personal access token with read:org scope.
-    Defaults to the TF_VAR_github_token environment variable.
 
 .PARAMETER AutoApprove
     If specified, passes -auto-approve to terraform apply (no interactive prompt).
@@ -23,32 +19,10 @@ param(
     [string] $VarFile,
 
     [Parameter(Mandatory = $false)]
-    [string] $GithubToken = $env:TF_VAR_github_token,
-
-    [Parameter(Mandatory = $false)]
     [switch] $AutoApprove
 )
 
 $ErrorActionPreference = "Stop"
-
-# ── Ensure required environment variables ────────────────────────────────────
-
-if ([string]::IsNullOrWhiteSpace($GithubToken)) {
-    Write-Host "TF_VAR_github_token is not set. Attempting to read token from 'gh auth token'..." -ForegroundColor Yellow
-
-    $ghCommand = Get-Command gh -ErrorAction SilentlyContinue
-    if (-not $ghCommand) {
-        throw "GitHub token is required. Install GitHub CLI and sign in with 'gh auth login', or set TF_VAR_github_token."
-    }
-
-    $GithubToken = (& gh auth token 2>$null).Trim()
-    if ([string]::IsNullOrWhiteSpace($GithubToken)) {
-        throw "GitHub token is required. 'gh auth token' did not return a token. Run 'gh auth login' or set TF_VAR_github_token."
-    }
-
-    $env:TF_VAR_github_token = $GithubToken
-    Write-Host "TF_VAR_github_token has been set from GitHub CLI authentication." -ForegroundColor Green
-}
 
 function Show-KubernetesDiagnostics {
     Write-Host ""
@@ -95,7 +69,6 @@ function Show-KubernetesDiagnostics {
 # ── Resolve paths ─────────────────────────────────────────────────────────────
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$checkScript = Join-Path $scriptDir "checkGitHubTeam.ps1"
 
 $FunctionProjectPath = Join-Path $scriptDir ".." "fkh-backend"
 $FunctionProjectPath = Resolve-Path $FunctionProjectPath
@@ -164,12 +137,12 @@ function Get-TfVar([string]$Name, [string]$File) {
 
 $tfSubscriptionId = Get-TfVar "subscription_id" $VarFile
 $tfLocation       = Get-TfVar "location"        $VarFile
-$tfOrgName   = Get-TfVar "org_name"   $VarFile
+$tfDeploymentName = Get-TfVar "fkhDeploymentName" $VarFile
 
-$stateRg      = "fkh-$tfOrgName-state"
-$stateAccount = "fkh$($tfOrgName.Replace('-','').Substring(0, [Math]::Min($tfOrgName.Replace('-','').Length, 14)))state"
+$stateRg      = "fkh-$tfDeploymentName-state"
+$stateAccount = "fkh$($tfDeploymentName.Replace('-','').Substring(0, [Math]::Min($tfDeploymentName.Replace('-','').Length, 14)))state"
 $stateContainer = "tfstate"
-$stateKey       = "$tfOrgName.tfstate"
+$stateKey       = "$tfDeploymentName.tfstate"
 
 Write-Host "Ensuring state storage: RG=$stateRg Account=$stateAccount Container=$stateContainer" -ForegroundColor Cyan
 
@@ -327,30 +300,13 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # ── Refresh kubeconfig after bootstrap (AKS now exists) ──────────────────────
-$aksRg   = "fkh-$tfOrgName"
-$aksName = "fkh-$tfOrgName-aks"
+$aksRg   = "fkh-$tfDeploymentName"
+$aksName = "fkh-$tfDeploymentName-aks"
 Write-Host "Fetching AKS credentials for $aksName..." -ForegroundColor Cyan
 az aks get-credentials --resource-group $aksRg --name $aksName --overwrite-existing
 if ($LASTEXITCODE -ne 0) { Write-Host "Warning: could not fetch AKS credentials." -ForegroundColor Yellow }
 
-# ── Step 3: Check / import GitHub team ───────────────────────────────────────
-
-Write-Host ""
-Write-Host -ForegroundColor Cyan @'
-  _____ _ _   _    _       _       _______                          _               _    
- / ____(_) | | |  | |     | |     |__   __|                        | |             | |   
-| |  __ _| |_| |__| |_   _| |__      | | ___  __ _ _ __ ___     ___| |__   ___  ___| | __
-| | |_ | | __|  __  | | | | '_ \     | |/ _ \/ _` | '_ ` _ \   / __| '_ \ / _ \/ __| |/ /
-| |__| | | |_| |  | | |_| | |_) |    | |  __/ (_| | | | | | | | (__| | | |  __/ (__|   < 
- \_____|_|\__|_|  |_|\__,_|_.__/     |_|\___|\__,_|_| |_| |_|  \___|_| |_|\___|\___|_|\_\
-                                                                                         
-                                                                                         
-'@
-
-& $checkScript -VarFile $VarFile -GithubToken $GithubToken
-if ($LASTEXITCODE -ne 0) { throw "GitHub team check failed." }
-
-# ── Step 4: Full Terraform apply ──────────────────────────────────────────────
+# ── Step 3: Full Terraform apply ──────────────────────────────────────────────
 
 Write-Host ""
 Write-Host -ForegroundColor Cyan @'
@@ -383,12 +339,12 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($resourceGroupName)) {
     throw "Could not retrieve resource_group_name from Terraform output."
 }
 
-# ── Step 5: Publish function code ─────────────────────────────────────────────
+# ── Step 4: Publish function code ─────────────────────────────────────────────────
 
 & (Join-Path $scriptDir "deploy-functionupdate.ps1") -FunctionAppName $functionAppName -ResourceGroupName $resourceGroupName -FunctionProjectPath $FunctionProjectPath
 if ($LASTEXITCODE -ne 0) { throw "Function publish failed." }
 
-# ── Step 6: Sync GitHub Actions secrets from Terraform outputs ────────────────
+# ── Step 5: Sync GitHub Actions secrets from Terraform outputs ────────────────
 
 $ghCommand = Get-Command gh -ErrorAction SilentlyContinue
 if ($ghCommand) {
@@ -405,7 +361,8 @@ if ($ghCommand) {
 
     $repo = terraform output -raw create_images_repo
     if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($repo)) {
-        Write-Host "  Could not determine GitHub repo from Terraform output — skipping secret sync." -ForegroundColor Yellow
+        Write-Host "  create_images_repo is not set — skipping secret sync." -ForegroundColor Yellow
+        Write-Host "  Set TF_VAR_create_images_repo=org/repo to enable secret sync for CreateImages." -ForegroundColor Yellow
         return
     }
 

@@ -358,7 +358,7 @@ Each organization has a file under `terraform/organizations/<org>.tfvars`. Copy 
 | `subscription_id` | Azure subscription to deploy into |
 | `tenant_id` | Azure AD tenant ID |
 | `location` | Azure region (e.g. `swedencentral`) |
-| `org_name` | Short identifier used in resource names (`fkh-<org>-*`) |
+| `fkhDeploymentName` | Short identifier for this deployment, used in resource names (`fkh-<name>-*`) |
 | `github_org` | GitHub organization name for team membership (case-sensitive) |
 | `github_team_name` | Team controlling user access (created if missing) |
 | `github_team_members` | List of GitHub usernames to add to the team |
@@ -378,7 +378,6 @@ Each organization has a file under `terraform/organizations/<org>.tfvars`. Copy 
 
 | Environment Variable | Description |
 |----------------------|-------------|
-| `TF_VAR_github_token` | GitHub PAT with `admin:org` + `repo` + `read:org` scopes |
 | `TF_VAR_sql_sa_password` | SA password for the SQL Server pod (≥ 8 characters) |
 | `TF_VAR_github_app_private_key` | PEM-encoded private key of the GitHub App |
 
@@ -423,7 +422,7 @@ Whichever option you choose, configure:
   - `Contributor` — create and manage all resources
   - `User Access Administrator` — create role assignments for managed identities
 
-This identity's credentials are stored as GitHub Actions secrets (`AZURE_DEPLOY_CLIENT_ID`, `AZURE_DEPLOY_TENANT_ID`, `AZURE_DEPLOY_SUBSCRIPTION_ID`).
+This identity's credentials are stored as a GitHub Actions secret (`AZURE_DEPLOY_CLIENT_ID`). The `tenant_id` and `subscription_id` are read from `config/deployment.tfvars`.
 
 ### GitHub App
 
@@ -459,11 +458,10 @@ These are synced from Terraform outputs for the `CreateImages` workflow:
 | Secret | Purpose |
 |--------|---------|
 | `AZURE_DEPLOY_CLIENT_ID` | Deploy identity client ID (App Registration or Managed Identity) |
-| `AZURE_DEPLOY_TENANT_ID` | Azure AD tenant ID |
-| `AZURE_DEPLOY_SUBSCRIPTION_ID` | Azure subscription ID |
 | `SQL_SA_PASSWORD` | SQL Server SA password |
 | `GH_APP_PRIVATE_KEY` | GitHub App PEM private key |
-| `GH_PAT` | GitHub PAT (`admin:org` + `repo` + `read:org`) |
+
+> `tenant_id` and `subscription_id` are read from `config/deployment.tfvars` — no secrets needed.
 
 #### Secrets for client publishing (`DeployFkhClients`)
 

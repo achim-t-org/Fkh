@@ -24,11 +24,10 @@ Go to **Settings > Secrets and variables > Actions** and add:
 | Secret | Description |
 |---|---|
 | `AZURE_DEPLOY_CLIENT_ID` | Client ID of your deployment identity (App Registration or Managed Identity) |
-| `AZURE_DEPLOY_TENANT_ID` | Azure AD tenant ID |
-| `AZURE_DEPLOY_SUBSCRIPTION_ID` | Azure subscription ID |
 | `SQL_SA_PASSWORD` | SA password for the SQL Server deployed in AKS |
 | `GH_APP_PRIVATE_KEY` | PEM-encoded private key of the GitHub App |
-| `GH_PAT` | GitHub PAT with `admin:org`, `repo`, and `read:org` scopes |
+
+> **Note:** `tenant_id` and `subscription_id` are read from `config/deployment.tfvars` automatically — no secrets needed for those.
 
 ### 3. Deploy
 

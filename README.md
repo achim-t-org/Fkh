@@ -93,7 +93,6 @@ And the following accounts / permissions:
 Never commit secrets to source control. Set these as environment variables before deploying:
 
 ```powershell
-$env:TF_VAR_github_token          = "<your-github-pat>"
 $env:TF_VAR_sql_sa_password        = "<your-sql-sa-password>"
 $env:TF_VAR_github_app_private_key = Get-Content "<path-to>.pem" -Raw
 ```

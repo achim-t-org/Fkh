@@ -33,11 +33,6 @@ output "function_url" {
   value       = "https://${azurerm_windows_function_app.this.default_hostname}/api/CreateContainer"
 }
 
-output "github_team_url" {
-  description = "URL to the GitHub team for managing access."
-  value       = "https://github.com/orgs/${var.github_org}/teams/${github_team.provisioners.slug}"
-}
-
 output "acr_login_server" {
   description = "ACR login server for docker login."
   value       = azurerm_container_registry.this.login_server
@@ -58,12 +53,7 @@ output "subscription_id" {
   value       = var.subscription_id
 }
 
-output "create_images_repo" {
-  description = "GitHub org/repo where the Create Images workflow runs (for Actions secret sync)."
-  value       = var.create_images_repo
-}
-
-output "managed_identity_client_id" {
+output "managed_identity_client_id" { {
   description = "Client ID of the Function's Managed Identity."
   value       = azurerm_user_assigned_identity.function.client_id
 }

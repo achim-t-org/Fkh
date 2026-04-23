@@ -125,11 +125,8 @@ sealed class CreateDeploymentRepoCommand : ClientCommand
             Console.WriteLine($"  1. Edit config/deployment.tfvars in {deployFullRepo} with your settings");
             Console.WriteLine("  2. Add these GitHub Secrets in the deployment repo:");
             Console.WriteLine("     - AZURE_DEPLOY_CLIENT_ID");
-            Console.WriteLine("     - AZURE_DEPLOY_TENANT_ID");
-            Console.WriteLine("     - AZURE_DEPLOY_SUBSCRIPTION_ID");
             Console.WriteLine("     - SQL_SA_PASSWORD");
             Console.WriteLine("     - GH_APP_PRIVATE_KEY");
-            Console.WriteLine("     - GH_PAT");
             Console.WriteLine("  3. Run the 'Deploy Full Stack' workflow from the Actions tab");
         }
         finally

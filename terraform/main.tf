@@ -10,10 +10,6 @@ terraform {
       source  = "hashicorp/azuread"
       version = "~> 2.47"
     }
-    github = {
-      source  = "integrations/github"
-      version = "~> 6.0"
-    }
     kubernetes = {
       source  = "hashicorp/kubernetes"
       version = "~> 2.30"
@@ -36,21 +32,16 @@ provider "azuread" {
   tenant_id = var.tenant_id
 }
 
-provider "github" {
-  owner = var.github_org
-  token = var.github_token
-}
-
 locals {
   product_prefix              = "fkh"
-  storage_account_org_id = substr(replace(var.org_name, "-", ""), 0, 14)
+  storage_account_org_id = substr(replace(var.fkhDeploymentName, "-", ""), 0, 14)
 
-  resource_group_name    = "${local.product_prefix}-${var.org_name}"
-  aks_cluster_name       = "${local.product_prefix}-${var.org_name}-aks"
+  resource_group_name    = "${local.product_prefix}-${var.fkhDeploymentName}"
+  aks_cluster_name       = "${local.product_prefix}-${var.fkhDeploymentName}-aks"
   aks_dns_prefix         = local.aks_cluster_name
-  function_plan_name     = "${local.product_prefix}-${var.org_name}-plan"
-  function_app_name      = "${local.product_prefix}-${var.org_name}-backend"
-  function_identity_name = "${local.product_prefix}-${var.org_name}-identity"
+  function_plan_name     = "${local.product_prefix}-${var.fkhDeploymentName}-plan"
+  function_app_name      = "${local.product_prefix}-${var.fkhDeploymentName}-backend"
+  function_identity_name = "${local.product_prefix}-${var.fkhDeploymentName}-identity"
   function_storage_name  = "${local.product_prefix}${local.storage_account_org_id}func"
   dbs_storage_name       = "${local.product_prefix}${local.storage_account_org_id}dbs"
 }
@@ -64,7 +55,7 @@ resource "azurerm_resource_group" "this" {
   location = var.location
 
   tags = {
-    organization = var.org_name
+    deployment = var.fkhDeploymentName
     environment = "prod"
     managed_by  = "terraform"
   }
