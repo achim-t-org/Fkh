@@ -403,7 +403,7 @@ if ($ghCommand) {
         DBS_STORAGE_ACCOUNT    = terraform output -raw dbs_storage_account_name
     }
 
-    $repo = terraform output -raw github_repo
+    $repo = terraform output -raw create_images_repo
     if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($repo)) {
         Write-Host "  Could not determine GitHub repo from Terraform output — skipping secret sync." -ForegroundColor Yellow
         return

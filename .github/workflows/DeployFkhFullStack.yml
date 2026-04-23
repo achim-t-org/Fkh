@@ -1,47 +1,58 @@
 # ============================================================================
-# Deploy – Full Terraform deploy + function publish
+# Deploy – Full Terraform deploy + function publish (reusable workflow)
 # ============================================================================
-# Mirrors terraform/deploy.ps1 for CI/CD use.
+# Called from a private deployment repo via workflow_call.
+# The deployment repo provides the tfvars file (config/deployment.tfvars);
+# this workflow checks out the Fkh fork for Terraform modules and backend code.
 #
 # ── Deployment identity (OIDC, passwordless) ───────────────────────────────
 #   Create either an App Registration or a User-Assigned Managed Identity
 #   in Azure and configure:
-#     1. A federated credential for this repo:
+#     1. A federated credential for the deployment repo:
 #        - Issuer:   https://token.actions.githubusercontent.com
-#        - Subject:  repo:<org>/<repo>:ref:refs/heads/main
+#        - Subject:  repo:<org>/<deployment-repo>:ref:refs/heads/main
 #        - Audience: api://AzureADTokenExchange
 #     2. Role assignments on the target Azure subscription:
 #        • Contributor                (create/manage all resources)
 #        • User Access Administrator  (create role assignments for managed identities)
 #   See docs/AzureSetup-PathA.md for both options.
 #
-# ── Required GitHub Secrets ─────────────────────────────────────────────────
-#   AZURE_DEPLOY_CLIENT_ID        - Client ID of the deployment identity (App Registration or Managed Identity)
-#   AZURE_DEPLOY_TENANT_ID         - Azure AD tenant ID
-#   AZURE_DEPLOY_SUBSCRIPTION_ID   - Azure subscription ID
-#   SQL_SA_PASSWORD         - SA password for the SQL Server deployed in AKS
-#   GH_APP_PRIVATE_KEY     - PEM-encoded private key of the GitHub App
-#   GH_PAT                 - GitHub PAT with these scopes:
-#                              • admin:org   (create/manage teams)
-#                              • repo        (secret sync via gh CLI)
-#                              • read:org    (team membership checks)
+# ── Inputs ──────────────────────────────────────────────────────────────────
+#   fkh-repo   - Owner/name of the Fkh fork (e.g. my-org/Fkh)
+#   fkh-ref    - Git ref to checkout from the Fkh fork (default: main)
 #
-# ── Required GitHub Secrets (continued) ─────────────────────────────────────
-#   TFVARS_URL          - (Recommended) A secure download URL pointing to your
-#                          .tfvars file (e.g. Azure Blob SAS URL). The file is
-#                          downloaded at deploy time; all string values are masked
-#                          in workflow logs.
-#
-# ── Required GitHub Variables (non-secret) ──────────────────────────────────
-#   TFVARS_FILE         - (Fallback) Path to a .tfvars file committed in the repo,
-#                          e.g. organizations/freddydk.tfvars.
-#                          Only used if TFVARS_URL is not set.
+# ── Secrets (passed by the caller workflow) ─────────────────────────────────
+#   AZURE_DEPLOY_CLIENT_ID, AZURE_DEPLOY_TENANT_ID, AZURE_DEPLOY_SUBSCRIPTION_ID
+#   SQL_SA_PASSWORD, GH_APP_PRIVATE_KEY, GH_PAT
 # ============================================================================
 
 name: Deploy Fkh Full Stack
 
 on:
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      fkh-repo:
+        description: 'Owner/name of the Fkh fork (e.g. my-org/Fkh)'
+        required: true
+        type: string
+      fkh-ref:
+        description: 'Git ref to checkout from the Fkh fork'
+        required: false
+        type: string
+        default: 'main'
+    secrets:
+      AZURE_DEPLOY_CLIENT_ID:
+        required: true
+      AZURE_DEPLOY_TENANT_ID:
+        required: true
+      AZURE_DEPLOY_SUBSCRIPTION_ID:
+        required: true
+      SQL_SA_PASSWORD:
+        required: true
+      GH_APP_PRIVATE_KEY:
+        required: true
+      GH_PAT:
+        required: true
 
 permissions:
   id-token: write
@@ -61,30 +72,30 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: terraform
+        working-directory: fkh/terraform
 
     steps:
       # ── Checkout ──────────────────────────────────────────────────────────
-      - name: Checkout repository
+      - name: Checkout deployment repo (for tfvars)
         uses: actions/checkout@v6
+        with:
+          path: deployment
+
+      - name: Checkout Fkh fork (for terraform + backend code)
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ inputs.fkh-repo }}
+          ref: ${{ inputs.fkh-ref }}
+          path: fkh
 
       # ── Resolve tfvars ────────────────────────────────────────────────────
       - name: Resolve tfvars file
         id: tfvars
         shell: pwsh
-        env:
-          TFVARS_URL: ${{ secrets.TFVARS_URL }}
         run: |
-          if ($env:TFVARS_URL) {
-            $tfvarsFile = "organizations/_from_url.tfvars"
-            New-Item -ItemType Directory -Path (Split-Path $tfvarsFile) -Force | Out-Null
-            Invoke-WebRequest -Uri $env:TFVARS_URL -OutFile $tfvarsFile -UseBasicParsing
-            Write-Host "Downloaded tfvars from TFVARS_URL."
-          } elseif ("${{ vars.TFVARS_FILE }}") {
-            $tfvarsFile = "${{ vars.TFVARS_FILE }}"
-            Write-Host "Using TFVARS_FILE -> $tfvarsFile"
-          } else {
-            throw "Neither TFVARS_URL (secret) nor TFVARS_FILE (variable) is set. Configure one in Settings -> Secrets and variables -> Actions."
+          $tfvarsFile = "../../deployment/config/deployment.tfvars"
+          if (-not (Test-Path $tfvarsFile)) {
+            throw "tfvars file not found at config/deployment.tfvars in the deployment repo."
           }
           # Mask all non-empty, non-comment lines and all quoted string values
           foreach ($line in Get-Content $tfvarsFile) {
@@ -275,14 +286,14 @@ jobs:
           }
 
       # ── Sync GitHub Actions secrets ───────────────────────────────────────
-      - name: Sync GitHub Actions secrets
+      - name: Sync GitHub Actions secrets to Create Images repo
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
-          REPO=$(terraform output -raw github_repo)
+          REPO=$(terraform output -raw create_images_repo)
           if [ -z "$REPO" ]; then
-            echo "::warning::Could not determine GitHub repo — skipping secret sync."
+            echo "::warning::Could not determine create_images_repo — skipping secret sync."
             exit 0
           fi
 

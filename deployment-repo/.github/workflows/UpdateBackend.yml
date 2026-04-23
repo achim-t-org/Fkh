@@ -1,0 +1,45 @@
+# ============================================================================
+# Update Backend – Caller workflow for the Fkh reusable workflow
+# ============================================================================
+# Publishes Azure Function code changes without running Terraform.
+# Calls the reusable UpdateFkhBackEnd workflow in your Fkh fork.
+#
+# ── Required GitHub Secrets ─────────────────────────────────────────────────
+#   AZURE_DEPLOY_CLIENT_ID        - Client ID of the deployment identity
+#   AZURE_DEPLOY_TENANT_ID        - Azure AD tenant ID
+#   AZURE_DEPLOY_SUBSCRIPTION_ID  - Azure subscription ID
+# ============================================================================
+
+name: Update Backend
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check template freshness
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          REMOTE=$(gh api "repos/{{FKH_REPO}}/contents/deployment-repo/.github/workflows/UpdateBackend.yml" \
+            --jq '.content' 2>/dev/null | base64 -d 2>/dev/null || echo "FETCH_FAILED")
+          [ "$REMOTE" = "FETCH_FAILED" ] && exit 0
+          LOCAL=$(cat ".github/workflows/UpdateBackend.yml" 2>/dev/null || echo "")
+          if [ "$REMOTE" != "$LOCAL" ]; then
+            echo "::warning::UpdateBackend.yml differs from the template in {{FKH_REPO}}. Consider syncing from deployment-repo/ in your Fkh fork."
+          fi
+
+  update:
+    needs: check-version
+    uses: {{FKH_REPO}}/.github/workflows/UpdateFkhBackEnd.yml@main
+    with:
+      fkh-repo: {{FKH_REPO}}
+    secrets:
+      AZURE_DEPLOY_CLIENT_ID: ${{ secrets.AZURE_DEPLOY_CLIENT_ID }}
+      AZURE_DEPLOY_TENANT_ID: ${{ secrets.AZURE_DEPLOY_TENANT_ID }}
+      AZURE_DEPLOY_SUBSCRIPTION_ID: ${{ secrets.AZURE_DEPLOY_SUBSCRIPTION_ID }}

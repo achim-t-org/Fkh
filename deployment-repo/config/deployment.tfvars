@@ -1,12 +1,9 @@
-# ── Example organization deployment ─────────────────────────────────────────────────────────
-# Copy this file to organizations/<org-name>.tfvars and fill in the values.
-# Deploy with: .\deploy.ps1 -VarFile organizations/<org-name>.tfvars
+# ── Deployment configuration ─────────────────────────────────────────────────────────────────
+# Edit this file with your organization's values.
+# Deploy by running the "Deploy Full Stack" workflow in GitHub Actions.
 #
 # Never commit secrets (github_token, sql_sa_password, github_app_private_key) to source control.
-# Use environment variables instead:
-#   $env:TF_VAR_github_token = "<token>"
-#   $env:TF_VAR_sql_sa_password = "<password>"
-#   $env:TF_VAR_github_app_private_key = Get-Content "<path-to>.pem" -Raw
+# Set them as GitHub Secrets in this repository instead.
 
 # Azure
 subscription_id = "00000000-0000-0000-0000-000000000000"
@@ -36,17 +33,17 @@ windows_prepull_images = [  # Images to pre-pull on Windows nodes (speeds up con
 
 
 # SQL Server
-# sql_sa_password = ""  # set via TF_VAR_sql_sa_password environment variable
+# sql_sa_password = ""  # set as GitHub Secret: SQL_SA_PASSWORD
 namespace        = "app"
 sql_storage_size = "128Gi"
 
 # GitHub token for deployment
-# github_token    = ""  # set via TF_VAR_github_token environment variable
+# github_token    = ""  # set as GitHub Secret: GH_PAT
 
 # GitHub — primary org for team membership validation
 # Note that values here are case sensitive
 github_org             = "my-company"
-create_images_repo     = "Fkh"   # repo where Create Images workflow runs (your Fkh fork name for public/free, or deployment repo name for private/paid)
+create_images_repo     = "Fkh"   # repo where Create Images workflow runs (your Fkh fork name for public/free, or this repo name for private/paid)
 github_team_name  = "Fkh-members"
 github_team_members = [
   "freddyk"
@@ -78,7 +75,7 @@ contact_email_for_letsencrypt = "admin@example.com"
 
 # GitHub App installed in local fork of Fkh — triggers image-build workflows
 github_app_id              = ""  # paste your App ID here
-# github_app_private_key   = ""  # set via TF_VAR_github_app_private_key environment variable
+# github_app_private_key   = ""  # set as GitHub Secret: GH_APP_PRIVATE_KEY
 github_app_installation_id = ""  # paste your Installation ID here
 
 # Default user settings (deployed to settings/usersettings.json in storage)

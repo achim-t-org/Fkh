@@ -8,6 +8,24 @@ on:
         required: true
         type: string
 
+  workflow_call:
+    inputs:
+      artifactUrls:
+        description: 'Comma-separated list of artifact URLs'
+        required: true
+        type: string
+    secrets:
+      AZURE_CLIENT_ID:
+        required: true
+      AZURE_TENANT_ID:
+        required: true
+      AZURE_SUBSCRIPTION_ID:
+        required: true
+      ACR_LOGIN_SERVER:
+        required: true
+      DBS_STORAGE_ACCOUNT:
+        required: true
+
 permissions:
   id-token: write
   contents: read
@@ -17,6 +35,7 @@ env:
   AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
   AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
   ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+  DBS_STORAGE_ACCOUNT: ${{ secrets.DBS_STORAGE_ACCOUNT }}
 
 jobs:
   prepare:
@@ -28,7 +47,7 @@ jobs:
         id: resolve
         shell: pwsh
         env:
-          ARTIFACT_URLS: ${{ github.event.inputs.artifactUrls }}
+          ARTIFACT_URLS: ${{ inputs.artifactUrls }}
         run: |
           Install-Module -Name BcContainerHelper -Force -ErrorAction SilentlyContinue
           Import-Module BcContainerHelper -DisableNameChecking
@@ -123,7 +142,7 @@ jobs:
       - name: Upload database backup
         shell: pwsh
         env:
-          DBS_STORAGE_ACCOUNT: ${{ secrets.DBS_STORAGE_ACCOUNT }}
+          DBS_STORAGE_ACCOUNT: ${{ env.DBS_STORAGE_ACCOUNT }}
         run: |
           $ErrorActionPreference = "Stop"
           Import-Module BcContainerHelper -disableNameChecking
@@ -145,7 +164,7 @@ jobs:
       - name: Upload app and tenant database backups
         shell: pwsh
         env:
-          DBS_STORAGE_ACCOUNT: ${{ secrets.DBS_STORAGE_ACCOUNT }}
+          DBS_STORAGE_ACCOUNT: ${{ env.DBS_STORAGE_ACCOUNT }}
         run: |
           $ErrorActionPreference = "Stop"
           $exists = $true

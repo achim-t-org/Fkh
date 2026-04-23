@@ -1,0 +1,36 @@
+# ============================================================================
+# Create Images – Caller workflow for the Fkh reusable workflow
+# ============================================================================
+# Builds and pushes Business Central Docker images to ACR.
+# Use this if you want image builds to run privately (paid runners).
+# Alternatively, run the CreateImages workflow directly in your public Fkh fork.
+#
+# ── Required GitHub Secrets ─────────────────────────────────────────────────
+#   AZURE_CLIENT_ID        - Client ID of the managed identity (synced by Deploy Full Stack)
+#   AZURE_TENANT_ID        - Azure AD tenant ID (synced by Deploy Full Stack)
+#   AZURE_SUBSCRIPTION_ID  - Azure subscription ID (synced by Deploy Full Stack)
+#   ACR_LOGIN_SERVER       - ACR login server (synced by Deploy Full Stack)
+#   DBS_STORAGE_ACCOUNT    - Database storage account (synced by Deploy Full Stack)
+# ============================================================================
+
+name: Create Images
+
+on:
+  workflow_dispatch:
+    inputs:
+      artifactUrls:
+        description: 'Comma-separated list of artifact URLs'
+        required: true
+        type: string
+
+jobs:
+  create:
+    uses: {{FKH_REPO}}/.github/workflows/CreateImages.yml@main
+    with:
+      artifactUrls: ${{ inputs.artifactUrls }}
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+      DBS_STORAGE_ACCOUNT: ${{ secrets.DBS_STORAGE_ACCOUNT }}

@@ -89,7 +89,7 @@ resource "azurerm_windows_function_app" "this" {
     GITHUB_APP_PRIVATE_KEY                   = var.github_app_private_key
     GITHUB_APP_INSTALLATION_ID               = var.github_app_installation_id
     GITHUB_REPO_OWNER                        = var.github_org
-    GITHUB_REPO_NAME                         = var.github_repo
+    GITHUB_REPO_NAME                         = var.create_images_repo
     DBS_STORAGE_ACCOUNT_NAME                 = azurerm_storage_account.dbs.name
     LOG_ANALYTICS_WORKSPACE_ID               = azurerm_log_analytics_workspace.this.id
     CONTAINER_DEFAULT_CPU                     = var.container_default_cpu

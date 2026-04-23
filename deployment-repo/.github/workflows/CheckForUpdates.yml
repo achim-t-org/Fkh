@@ -1,0 +1,72 @@
+# ============================================================================
+# Check for Deployment Repo Updates
+# ============================================================================
+# Compares this repo's workflow files against the templates in your Fkh fork's
+# deployment-repo/ folder. Creates a GitHub Issue if any files are outdated.
+# ============================================================================
+
+name: Check for Deployment Repo Updates
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'   # Weekly Monday 8am UTC
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Compare with fork templates
+        id: compare
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          OUTDATED=""
+          for file in DeployFullStack.yml UpdateBackend.yml CreateImages.yml CheckForUpdates.yml; do
+            REMOTE=$(gh api "repos/{{FKH_REPO}}/contents/deployment-repo/.github/workflows/$file" \
+              --jq '.content' 2>/dev/null | base64 -d 2>/dev/null || echo "FETCH_FAILED")
+            [ "$REMOTE" = "FETCH_FAILED" ] && continue
+            LOCAL=$(cat ".github/workflows/$file" 2>/dev/null || echo "")
+            if [ "$REMOTE" != "$LOCAL" ]; then
+              OUTDATED="${OUTDATED}- ${file}\n"
+            fi
+          done
+          if [ -n "$OUTDATED" ]; then
+            echo "outdated=true" >> "$GITHUB_OUTPUT"
+            printf "%b" "$OUTDATED" > /tmp/outdated.txt
+          else
+            echo "outdated=false" >> "$GITHUB_OUTPUT"
+            echo "All workflow files are up to date."
+          fi
+
+      - name: Create issue if outdated
+        if: steps.compare.outputs.outdated == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          EXISTING=$(gh issue list --label "deployment-sync" --state open \
+            --json number --jq '.[0].number' 2>/dev/null || echo "")
+          if [ -n "$EXISTING" ]; then
+            echo "Issue #$EXISTING already open — skipping."
+            exit 0
+          fi
+          OUTDATED=$(cat /tmp/outdated.txt)
+          gh issue create \
+            --title "Deployment workflows are outdated" \
+            --label "deployment-sync" \
+            --body "$(cat <<EOF
+          The following workflow files differ from the templates in \`{{FKH_REPO}}\`:
+
+          ${OUTDATED}
+
+          To sync, copy the latest files from \`deployment-repo/.github/workflows/\` in your Fkh fork, or run \`fkh createdeploymentrepo --update\`.
+          EOF
+          )"

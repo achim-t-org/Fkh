@@ -162,8 +162,8 @@ variable "github_team_name" {
   default     = "Fkh-members"
 }
 
-variable "github_repo" {
-  description = "GitHub repository name (without org) that is allowed to authenticate via OIDC for image builds."
+variable "create_images_repo" {
+  description = "GitHub repository name (without org) where the Create Images workflow runs. Can be the Fkh fork (public, free) or the deployment repo (private, paid)."
   type        = string
 }
 
