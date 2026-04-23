@@ -92,8 +92,16 @@ sealed class CreateDeploymentRepoCommand : ClientCommand
                 Console.WriteLine($"  {relativePath}");
             }
 
-            // 6. Git add, commit, push
+            // 6. Configure git identity and commit
             Console.WriteLine("Committing and pushing...");
+            var (_, ghName, _) = RunProcess("gh", ["api", "user", "--jq", ".login"]);
+            var (_, ghEmail, _) = RunProcess("gh", ["api", "user", "--jq", ".email // (.login + \"@users.noreply.github.com\")"]);
+            ghName = ghName?.Trim(); ghEmail = ghEmail?.Trim();
+            if (!string.IsNullOrEmpty(ghName))
+                RunProcess("git", ["config", "user.name", ghName], tempDir);
+            if (!string.IsNullOrEmpty(ghEmail))
+                RunProcess("git", ["config", "user.email", ghEmail], tempDir);
+
             RunProcess("git", ["add", "-A"], tempDir);
             var (commitExit, _, commitErr) = RunProcess("git", ["commit", "-m", "Initial deployment repo from Fkh template"], tempDir);
             if (commitExit != 0)

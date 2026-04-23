@@ -46,7 +46,6 @@ sql_storage_size = "128Gi"
 # GitHub — primary org for team membership validation
 # Note that values here are case sensitive
 github_org             = "my-company"
-create_images_repo     = "Fkh"   # repo where Create Images workflow runs (your Fkh fork name for public/free, or deployment repo name for private/paid)
 github_team_name  = "Fkh-members"
 github_team_members = [
   "freddyk"
@@ -80,6 +79,7 @@ contact_email_for_letsencrypt = "admin@example.com"
 github_app_id              = ""  # paste your App ID here
 # github_app_private_key   = ""  # set via TF_VAR_github_app_private_key environment variable
 github_app_installation_id = ""  # paste your Installation ID here
+create_images_repo         = "my-company/Fkh"  # org/repo where Create Images workflow runs (your Fkh fork for public/free, or deployment repo for private/paid)
 
 # Default user settings (deployed to settings/usersettings.json in storage)
 # _members = defaults for all users, _admins = defaults for admin users

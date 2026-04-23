@@ -359,8 +359,7 @@ Each organization has a file under `terraform/organizations/<org>.tfvars`. Copy 
 | `tenant_id` | Azure AD tenant ID |
 | `location` | Azure region (e.g. `swedencentral`) |
 | `org_name` | Short identifier used in resource names (`fkh-<org>-*`) |
-| `github_org` | GitHub organization name (case-sensitive) |
-| `github_repo` | Repository name (your fork of Fkh) |
+| `github_org` | GitHub organization name for team membership (case-sensitive) |
 | `github_team_name` | Team controlling user access (created if missing) |
 | `github_team_members` | List of GitHub usernames to add to the team |
 | `github_admin_team_name` | Team controlling admin access |
@@ -370,6 +369,7 @@ Each organization has a file under `terraform/organizations/<org>.tfvars`. Copy 
 | `allowed_oidc_repos` | Repos allowed to call the Function App via GitHub Actions OIDC |
 | `github_app_id` | GitHub App ID (triggers image builds) |
 | `github_app_installation_id` | Installation ID of the GitHub App |
+| `create_images_repo` | GitHub org/repo where the Create Images workflow runs |
 | `contact_email_for_letsencrypt` | Email for Let's Encrypt certificates |
 | AKS sizing | `linux_vm_size`, `windows_vm_size`, `windows_min/max_node_count`, spot pool settings, `windows_overprovision`, `windows_prepull_images` |
 | SQL | `sql_storage_size`, `namespace` |
@@ -435,6 +435,7 @@ Configuration:
 |---------|---------------|
 | App ID | `github_app_id` in `.tfvars` |
 | Installation ID | `github_app_installation_id` in `.tfvars` |
+| Create Images repo | `create_images_repo` in `.tfvars` (org/repo format) |
 | Private key (.pem) | `TF_VAR_github_app_private_key` env var → stored in Function App settings as `GITHUB_APP_PRIVATE_KEY` |
 
 The `GitHubAppTokenService` in the backend creates short-lived JWTs signed with the private key, exchanges them for installation access tokens, and uses those to call `POST /repos/{owner}/{repo}/actions/workflows/CreateImages.yml/dispatches`.

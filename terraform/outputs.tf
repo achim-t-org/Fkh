@@ -60,7 +60,7 @@ output "subscription_id" {
 
 output "create_images_repo" {
   description = "GitHub org/repo where the Create Images workflow runs (for Actions secret sync)."
-  value       = "${var.github_org}/${var.create_images_repo}"
+  value       = var.create_images_repo
 }
 
 output "managed_identity_client_id" {

@@ -162,11 +162,6 @@ variable "github_team_name" {
   default     = "Fkh-members"
 }
 
-variable "create_images_repo" {
-  description = "GitHub repository name (without org) where the Create Images workflow runs. Can be the Fkh fork (public, free) or the deployment repo (private, paid)."
-  type        = string
-}
-
 variable "github_team_members" {
   description = "List of GitHub usernames to add to the access team."
   type        = list(string)
@@ -233,6 +228,11 @@ variable "github_app_private_key" {
 
 variable "github_app_installation_id" {
   description = "Installation ID of the GitHub App on the target repository."
+  type        = string
+}
+
+variable "create_images_repo" {
+  description = "GitHub org/repo where the Create Images workflow runs (e.g. my-company/Fkh). Can be the Fkh fork (public, free) or the deployment repo (private, paid)."
   type        = string
 }
 

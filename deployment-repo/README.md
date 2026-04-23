@@ -42,7 +42,7 @@ The **Create Images** workflow can run either:
 - **In your public Fkh fork** (free, but publicly visible which images you build)
 - **In this private repo** (paid runners, but private)
 
-Set `create_images_repo` in your `deployment.tfvars` to control which repo the backend dispatches image builds to.
+Set `create_images_repo` in your `deployment.tfvars` to the org/repo where the backend dispatches image builds to.
 
 ## Keeping Up to Date
 
