@@ -22,7 +22,7 @@ When prompted, select scopes that include `admin:org` and `read:user`:
 ## Create Your Organization tfvars File
 
 ```powershell
-Copy-Item terraform/organizations/example.tfvars terraform/organizations/<your-name>.tfvars
+Copy-Item deployment-repo/config/deployment.tfvars terraform/organizations/<your-name>.tfvars
 ```
 
 Edit the file and fill in all values:

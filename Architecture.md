@@ -351,7 +351,7 @@ Both `deploy.ps1` and `DeployFkhFullStack` run the following steps in order:
 
 ### Organization Configuration (`.tfvars`)
 
-Each organization has a file under `terraform/organizations/<org>.tfvars`. Copy `example.tfvars` as a starting point.
+Each organization has a file under `terraform/organizations/<org>.tfvars`. Copy `deployment-repo/config/deployment.tfvars` as a starting point.
 
 | Variable | Description |
 |----------|-------------|

@@ -111,7 +111,7 @@ az account set --subscription "<your-subscription-id>"
 
 1. Copy the example var file and fill in your values:
    ```powershell
-   Copy-Item terraform/organizations/example.tfvars terraform/organizations/my-org.tfvars
+   Copy-Item deployment-repo/config/deployment.tfvars terraform/organizations/my-org.tfvars
    # Edit my-org.tfvars
    ```
 
@@ -228,7 +228,7 @@ in both the VS Code extension and the CLI.
 
 ```
 terraform/               Terraform configuration
-  organizations/             Per-organization .tfvars files (copy example.tfvars)
+  organizations/             Per-organization .tfvars files (copy deployment-repo/config/deployment.tfvars)
    deploy.ps1             Full environment deploy (GitHub check + terraform apply + function publish)
    deploy-functionupdate.ps1 Function code publish only
   checkGitHubTeam.ps1    Imports existing GitHub team into Terraform state
