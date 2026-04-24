@@ -13,6 +13,7 @@
 #   AZURE_DEPLOY_CLIENT_ID        - Client ID of the deployment identity
 #   SQL_SA_PASSWORD                - SA password for the SQL Server in AKS
 #   GH_APP_PRIVATE_KEY             - PEM-encoded private key of the GitHub App
+#
 # ============================================================================
 
 name: Deploy Full Stack
