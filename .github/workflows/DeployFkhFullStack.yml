@@ -285,7 +285,7 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ steps.parse.outputs.github_app_id }}
+          client-id: ${{ steps.parse.outputs.github_app_id }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
 
       - name: Sync GitHub Actions secrets to deployment repo
@@ -330,39 +330,52 @@ jobs:
             }
           }
 
-          Write-Host ""
-          Write-Host "============================================================"
-          Write-Host "  Fkh Deployment Complete"
-          Write-Host "============================================================"
-          Write-Host ""
-          Write-Host "Backend URL:      $functionUrl"
-          Write-Host "AKS Cluster:      $clusterName"
-          Write-Host "Resource Group:   $resourceGroup"
-          Write-Host "ACR:              $acrName"
-          Write-Host "Location:         $location"
-          Write-Host ""
-          Write-Host "------------------------------------------------------------"
-          Write-Host "  GitHub Teams — Member access (can provision containers)"
-          Write-Host "------------------------------------------------------------"
-          if ($memberTeams.Count -eq 0) {
-            Write-Host "  (none configured)"
-          } else {
-            foreach ($t in $memberTeams) { Write-Host "  - $t" }
-          }
-          Write-Host ""
-          Write-Host "------------------------------------------------------------"
-          Write-Host "  GitHub Teams — Admin access"
-          Write-Host "------------------------------------------------------------"
-          if ($adminTeams.Count -eq 0) {
-            Write-Host "  (none configured)"
-          } else {
-            foreach ($t in $adminTeams) { Write-Host "  - $t" }
-          }
-          Write-Host ""
-          Write-Host "Populate these teams with your users at:"
+          # Annotations (visible on the workflow summary page)
+          Write-Host "::notice title=Backend URL::$functionUrl"
+          Write-Host "::notice title=AKS Cluster::$clusterName (resource group: $resourceGroup, location: $location)"
+          Write-Host "::notice title=Container Registry::$acrName"
+
+          $memberList = if ($memberTeams.Count -eq 0) { '(none configured)' } else { $memberTeams -join ', ' }
+          $adminList  = if ($adminTeams.Count -eq 0)  { '(none configured)' } else { $adminTeams -join ', ' }
+          Write-Host "::notice title=Member Teams (can provision containers)::$memberList"
+          Write-Host "::notice title=Admin Teams::$adminList"
+
+          $teamUrls = @()
           foreach ($t in ($memberTeams + $adminTeams) | Sort-Object -Unique) {
             $org, $team = $t -split '/', 2
-            Write-Host "  https://github.com/orgs/$org/teams/$team/members"
+            $teamUrls += "https://github.com/orgs/$org/teams/$team/members"
+          }
+          if ($teamUrls.Count -gt 0) {
+            Write-Host "::notice title=Populate teams with members at::$($teamUrls -join ' | ')"
+          }
+
+          # Job summary (rendered as Markdown on the run summary page)
+          $summary = @"
+          ## Fkh Deployment Complete
+
+          | Resource | Value |
+          |----------|-------|
+          | **Backend URL** | ``$functionUrl`` |
+          | **AKS Cluster** | ``$clusterName`` |
+          | **Resource Group** | ``$resourceGroup`` |
+          | **Container Registry** | ``$acrName`` |
+          | **Location** | ``$location`` |
+
+          ### GitHub Teams
+
+          | Role | Teams |
+          |------|-------|
+          | **Members** (can provision containers) | $memberList |
+          | **Admins** | $adminList |
+
+          "@
+          if ($teamUrls.Count -gt 0) {
+            $summary += "`n### Populate teams with members`n`n"
+            foreach ($url in $teamUrls) {
+              $summary += "- $url`n"
+            }
+          }
+          $summary >> $env:GITHUB_STEP_SUMMARY
           }
           Write-Host ""
           Write-Host "============================================================"

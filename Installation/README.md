@@ -1,6 +1,6 @@
 # Installing Fkh
 
-This guide walks you through installing Fkh step by step using the GitHub Actions workflows in your private fork. No local tools are required — everything runs in the cloud.
+This guide walks you through installing Fkh step by step using the GitHub Actions workflows in your private deployment repository. No local tools are required — everything runs in the cloud.
 
 Before you begin, make sure you understand the roles involved and have the right people available.
 
@@ -26,13 +26,13 @@ This person must be able to create repositories in the GitHub organization where
 
 They are responsible for:
 
-- Creating a **private fork** of the Fkh repository in the target GitHub organization.
+- **Forking** (Optional) the Fkh repository into the target GitHub organization (this fork is public — it contains no secrets).
+- Creating a **private deployment repository** that holds your organization-specific configuration, secrets, and caller workflows.
 - Creating a **GitHub App** in the organization (requires organization owner access).
-- Installing the GitHub App on the forked repository.
-- Configuring **GitHub Secrets and Variables** in the repository settings.
-- Creating a **Personal Access Token (PAT)** with `admin:org`, `repo`, and `read:org` scopes (used by Terraform to manage GitHub teams).
+- Installing the GitHub App on the deployment repository.
+- Configuring **GitHub Secrets and Variables** in the deployment repository settings.
 
-> **Why these permissions?** The fork must be private to protect your configuration. The GitHub App is used by the backend to dispatch image-build workflows. The PAT is used by Terraform during deployment to create and manage the GitHub teams that control user access.
+> **Why a separate deployment repo?** The deployment repository is private because it contains your organization-specific configuration (Azure subscription IDs, GitHub org/team names) and is where GitHub Secrets are stored. The Fkh fork itself can remain public — it contains only reusable workflows, Terraform modules, and source code. The GitHub App is used by the backend to dispatch image-build workflows and by the deployment workflow to sync secrets.
 
 ### Entra ID Privileged Role Administrator
 
