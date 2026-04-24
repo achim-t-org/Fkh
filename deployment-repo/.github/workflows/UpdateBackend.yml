@@ -21,22 +21,30 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Check template freshness
-        shell: bash
+        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          REMOTE=$(gh api "repos/{{FKH_REPO}}/contents/deployment-repo/.github/workflows/UpdateBackend.yml" \
-            --jq '.content' 2>/dev/null | base64 -d 2>/dev/null || echo "FETCH_FAILED")
-          [ "$REMOTE" = "FETCH_FAILED" ] && exit 0
-          LOCAL=$(cat ".github/workflows/UpdateBackend.yml" 2>/dev/null || echo "")
-          if [ "$REMOTE" != "$LOCAL" ]; then
-            echo "::warning::UpdateBackend.yml differs from the template in {{FKH_REPO}}. Consider syncing from deployment-repo/ in your Fkh fork."
-          fi
+          $PSNativeCommandUseErrorActionPreference = $false
+          try {
+            $remote = gh api "repos/Freddy-DK/Fkh/contents/deployment-repo/.github/workflows/UpdateBackend.yml" --jq '.content' 2>$null
+            if ($LASTEXITCODE -ne 0 -or -not $remote) { exit 0 }
+            $remote = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($remote)).TrimEnd()
+          } catch { exit 0 }
+          $localPath = '.github/workflows/UpdateBackend.yml'
+          if (Test-Path $localPath) {
+            $local = (Get-Content $localPath -Raw).TrimEnd()
+          } else {
+            $local = ''
+          }
+          if ($remote -ne $local) {
+            Write-Host '::warning::UpdateBackend.yml differs from the template in Freddy-DK/Fkh. Consider syncing from deployment-repo/ in your Fkh fork.'
+          }
 
   update:
     needs: check-version
-    uses: {{FKH_REPO}}/.github/workflows/UpdateFkhBackEnd.yml@main
+    uses: Freddy-DK/Fkh/.github/workflows/UpdateFkhBackEnd.yml@main
     with:
-      fkh-repo: {{FKH_REPO}}
+      fkh-repo: Freddy-DK/Fkh
     secrets:
       AZURE_DEPLOY_CLIENT_ID: ${{ secrets.AZURE_DEPLOY_CLIENT_ID }}

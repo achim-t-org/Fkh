@@ -24,29 +24,38 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Check template freshness
-        shell: bash
+        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          OUTDATED=""
-          for file in DeployFullStack.yml UpdateBackend.yml CreateImages.yml CheckForUpdates.yml; do
-            REMOTE=$(gh api "repos/{{FKH_REPO}}/contents/deployment-repo/.github/workflows/$file" \
-              --jq '.content' 2>/dev/null | base64 -d 2>/dev/null || echo "FETCH_FAILED")
-            [ "$REMOTE" = "FETCH_FAILED" ] && continue
-            LOCAL=$(cat ".github/workflows/$file" 2>/dev/null || echo "")
-            if [ "$REMOTE" != "$LOCAL" ]; then
-              OUTDATED="${OUTDATED}  - ${file}\n"
-            fi
-          done
-          if [ -n "$OUTDATED" ]; then
-            printf "::warning::The following workflow files differ from the templates in {{FKH_REPO}}:\n%b\nConsider syncing from deployment-repo/ in your Fkh fork." "$OUTDATED"
-          fi
+          $PSNativeCommandUseErrorActionPreference = $false
+          $outdated = @()
+          foreach ($file in @('DeployFullStack.yml','UpdateBackend.yml','CreateImages.yml','CheckForUpdates.yml')) {
+            try {
+              $remote = gh api "repos/Freddy-DK/Fkh/contents/deployment-repo/.github/workflows/$file" --jq '.content' 2>$null
+              if ($LASTEXITCODE -ne 0 -or -not $remote) { continue }
+              $remote = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($remote)).TrimEnd()
+            } catch { continue }
+            $localPath = ".github/workflows/$file"
+            if (Test-Path $localPath) {
+              $local = (Get-Content $localPath -Raw).TrimEnd()
+            } else {
+              $local = ''
+            }
+            if ($remote -ne $local) {
+              $outdated += $file
+            }
+          }
+          if ($outdated.Count -gt 0) {
+            $list = ($outdated | ForEach-Object { "  - $_" }) -join "`n"
+            Write-Host "::warning::The following workflow files differ from the templates in Freddy-DK/Fkh:`n$list`nConsider syncing from deployment-repo/ in your Fkh fork."
+          }
 
   deploy:
     needs: check-version
-    uses: {{FKH_REPO}}/.github/workflows/DeployFkhFullStack.yml@main
+    uses: Freddy-DK/Fkh/.github/workflows/DeployFkhFullStack.yml@main
     with:
-      fkh-repo: {{FKH_REPO}}
+      fkh-repo: Freddy-DK/Fkh
     secrets:
       AZURE_DEPLOY_CLIENT_ID: ${{ secrets.AZURE_DEPLOY_CLIENT_ID }}
       SQL_SA_PASSWORD: ${{ secrets.SQL_SA_PASSWORD }}
