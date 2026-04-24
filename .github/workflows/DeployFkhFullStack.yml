@@ -118,6 +118,7 @@ jobs:
 
           $subscriptionId = Get-TfVar "subscription_id" $varFile
           $tenantId       = Get-TfVar "tenant_id" $varFile
+          $location       = Get-TfVar "location" $varFile
           $deploymentName = Get-TfVar "fkhDeploymentName" $varFile
           $githubAppId    = Get-TfVar "github_app_id" $varFile
 
@@ -132,6 +133,7 @@ jobs:
           "state_key=$stateKey"           >> $env:GITHUB_OUTPUT
           "subscription_id=$subscriptionId" >> $env:GITHUB_OUTPUT
           "tenant_id=$tenantId"           >> $env:GITHUB_OUTPUT
+          "location=$location"            >> $env:GITHUB_OUTPUT
           "deployment_name=$deploymentName" >> $env:GITHUB_OUTPUT
           "github_app_id=$githubAppId"    >> $env:GITHUB_OUTPUT
 
@@ -165,15 +167,24 @@ jobs:
         shell: bash
         run: |
           az account set --subscription "${{ steps.parse.outputs.subscription_id }}"
-          az group create --name "${{ steps.parse.outputs.state_rg }}" --location westeurope --output none 2>/dev/null || true
+
+          echo "Creating resource group ${{ steps.parse.outputs.state_rg }}..."
+          az group create \
+            --name "${{ steps.parse.outputs.state_rg }}" \
+            --location "${{ steps.parse.outputs.location }}" \
+            --output none
+
+          echo "Creating storage account ${{ steps.parse.outputs.state_account }}..."
           az storage account create \
             --name "${{ steps.parse.outputs.state_account }}" \
             --resource-group "${{ steps.parse.outputs.state_rg }}" \
-            --location westeurope \
+            --location "${{ steps.parse.outputs.location }}" \
             --sku Standard_LRS \
             --kind StorageV2 \
             --allow-blob-public-access false \
-            --output none 2>/dev/null || true
+            --output none
+
+          echo "Creating blob container ${{ steps.parse.outputs.state_container }}..."
           az storage container create \
             --name "${{ steps.parse.outputs.state_container }}" \
             --account-name "${{ steps.parse.outputs.state_account }}" \
