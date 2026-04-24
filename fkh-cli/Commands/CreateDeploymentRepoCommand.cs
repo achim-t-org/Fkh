@@ -138,23 +138,23 @@ sealed class CreateDeploymentRepoCommand : ClientCommand
         return 0;
     }
 
-    private static async Task<string?> FetchFileFromGitHubAsync(string repo, string path)
+    private static Task<string?> FetchFileFromGitHubAsync(string repo, string path)
     {
         // Use gh api to fetch file content (base64 encoded)
         var (exit, stdout, _) = RunProcess("gh", ["api", $"repos/{repo}/contents/{path}", "--jq", ".content"]);
         if (exit != 0 || string.IsNullOrWhiteSpace(stdout))
-            return null;
+            return Task.FromResult<string?>(null);
 
         try
         {
             // GitHub API returns base64 with newlines
             var base64 = stdout.Trim().Replace("\n", "").Replace("\r", "");
             var bytes = Convert.FromBase64String(base64);
-            return System.Text.Encoding.UTF8.GetString(bytes);
+            return Task.FromResult<string?>(System.Text.Encoding.UTF8.GetString(bytes));
         }
         catch
         {
-            return null;
+            return Task.FromResult<string?>(null);
         }
     }
 }
