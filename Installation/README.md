@@ -22,17 +22,18 @@ They are responsible for:
 
 ### GitHub Organization Administrator
 
-This person must be able to create repositories in the GitHub organization where the Fkh fork will live.
+This person must be able to create repositories in the GitHub organization.
 
 They are responsible for:
 
-- **Forking** (Optional) the Fkh repository into the target GitHub organization (this fork is public — it contains no secrets).
-- Creating a **private deployment repository** that holds your organization-specific configuration, secrets, and caller workflows.
+- Creating a **private deployment repository** that holds your organization-specific configuration, secrets, and caller workflows. This is all you need — forking the Fkh repository is **not required**. The deployment workflows reference the public Fkh repository directly.
 - Creating a **GitHub App** in the organization (requires organization owner access).
 - Installing the GitHub App on the deployment repository.
 - Configuring **GitHub Secrets and Variables** in the deployment repository settings.
 
-> **Why a separate deployment repo?** The deployment repository is private because it contains your organization-specific configuration (Azure subscription IDs, GitHub org/team names) and is where GitHub Secrets are stored. The Fkh fork itself can remain public — it contains only reusable workflows, Terraform modules, and source code. The GitHub App is used by the backend to dispatch image-build workflows and by the deployment workflow to sync secrets.
+> **Why a separate deployment repo?** The deployment repository is private because it contains your organization-specific configuration (Azure subscription IDs, GitHub org/team names) and is where GitHub Secrets are stored. The deployment workflows call reusable workflows in the public Freddy-DK/Fkh repository — no fork needed. The GitHub App is used by the backend to dispatch image-build workflows and by the deployment workflow to sync secrets.
+
+> **Optional: fork Fkh.** If you want to contribute to Fkh (bug fixes, new features, etc.), you can fork the Fkh repository into your organization and point the deployment workflows at your fork instead. This lets you test changes before submitting pull requests back to the upstream repository.
 
 ### Entra ID Privileged Role Administrator
 
