@@ -377,6 +377,6 @@ jobs:
             }
           }
           $summary >> $env:GITHUB_STEP_SUMMARY
-          }
+
           Write-Host ""
           Write-Host "============================================================"
