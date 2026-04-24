@@ -30,7 +30,7 @@ output "function_app_name" {
 
 output "function_url" {
   description = "Base URL of the Azure Function. Paste this into FUNCTION_URL in the VS Code extension."
-  value       = "https://${azurerm_windows_function_app.this.default_hostname}/api/CreateContainer"
+  value       = "https://${azurerm_windows_function_app.this.default_hostname}/api"
 }
 
 output "acr_login_server" {
