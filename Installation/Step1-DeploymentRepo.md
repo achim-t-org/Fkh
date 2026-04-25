@@ -2,88 +2,115 @@
 
 > **Performed by:** GitHub Organization Administrator
 
-Before anything else, you need a private repository in your GitHub organization. This is where your configuration, secrets, and deployment workflows live. The workflows in this repository delegate to reusable workflows in the public Fkh fork.
+In this step you create the private repository that will hold your Fkh deployment configuration, secrets, and caller workflows.
 
-## Why a separate deployment repository?
+## What you will create
 
-Fkh uses a **two-repo model**:
+| Item | Purpose |
+|---|---|
+| Fkh repository or fork | Provides reusable workflows, Terraform modules, backend code, CLI, and VS Code extension |
+| Private deployment repository | Stores your organization-specific `deployment.tfvars`, GitHub Secrets, and caller workflows |
+
+The deployment repository is private because it contains environment-specific configuration and stores secrets. The Fkh source repository can remain public because it should not contain your organization's secrets or deployment values.
+
+## Repository model
+
+Fkh uses a two-repository model:
 
 | Repository | Visibility | Contains |
 |---|---|---|
-| **Fkh fork** | Public | Reusable workflows, Terraform modules, backend code, CLI, VS Code extension |
-| **Deployment repo** | **Private** | Your `deployment.tfvars`, caller workflows, GitHub Secrets |
+| `Fkh` | Public | Reusable workflows, Terraform modules, backend code, CLI, VS Code extension |
+| `fkh-deploy-<deploymentname>` | Private | `deployment.tfvars`, caller workflows, GitHub Secrets |
 
-The deployment repo is private because it holds your organization-specific configuration (Azure subscription IDs, GitHub org names, team members) and is where you store secrets (SQL passwords, GitHub App private keys, PATs). The caller workflows in this repo pass those secrets to the reusable workflows in your Fkh fork.
+Each Fkh deployment needs its own deployment repository. You only need one Fkh fork per GitHub organization, even if you create several deployments.
 
-### One fork, many deployments
+Example:
 
-Every Fkh deployment needs its own dedicated deployment repository. However, you only need to **fork the Fkh repository once** per GitHub organization. A single Fkh fork can serve any number of deployment repositories.
-
-For example, an organization managing multiple customer environments would have:
-
-```
-my-company/Fkh                             ← forked once (public)
+```text
+my-company/Fkh                             ← forked once, public
 my-company/fkh-deploy-contoso              ← deployment repo for Contoso
 my-company/fkh-deploy-migrateFabrikam      ← deployment repo for Fabrikam migration
 my-company/fkh-deploy-litware              ← deployment repo for Litware
 ```
 
-Each deployment repo has its own configuration and can have its own secrets, Azure subscription, and deployment identity — completely independent of the others.
+Each deployment repository can have its own Azure subscription, configuration, secrets, and deployment identity.
 
-However, if multiple deployments share the same Azure subscription and deployment identity, you can avoid duplicating secrets by storing them as **organization-level secrets** in GitHub (Settings → Secrets and variables → Actions → Organization secrets). Organization secrets can be scoped to selected repositories, so you can share them across your `fkh-deploy-*` repos without exposing them to unrelated repositories. In that case, you only need to create the deployment identity once (Step 2) and add a federated credential for each deployment repo that uses it.
-
-## 1.1 — Fork the Fkh repository
-
-If you haven't already, fork the Fkh repository into your GitHub organization. This gives you the reusable workflows, Terraform modules, and all source code.
-
-1. Go to the [Fkh repository](https://github.com/Freddy-DK/Fkh) on GitHub.
-2. Click **Fork** → under **Owner**, select your GitHub organization.
-3. Keep the repository name as `Fkh`.
-4. Click **Create fork**.
-
-> This fork is public by default. That's fine — it contains no secrets or organization-specific configuration.
-
-## 1.2 — Create the private deployment repository
-
-1. Go to your GitHub organization → **Repositories** → **New repository**.
-2. Set the repository name using the pattern `fkh-deploy-<deploymentname>`, where `<deploymentname>` identifies this specific deployment (e.g. `fkh-deploy-contoso`, `fkh-deploy-migrateFabrikam`, `fkh-deploy-litware`).
-3. Set visibility to **Private**.
-4. Check **Add a README file** (optional).
-5. Click **Create repository**.
-
-> **Naming convention:** Using `fkh-deploy-<deploymentname>` makes it easy to identify Fkh deployment repos at a glance and keeps them grouped alphabetically. The `<deploymentname>` part is up to you — use your environment name, region, team, or whatever makes sense.
-
-## 1.3 — Copy the deployment template into your repository
-
-The Fkh repository includes a `deployment-repo/` folder with a starter configuration and workflow templates.
-
-1. In your Fkh fork, navigate to the `deployment-repo/` folder.
-2. Copy the contents into the root of your new private deployment repository. You should end up with:
-
-```
-your-deployment-repo/
-├── config/
-│   └── deployment.tfvars    # Your environment configuration (edit in a later step)
-├── .github/
-│   └── workflows/           # Caller workflows (copied from deployment-repo)
-└── README.md
-```
-
-> **Tip:** You can do this via the GitHub web UI (download as ZIP and upload) or clone both repos locally and copy the files.
-
-## 1.4 — Note your repository details
-
-Record these values — you will need them in the next step when setting up the federated credential for the deployment identity:
-
-| Value | Example |
-|-------|--------|
-| **GitHub organization name** | `my-company` |
-| **Deployment repository name** | `fkh-deploy-contoso` |
-| **Fkh fork repository name** | `Fkh` |
-
-> **Important:** The federated credential you create in Step 2 must reference the **deployment repository** name (e.g. `fkh-deploy-contoso`), not `Fkh`. The deployment workflows run from this private repo, so the OIDC token issued by GitHub Actions will have this repo's name in the subject claim.
+> **Optional shared secrets:** if multiple deployments use the same Azure subscription and deployment identity, you can store shared values as GitHub organization-level secrets. Scope those secrets only to the deployment repositories that need them. You still need a separate federated credential for each deployment repository that uses the shared identity.
 
 ---
 
-*Previous: [Roles and Overview](README.md)*
+## 1.1 — Fork the Fkh repository
+
+Skip this section if your organization already has an Fkh fork.
+
+1. Open the [Fkh repository](https://github.com/Freddy-DK/Fkh) on GitHub.
+2. Select **Fork**.
+3. Under **Owner**, choose your GitHub organization.
+4. Keep the repository name as `Fkh`.
+5. Select **Create fork**.
+
+> The fork is public by default. That is expected. It should not contain secrets or organization-specific configuration.
+
+## 1.2 — Create the private deployment repository
+
+1. In your GitHub organization, go to **Repositories**.
+2. Select **New repository**.
+3. Name the repository using this pattern:
+
+   ```text
+   fkh-deploy-<deploymentname>
+   ```
+
+   Examples:
+
+   ```text
+   fkh-deploy-contoso
+   fkh-deploy-migrateFabrikam
+   fkh-deploy-litware
+   ```
+
+4. Set **Visibility** to **Private**.
+5. Optionally select **Add a README file**.
+6. Select **Create repository**.
+
+> **Naming tip:** use a deployment name that makes the environment easy to recognize, such as a customer, region, team, or project name.
+
+## 1.3 — Copy the deployment template
+
+The Fkh repository includes a `deployment-repo/` folder with the starter configuration and workflow templates.
+
+1. In your Fkh repository or fork, open the `deployment-repo/` folder.
+2. Copy everything in that folder into the root of your new private deployment repository.
+3. Confirm that the deployment repository looks like this:
+
+```text
+your-deployment-repo/
+├── config/
+│   └── deployment.tfvars
+├── .github/
+│   └── workflows/
+└── README.md
+```
+
+You can copy the files using the GitHub web UI or by cloning both repositories locally and copying the files.
+
+## 1.4 — Save the repository details
+
+Record these values. You will need them in Step 2 when creating the federated credential for the deployment identity.
+
+| Value | Example |
+|---|---|
+| GitHub organization name | `my-company` |
+| Deployment repository name | `fkh-deploy-contoso` |
+| Fkh repository name | `Fkh` |
+
+> **Important:** the federated credential in Step 2 must reference the private deployment repository, not the Fkh source repository. GitHub Actions runs from the deployment repository, so the OIDC token uses the deployment repository name.
+
+## Step complete
+
+You now have a private deployment repository with the starter files in place.
+
+---
+
+*Previous: [Roles and Overview](README.md)*  
 *Next: [Step 2 — Create the Azure Deployment Identity](Step2-AzureIdentity.md)*

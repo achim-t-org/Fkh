@@ -1,14 +1,25 @@
 # Step 5 — Configure Your Environment
 
-> **Performed by:** GitHub Organization Admin (with values collected from earlier steps)
+> **Performed by:** GitHub Organization Administrator, using values collected in earlier steps
 
-In this step you fill out the `deployment.tfvars` configuration file and create the GitHub Secrets that the deployment workflow needs. Everything is done in the **private deployment repository** you created in Step 1.
+In this step you complete the deployment configuration and create the GitHub Secrets required by the workflows.
+
+All work in this step happens in the private deployment repository you created in Step 1.
+
+## What you will configure
+
+| Item | Stored in | Contains secrets? |
+|---|---|---|
+| Deployment settings | `config/deployment.tfvars` | No |
+| Azure deployment Client ID | GitHub Secret | Yes |
+| SQL Server SA password | GitHub Secret | Yes |
+| GitHub App private key | GitHub Secret | Yes |
 
 ---
 
 ## 5.1 — Edit deployment.tfvars
 
-Open `config/deployment.tfvars` in your deployment repository. Walk through each section below and fill in the values.
+Open `config/deployment.tfvars` in your deployment repository. Use the sections below as a checklist.
 
 ### Deployment name
 
@@ -16,9 +27,14 @@ Open `config/deployment.tfvars` in your deployment repository. Walk through each
 fkhDeploymentName = "contoso"
 ```
 
-A short identifier for this deployment. Used as a prefix for all Azure resource names (e.g. `fkh-contoso-aks`, `fkh-contoso-backend`). Use only lowercase letters, numbers, and hyphens.
+This is a short identifier for the deployment. It is used in Azure resource names, for example:
 
-**Where it comes from:** You choose this. It should identify the deployment (e.g. your company name or project).
+```text
+fkh-contoso-aks
+fkh-contoso-backend
+```
+
+Use lowercase letters, numbers, and hyphens only.
 
 ### Azure settings
 
@@ -28,56 +44,67 @@ tenant_id       = "00000000-0000-0000-0000-000000000000"
 location        = "westeurope"
 ```
 
-| Setting | Where to find it |
-|---------|-----------------|
-| `subscription_id` | Azure Portal → **Subscriptions** → copy the **Subscription ID**, or run `az account show --query id -o tsv` |
-| `tenant_id` | Azure Portal → **Microsoft Entra ID** → **Overview** → **Tenant ID**, or run `az account show --query tenantId -o tsv` |
-| `location` | The Azure region where all resources will be created. Common values: `westeurope`, `eastus`, `swedencentral`. Pick one close to your users. |
+| Setting | What to enter | Where to find it |
+|---|---|---|
+| `subscription_id` | Azure subscription ID | Azure Portal → **Subscriptions** → target subscription → **Subscription ID** |
+| `tenant_id` | Entra ID tenant ID | Azure Portal → **Microsoft Entra ID** → **Overview** → **Tenant ID** |
+| `location` | Azure region for Fkh resources | Choose a region close to your users, for example `westeurope`, `eastus`, or `swedencentral` |
+
+If you use Azure CLI, you can also find these values with:
+
+```bash
+az account show --query id -o tsv
+az account show --query tenantId -o tsv
+```
 
 ### Kubernetes settings
 
-These have sensible defaults — you can leave them as-is for a first deployment and tune later:
+These settings have safe defaults for a first deployment. You can tune them later.
 
-| Setting | Default | Notes |
-|---------|---------|-------|
-| `aks_sku_tier` | `"Free"` | `Free` = no SLA (dev/test), `Standard` = 99.95% SLA, `Premium` = 99.99% SLA |
-| `linux_vm_size` | `"Standard_D4s_v5"` | Linux system node pool. D4s minimum recommended for SQL Server |
-| `windows_vm_size` | `"Standard_D4s_v5"` | Windows node pool for BC containers |
-| `windows_min_node_count` | `0` | Set to `1` to keep a warm node (~$70–100/mo). `0` = scale to zero when idle |
-| `windows_max_node_count` | `10` | Upper limit for the autoscaler |
+| Setting | Default | Guidance |
+|---|---|---|
+| `aks_sku_tier` | `"Free"` | Use `Free` for dev/test. Use `Standard` or `Premium` when you need an SLA. |
+| `linux_vm_size` | `"Standard_D4s_v5"` | Linux system node pool. D4s is the minimum recommended size for SQL Server. |
+| `windows_vm_size` | `"Standard_D4s_v5"` | Windows node pool for Business Central containers. |
+| `windows_min_node_count` | `0` | Use `0` to scale to zero when idle. Use `1` to keep a warm node. |
+| `windows_max_node_count` | `10` | Maximum Windows nodes the autoscaler can create. |
 
-> **Cost tip:** With `windows_min_node_count = 0`, you only pay for Windows nodes when containers are running. The first container takes longer to start because a node must be provisioned.
+> **Cost tip:** with `windows_min_node_count = 0`, you pay for Windows nodes only when containers are running. The tradeoff is that the first container starts more slowly because AKS must provision a Windows node.
 
-The spot pool, overprovision, and prepull settings are all optional optimizations — skip them for now.
+The spot pool, overprovision, and prepull settings are optional optimizations. Leave them unchanged for your first deployment unless you already know you need them.
 
-### SQL Server
+### SQL Server settings
 
 ```hcl
 namespace        = "app"
 sql_storage_size = "128Gi"
 ```
 
-Leave these at their defaults unless you have a specific reason to change them. The SA password is set as a GitHub Secret (see below), not in this file.
+Keep these defaults unless you have a specific reason to change them.
 
-### Contact email
+The SQL Server SA password is not stored in this file. You will create it as a GitHub Secret later in this step.
+
+### Contact email for certificates
 
 ```hcl
 contact_email_for_letsencrypt = "admin@example.com"
 ```
 
-Used by Let's Encrypt for certificate expiry notifications. Replace with a real email address.
+Enter a real email address. Let's Encrypt uses this address for certificate expiry notifications.
 
-### AAD container authentication (optional)
+### AAD container authentication
 
 ```hcl
 enable_aad_container_auth = false
 ```
 
-Set to `true` if you want users to sign into BC containers with their Microsoft 365 accounts. Requires the deployment identity to have the **Privileged Role Administrator** directory role in Entra ID (see Step 2, optional step A.5 or B.4).
+Set this to `true` only if users should sign in to Business Central containers with their Microsoft 365 accounts.
 
-### GitHub teams (authorization)
+If you set it to `true`, the deployment identity must have the **Privileged Role Administrator** directory role in Entra ID. See Step 2, section A.5 or B.4.
 
-These reference the teams you created in Step 4. Values are **case-sensitive** and must match exactly.
+### GitHub teams
+
+Use the teams created or selected in Step 4.
 
 ```hcl
 allowed_org_teams = [
@@ -90,11 +117,13 @@ admin_org_teams = [
 ```
 
 | Setting | What it controls |
-|---------|-----------------|
-| `allowed_org_teams` | Teams whose members can provision BC containers |
-| `admin_org_teams` | Teams whose members get admin access (they also have normal access) |
+|---|---|
+| `allowed_org_teams` | Teams whose members can provision Business Central containers |
+| `admin_org_teams` | Teams whose members get admin access and normal access |
 
-### OIDC repos (optional)
+> **Important:** organization and team names are case-sensitive.
+
+### OIDC repositories
 
 ```hcl
 allowed_oidc_repos = [
@@ -102,9 +131,11 @@ allowed_oidc_repos = [
 ]
 ```
 
-GitHub repositories that can authenticate to the Fkh Function App via OIDC (e.g. for CI/CD pipelines that create containers). Leave empty unless you have this use case.
+Use this only when another GitHub repository needs to authenticate to the Fkh Function App through OIDC, for example a CI/CD pipeline that creates containers.
 
-### GitHub App
+Leave this list empty if you do not need that scenario.
+
+### GitHub App settings
 
 ```hcl
 github_app_id              = "123456"
@@ -112,13 +143,13 @@ github_app_installation_id = "12345678"
 ```
 
 | Setting | Where to find it |
-|---------|-----------------|
-| `github_app_id` | From Step 3.4 — GitHub App settings page, near the top |
-| `github_app_installation_id` | From Step 3.4 — the number in the installation URL |
+|---|---|
+| `github_app_id` | Step 3.4 → GitHub App settings page |
+| `github_app_installation_id` | Step 3.4 → final number in the GitHub App installation URL |
 
-The private key is **not** stored here — it goes in a GitHub Secret (see below).
+Do not put the GitHub App private key in `deployment.tfvars`. You will store it as a GitHub Secret.
 
-### User settings (optional)
+### Default user settings
 
 ```hcl
 default_user_settings = <<-EOT
@@ -133,63 +164,75 @@ default_user_settings = <<-EOT
 EOT
 ```
 
-Controls defaults like how many simultaneous containers each user can have. Adjust the numbers to fit your environment.
+This controls default limits, such as how many simultaneous containers a user can have. Adjust the numbers to match your environment.
 
 ---
 
 ## 5.2 — Commit deployment.tfvars
 
-Commit and push the updated `config/deployment.tfvars` to the `main` branch of your deployment repository. This file contains no secrets — all sensitive values go into GitHub Secrets.
+Commit and push `config/deployment.tfvars` to the `main` branch of the deployment repository.
+
+This file should contain only non-secret settings. Sensitive values belong in GitHub Secrets.
 
 ---
 
 ## 5.3 — Create GitHub Secrets
 
-Go to your **deployment repository** → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**.
+In the deployment repository, go to:
 
-Create each of the following secrets:
+```text
+Settings → Secrets and variables → Actions → New repository secret
+```
 
-### `AZURE_DEPLOY_CLIENT_ID`
+Create the following repository secrets.
 
-The **Client ID** of the deployment identity you created in Step 2.
+### AZURE_DEPLOY_CLIENT_ID
 
-| Identity type | Where to find it |
-|--------------|-----------------|
-| Managed Identity | Azure Portal → the Managed Identity → **Overview** → **Client ID** |
-| App Registration | Azure Portal → **App registrations** → your app → **Overview** → **Application (client) ID** |
+Value: the Client ID of the deployment identity from Step 2.
 
-> **Note:** `tenant_id` and `subscription_id` no longer need to be set as secrets — they are read from `config/deployment.tfvars` automatically.
+| Identity type | Where to find the Client ID |
+|---|---|
+| Managed Identity | Azure Portal → Managed Identity → **Overview** → **Client ID** |
+| App Registration | Azure Portal → **App registrations** → app → **Overview** → **Application (client) ID** |
 
-### `SQL_SA_PASSWORD`
+> `tenant_id` and `subscription_id` do not need to be stored as secrets. They are read from `config/deployment.tfvars`.
 
-The **SA password** for the SQL Server that runs in AKS.
+### SQL_SA_PASSWORD
 
-**Where it comes from:** You choose this. It must be at least 8 characters and meet SQL Server complexity requirements (uppercase, lowercase, number or special character).
+Value: the SA password for the SQL Server that runs in AKS.
 
-> **Important:** Once deployed, changing this password requires manual intervention. Pick a strong password and store it in a password manager.
+You choose this password. It must be at least 8 characters and meet SQL Server complexity requirements, including uppercase, lowercase, and a number or special character.
 
-### `GH_APP_PRIVATE_KEY`
+> **Important:** changing this password after deployment requires manual intervention. Choose a strong password and store it in a password manager.
 
-The **PEM-encoded private key** of the GitHub App you created in Step 3.
+### GH_APP_PRIVATE_KEY
 
-**Where to find it:** The `.pem` file downloaded in Step 3.2. Paste the entire file contents, including the `-----BEGIN RSA PRIVATE KEY-----` and `-----END RSA PRIVATE KEY-----` lines.
+Value: the PEM-encoded private key for the GitHub App from Step 3.
 
----
+Paste the full contents of the `.pem` file, including these lines:
 
-## Summary
-
-After completing this step, your deployment repository should have:
-
-| What | Where | Count |
-|------|-------|-------|
-| Configuration file | `config/deployment.tfvars` (committed) | All non-secret settings |
-| `AZURE_DEPLOY_CLIENT_ID` | GitHub Secret | From Step 2 |
-| `SQL_SA_PASSWORD` | GitHub Secret | You choose |
-| `GH_APP_PRIVATE_KEY` | GitHub Secret | From Step 3 |
-
-You are now ready to deploy.
+```text
+-----BEGIN RSA PRIVATE KEY-----
+...
+-----END RSA PRIVATE KEY-----
+```
 
 ---
 
-*Previous: [Step 4 — Set Up GitHub Teams](Step4-GitHubTeams.md)*
+## Step summary
+
+After completing this step, your deployment repository should contain:
+
+| Item | Location | Source |
+|---|---|---|
+| Completed configuration file | `config/deployment.tfvars` | Values collected in Steps 1–4 |
+| `AZURE_DEPLOY_CLIENT_ID` | GitHub Secret | Deployment identity from Step 2 |
+| `SQL_SA_PASSWORD` | GitHub Secret | Password you choose |
+| `GH_APP_PRIVATE_KEY` | GitHub Secret | GitHub App private key from Step 3 |
+
+You are ready to deploy.
+
+---
+
+*Previous: [Step 4 — Set Up GitHub Teams](Step4-GitHubTeams.md)*  
 *Next: [Step 6 — Deploy](Step6-Deploy.md)*

@@ -1,212 +1,269 @@
 # Step 2 — Create the Azure Deployment Identity
 
-> **Already have a deployment identity from another Fkh deployment?** You can reuse the same Managed Identity or App Registration for multiple deployments. Just add a new **federated credential** for the new deployment repository (step A.3 or B.2) and ensure the identity has the required **subscription roles** on the new target subscription (step A.4 or B.3). Then skip ahead to [Step 3 — Create the GitHub App](Step3-GitHubApp.md).
+The deployment identity is the identity GitHub Actions uses to create and manage Fkh infrastructure in Azure. It authenticates with Azure through OIDC, so you do not need to create or store a client secret.
 
-The deployment identity is what GitHub Actions uses to deploy and manage all Fkh infrastructure in your Azure subscription. It authenticates using OIDC (OpenID Connect) — no passwords or client secrets are involved.
+> **Already have a deployment identity?** You can reuse a Managed Identity or App Registration from another Fkh deployment. Add a federated credential for the new deployment repository, confirm the identity has the required subscription roles on the target subscription, and then continue to [Step 3 — Create the GitHub App](Step3-GitHubApp.md).
 
-You have two options for the identity type. Both result in a **Client ID** that you will store as a GitHub secret later. The GitHub workflows do not care which type you chose — they work identically.
+## What you will create
 
-## Choosing between Managed Identity and App Registration
+By the end of this step, you will have:
 
-| | Managed Identity | App Registration |
+- A deployment identity, either a Managed Identity or an App Registration.
+- A federated credential that allows GitHub Actions to authenticate as that identity.
+- Azure subscription role assignments for the identity.
+- The Client ID, Subscription ID, and Tenant ID needed later.
+
+## Choose an identity type
+
+Both options work with the same GitHub workflows. Choose the option that best fits your organization's governance model.
+
+|  | Option A: Managed Identity | Option B: App Registration |
 |---|---|---|
-| **Lives in** | An Azure resource group (Azure Resource Manager) | Microsoft Entra ID (Azure AD) |
-| **Created by** | Azure Subscription Owner | Entra ID Administrator |
-| **Entra ID admin required?** | **No** — unless you want AAD authentication for containers (see below) | **Yes** — from the start |
-| **Best when** | Your org restricts App Registration creation, or you want to keep everything inside Azure RM | You already use App Registrations, or your org prefers this pattern |
-| **Cleanup** | Delete the resource group | Delete the App Registration in Entra ID |
+| Lives in | Azure resource group | Microsoft Entra ID |
+| Created by | Azure Subscription Owner | Entra ID Administrator |
+| Entra ID admin required immediately? | No, unless you enable AAD container authentication | Yes |
+| Best when | Your organization restricts App Registration creation, or you prefer Azure Resource Manager resources | Your organization already standardizes on App Registrations |
+| Cleanup | Delete the identity resource or resource group | Delete the App Registration |
 
-### A note on AAD authentication for containers
+## AAD container authentication note
 
-Fkh can optionally create per-container Entra ID App Registrations so users sign in with their Microsoft 365 accounts instead of username/password. This feature is **disabled by default** and controlled by the `enable_aad_container_auth` setting in your `.tfvars` configuration file:
+Fkh can optionally let users sign in to Business Central containers with their Microsoft 365 accounts. This is controlled by the following setting in `deployment.tfvars`:
 
 ```hcl
-enable_aad_container_auth = true   # set to true to enable AAD authentication for containers
+enable_aad_container_auth = true
 ```
 
-When enabled, Terraform grants the `Application.ReadWrite.OwnedBy` Microsoft Graph permission to the **Function's managed identity** — a separate identity that Terraform creates automatically during deployment, not the deployment identity you are setting up now.
+This feature is disabled by default.
 
-To grant this Graph permission, the **deployment identity** must itself have the **Privileged Role Administrator** directory role in Entra ID. Without it, the Terraform resource will fail.
+When AAD container authentication is enabled, Terraform grants the `Application.ReadWrite.OwnedBy` Microsoft Graph permission to the Function App managed identity that is created during deployment. To grant that permission, the deployment identity you create in this step must have the **Privileged Role Administrator** directory role in Entra ID.
 
-**If you leave `enable_aad_container_auth = false`** (the default), the Graph permission is not assigned, no Entra ID directory role is needed on the deployment identity, and the deployment will succeed without any Entra ID admin involvement. You can always enable it later by setting the variable to `true`, having the Entra ID admin grant the directory role (see steps A.5 / B.4 below), and re-running the deployment.
+Use this rule:
 
-**If you set `enable_aad_container_auth = true`**, you must also complete the optional Entra ID directory role step (A.5 or B.4) before running the deployment workflow.
+| If `enable_aad_container_auth` is... | Then... |
+|---|---|
+| `false` | Skip the optional Entra ID directory role step. No Entra ID admin involvement is required for Managed Identity deployments. |
+| `true` | Complete step A.5 or B.4 before running the deployment. |
+
+You can enable AAD container authentication later by changing the setting, granting the directory role, and re-running the deployment workflow.
 
 ---
 
 ## Option A — Managed Identity
 
-> **Who does this:** Azure Subscription Owner
+> **Performed by:** Azure Subscription Owner
 
-This option keeps everything inside Azure Resource Manager. No Entra ID admin involvement is needed.
+Use this option if you want the deployment identity to be an Azure resource.
 
-### A.1 — Create a resource group for the deployment identity
+### A.1 — Create a resource group for the identity
 
-The Managed Identity needs a resource group to live in. This is **separate** from the resource group Terraform will create for the Fkh workload.
+The Managed Identity needs a resource group. This is separate from the Fkh workload resource group that Terraform creates later.
 
-1. Go to **Azure Portal** → search for **Resource groups** → **Create**.
-2. Select your target subscription.
-3. Enter a name, e.g. `fkh-deploy`.
-4. Choose any region (it does not have to match where Fkh will be deployed).
-5. Click **Review + create** → **Create**.
+1. In the Azure Portal, open **Resource groups**.
+2. Select **Create**.
+3. Choose the target subscription.
+4. Enter a resource group name, for example `fkh-deploy`.
+5. Choose any region. It does not need to match the Fkh deployment region.
+6. Select **Review + create**.
+7. Select **Create**.
 
 ### A.2 — Create the Managed Identity
 
-1. Go to **Azure Portal** → search for **Managed Identities** → **Create**.
-2. Select your subscription.
-3. Select the resource group you just created (`fkh-deploy`).
-4. Choose the same region.
-5. Enter a name, e.g. `fkh-deploy-identity`.
-6. Click **Review + create** → **Create**.
-7. Once created, open the identity and note the **Client ID** from the **Overview** page.
+1. In the Azure Portal, open **Managed Identities**.
+2. Select **Create**.
+3. Choose the subscription.
+4. Choose the resource group from A.1, for example `fkh-deploy`.
+5. Choose a region.
+6. Enter a name, for example `fkh-deploy-identity`.
+7. Select **Review + create**.
+8. Select **Create**.
+9. Open the new identity and copy the **Client ID** from the **Overview** page.
 
-### A.3 — Add a federated credential for GitHub Actions
+### A.3 — Add the federated credential
 
-This allows GitHub Actions to authenticate as this identity using OIDC — no secrets needed.
+This credential allows GitHub Actions to authenticate as the Managed Identity through OIDC.
 
-1. In the Managed Identity, go to **Settings** → **Federated credentials** → **Add credential**.
-2. For **Federated credential scenario**, select **GitHub Actions deploying Azure resources**.
-3. Fill in:
-   - **Organization**: your GitHub organization name (e.g. `my-company`)
-   - **Repository**: the name of your **private deployment repository** from Step 1 (e.g. `fkh-deploy`) — **not** `Fkh`
-   - **Entity type**: Branch
-   - **Based on selection**: `main`
-   - **Name**: `fkh-main-branch`
-4. The **Issuer**, **Subject identifier**, and **Audience** fields are auto-populated. Click **Add**.
+1. Open the Managed Identity.
+2. Go to **Settings** → **Federated credentials**.
+3. Select **Add credential**.
+4. For **Federated credential scenario**, select **GitHub Actions deploying Azure resources**.
+5. Enter the following values:
 
-> **Important:** The repository must be your private deployment repo, not the Fkh fork. The deployment workflows run from the deployment repo, so the OIDC token issued by GitHub Actions will carry that repo's name in the subject claim.
+| Field | Value |
+|---|---|
+| Organization | Your GitHub organization, for example `my-company` |
+| Repository | Your private deployment repository, for example `fkh-deploy-contoso` |
+| Entity type | `Branch` |
+| Based on selection | `main` |
+| Name | `fkh-main-branch` |
 
-### A.4 — Assign roles on the subscription
+6. Confirm that **Issuer**, **Subject identifier**, and **Audience** are populated automatically.
+7. Select **Add**.
 
-The deployment identity needs two roles on the target subscription so Terraform can create and manage all infrastructure.
+> **Important:** use the private deployment repository name, not `Fkh`. The deployment workflows run from the private deployment repository.
 
-1. Go to **Subscriptions** → select your subscription → **Access control (IAM)** → **Add** → **Add role assignment**.
-2. Select the **Privileged administrator roles** tab.
-3. Select **Contributor** → click **Next**.
-4. Click **Select members** → search for `fkh-deploy-identity` → select it → click **Select**.
-5. Click **Review + assign**.
-6. Repeat the above for **User Access Administrator**:
-   - On the **Conditions** tab, select **Allow user to assign all roles except privileged administrator roles**. Fkh only assigns non-privileged roles (AcrPull, Storage Blob Data Contributor, etc.).
+### A.4 — Assign subscription roles
 
-### A.5 — (Optional) Grant Entra ID directory role for AAD container authentication
+The deployment identity needs two roles on the target Azure subscription.
+
+1. In the Azure Portal, open **Subscriptions**.
+2. Select the target subscription.
+3. Go to **Access control (IAM)**.
+4. Select **Add** → **Add role assignment**.
+5. Select the **Privileged administrator roles** tab.
+6. Select **Contributor**.
+7. Select **Next**.
+8. Select **Select members**.
+9. Search for the Managed Identity, for example `fkh-deploy-identity`.
+10. Select the identity, then select **Select**.
+11. Select **Review + assign**.
+12. Repeat the process for **User Access Administrator**.
+13. On the **Conditions** tab for **User Access Administrator**, select **Allow user to assign all roles except privileged administrator roles**.
+
+Fkh uses this permission to assign non-privileged roles such as `AcrPull` and `Storage Blob Data Contributor`.
+
+### A.5 — Optional: grant Entra ID directory role
 
 > **Performed by:** Entra ID Privileged Role Admin
 
-> **Skip this step** if you do not need AAD authentication for containers. You can always come back and do this later.
+Skip this section unless you will set `enable_aad_container_auth = true`.
 
-During deployment, Terraform will need to grant the `Application.ReadWrite.OwnedBy` Graph permission to the Function's managed identity. To do that, the deployment identity needs an Entra ID directory role.
+1. In the Azure Portal, open **Microsoft Entra ID**.
+2. Go to **Roles and administrators**.
+3. Search for **Privileged Role Administrator**.
+4. Open the role.
+5. Select **Add assignments**.
+6. Select **Select members**.
+7. Search for the Managed Identity, for example `fkh-deploy-identity`.
+8. Select the identity, then select **Select**.
+9. Select **Next**.
+10. Choose an **Active** assignment.
+11. Select **Assign**.
 
-1. Go to **Azure Portal** → **Microsoft Entra ID** → **Roles and administrators**.
-2. Search for **Privileged Role Administrator** and click on it.
-3. Click **Add assignments** → **Select members**.
-4. Search for `fkh-deploy-identity` (your Managed Identity) → select it → click **Select**.
-5. Click **Next** → choose **Active** assignment → click **Assign**.
-
-> **Scope:** This role allows the deployment identity to grant Graph application permissions during Terraform runs. It does not give it access to your Azure subscription resources — that is handled by the Contributor and User Access Administrator roles you assigned in A.4.
+This role allows the deployment identity to grant Microsoft Graph application permissions during Terraform runs. Azure subscription access is still controlled separately by the roles assigned in A.4.
 
 ### A.6 — Save your values
 
-Record these values — you will need them when configuring GitHub secrets and the environment file.
+Record the following values for Step 5:
 
 | Value | Where to find it |
-|-------|-----------------|
-| **Client ID** | Managed Identity → Overview |
-| **Subscription ID** | Azure Portal → Subscriptions → your subscription |
-| **Tenant ID** | Azure Portal → Microsoft Entra ID → Overview |
+|---|---|
+| Client ID | Managed Identity → **Overview** |
+| Subscription ID | Azure Portal → **Subscriptions** → target subscription |
+| Tenant ID | Azure Portal → **Microsoft Entra ID** → **Overview** |
 
-> **Done.** You have created the deployment identity. Continue to [Step 3 — Create the GitHub App](Step3-GitHubApp.md).
+You can now continue to [Step 3 — Create the GitHub App](Step3-GitHubApp.md).
 
 ---
 
 ## Option B — App Registration
 
-> **Who does this:** Steps B.1–B.2 are performed by the **Entra ID Privileged Role Admin**. Steps B.3–B.4 are performed by the **Azure Subscription Owner**. If one person holds both roles, they complete all steps.
+> **Performed by:** Entra ID Privileged Role Admin and Azure Subscription Owner
 
-This option creates the identity in Microsoft Entra ID rather than in Azure Resource Manager.
+Use this option if your organization prefers deployment identities to live in Microsoft Entra ID.
 
 ### B.1 — Create the App Registration
 
 > **Performed by:** Entra ID Privileged Role Admin
 
-1. Go to **Azure Portal** → **Microsoft Entra ID** → **App registrations** → **New registration**.
-2. Enter a name, e.g. `fkh-deploy`.
-3. For **Supported account types**, keep the default (single tenant).
-4. Leave **Redirect URI** blank.
-5. Click **Register**.
-6. On the overview page, note the **Application (client) ID**.
+1. In the Azure Portal, open **Microsoft Entra ID**.
+2. Go to **App registrations**.
+3. Select **New registration**.
+4. Enter a name, for example `fkh-deploy`.
+5. Keep **Supported account types** set to the default single-tenant option.
+6. Leave **Redirect URI** empty.
+7. Select **Register**.
+8. On the overview page, copy the **Application (client) ID**.
 
-### B.2 — Add a federated credential for GitHub Actions
+### B.2 — Add the federated credential
 
 > **Performed by:** Entra ID Privileged Role Admin
 
-1. In the App Registration, go to **Certificates & secrets** → **Federated credentials** → **Add credential**.
-2. For **Federated credential scenario**, select **GitHub Actions deploying Azure resources**.
-3. Fill in:
-   - **Organization**: your GitHub organization name (e.g. `my-company`)
-   - **Repository**: the name of your **private deployment repository** from Step 1 (e.g. `fkh-deploy`) — **not** `Fkh`
-   - **Entity type**: Branch
-   - **Based on selection**: `main`
-   - **Name**: `fkh-main-branch`
-4. The **Issuer**, **Subject identifier**, and **Audience** fields are auto-populated. Click **Add**.
+1. Open the App Registration.
+2. Go to **Certificates & secrets** → **Federated credentials**.
+3. Select **Add credential**.
+4. For **Federated credential scenario**, select **GitHub Actions deploying Azure resources**.
+5. Enter the following values:
 
-> **Important:** The repository must be your private deployment repo, not the Fkh fork. The deployment workflows run from the deployment repo, so the OIDC token issued by GitHub Actions will carry that repo's name in the subject claim.
+| Field | Value |
+|---|---|
+| Organization | Your GitHub organization, for example `my-company` |
+| Repository | Your private deployment repository, for example `fkh-deploy-contoso` |
+| Entity type | `Branch` |
+| Based on selection | `main` |
+| Name | `fkh-main-branch` |
 
-### B.3 — Assign roles on the subscription
+6. Confirm that **Issuer**, **Subject identifier**, and **Audience** are populated automatically.
+7. Select **Add**.
+
+> **Important:** use the private deployment repository name, not `Fkh`. The deployment workflows run from the private deployment repository.
+
+### B.3 — Assign subscription roles
 
 > **Performed by:** Azure Subscription Owner
 
-The Entra ID admin must provide the name or Client ID of the App Registration created in B.1 so the Subscription Owner can find it when assigning roles.
+The Entra ID admin should provide the App Registration name or Client ID to the Azure Subscription Owner.
 
-1. Go to **Subscriptions** → select your subscription → **Access control (IAM)** → **Add** → **Add role assignment**.
-2. Select the **Privileged administrator roles** tab.
-3. Select **Contributor** → click **Next**.
-4. Click **Select members** → search for `fkh-deploy` (the App Registration name) → select it → click **Select**.
-5. Click **Review + assign**.
-6. Repeat the above for **User Access Administrator**:
-   - On the **Conditions** tab, select **Allow user to assign all roles except privileged administrator roles**. Fkh only assigns non-privileged roles (AcrPull, Storage Blob Data Contributor, etc.).
+1. In the Azure Portal, open **Subscriptions**.
+2. Select the target subscription.
+3. Go to **Access control (IAM)**.
+4. Select **Add** → **Add role assignment**.
+5. Select the **Privileged administrator roles** tab.
+6. Select **Contributor**.
+7. Select **Next**.
+8. Select **Select members**.
+9. Search for the App Registration, for example `fkh-deploy`.
+10. Select it, then select **Select**.
+11. Select **Review + assign**.
+12. Repeat the process for **User Access Administrator**.
+13. On the **Conditions** tab for **User Access Administrator**, select **Allow user to assign all roles except privileged administrator roles**.
 
-### B.4 — (Optional) Grant Entra ID directory role for AAD container authentication
+Fkh uses this permission to assign non-privileged roles such as `AcrPull` and `Storage Blob Data Contributor`.
+
+### B.4 — Optional: grant Entra ID directory role
 
 > **Performed by:** Entra ID Privileged Role Admin
 
-> **Skip this step** if you do not need AAD authentication for containers. You can always come back and do this later.
+Skip this section unless you will set `enable_aad_container_auth = true`.
 
-During deployment, Terraform will need to grant the `Application.ReadWrite.OwnedBy` Graph permission to the Function's managed identity. To do that, the deployment identity must itself hold an Entra ID directory role that allows granting Graph application permissions.
+1. In the Azure Portal, open **Microsoft Entra ID**.
+2. Go to **Roles and administrators**.
+3. Search for **Privileged Role Administrator**.
+4. Open the role.
+5. Select **Add assignments**.
+6. Select **Select members**.
+7. Search for the App Registration, for example `fkh-deploy`.
+8. Select it, then select **Select**.
+9. Select **Next**.
+10. Choose an **Active** assignment.
+11. Select **Assign**.
 
-1. Go to **Azure Portal** → **Microsoft Entra ID** → **Roles and administrators**.
-2. Search for **Privileged Role Administrator** and click on it.
-3. Click **Add assignments** → **Select members**.
-4. Search for `fkh-deploy` (your App Registration) → select it → click **Select**.
-5. Click **Next** → choose **Active** assignment → click **Assign**.
-
-> **Note:** Since the Entra ID admin already created the App Registration in B.1, they can do this step at the same time — no separate coordination needed.
+Because the Entra ID admin creates the App Registration in B.1, they can usually complete this optional step at the same time.
 
 ### B.5 — Save your values
 
-Record these values — you will need them when configuring GitHub secrets and the environment file.
+Record the following values for Step 5:
 
 | Value | Where to find it |
-|-------|-----------------|
-| **Client ID** | App Registration → Overview → Application (client) ID |
-| **Subscription ID** | Azure Portal → Subscriptions → your subscription |
-| **Tenant ID** | Azure Portal → Microsoft Entra ID → Overview (or App Registration → Overview → Directory (tenant) ID) |
+|---|---|
+| Client ID | App Registration → **Overview** → **Application (client) ID** |
+| Subscription ID | Azure Portal → **Subscriptions** → target subscription |
+| Tenant ID | Azure Portal → **Microsoft Entra ID** → **Overview**, or App Registration → **Overview** → **Directory (tenant) ID** |
 
-> **Done.** You have created the deployment identity. Continue to [Step 3 — Create the GitHub App](Step3-GitHubApp.md).
+You can now continue to [Step 3 — Create the GitHub App](Step3-GitHubApp.md).
 
 ---
 
-## Summary
+## Step summary
 
-| Step | Option A (Managed Identity) | Option B (App Registration) |
-|------|-----------------------------|-----------------------------|
-| Create identity | Azure Subscription Owner creates Managed Identity in a resource group | Entra ID Admin creates App Registration in Entra ID |
-| Federated credential | Azure Subscription Owner adds OIDC credential | Entra ID Admin adds OIDC credential |
-| Subscription roles | Azure Subscription Owner assigns Contributor + User Access Administrator | Azure Subscription Owner assigns Contributor + User Access Administrator |
-| Entra ID directory role | Optional — only if AAD container auth is desired (step A.5) | Optional — only if AAD container auth is desired (step B.4) |
-| Entra ID admin needed? | Only if AAD container auth is desired | Yes, from the start (creates the App Registration); directory role is a natural addition |
+| Task | Managed Identity | App Registration |
+|---|---|---|
+| Create identity | Azure Subscription Owner | Entra ID Admin |
+| Add federated credential | Azure Subscription Owner | Entra ID Admin |
+| Assign Azure subscription roles | Azure Subscription Owner | Azure Subscription Owner |
+| Grant Entra ID directory role | Optional; only for AAD container authentication | Optional; only for AAD container authentication |
 | Values to save | Client ID, Subscription ID, Tenant ID | Client ID, Subscription ID, Tenant ID |
 
 ---
 
-*Previous: [Step 1 — Create the Private Deployment Repository](Step1-DeploymentRepo.md)*
+*Previous: [Step 1 — Create the Private Deployment Repository](Step1-DeploymentRepo.md)*  
 *Next: [Step 3 — Create the GitHub App](Step3-GitHubApp.md)*

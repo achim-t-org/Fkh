@@ -1,61 +1,78 @@
 # Installing Fkh
 
-This guide walks you through installing Fkh step by step using the GitHub Actions workflows in your private deployment repository. No local tools are required — everything runs in the cloud.
+This guide walks you through a full Fkh installation using GitHub Actions workflows in a private deployment repository. You do not need local tooling for the installation; the deployment runs in GitHub Actions and Azure.
 
-Before you begin, make sure you understand the roles involved and have the right people available.
+Use this page to confirm who needs to be involved before you start.
 
-## Roles
+## Installation flow
 
-An Fkh installation touches three systems — an **Azure subscription**, a **GitHub organization**, and **Microsoft Entra ID** (Azure AD). Depending on your organization, one person may cover all three roles, or you may need to coordinate between several people.
+| Step | File | Main owner | Outcome |
+|---|---|---|---|
+| 1 | [Create the private deployment repository](Step1-DeploymentRepo.md) | GitHub Organization Admin | A private repo that contains your deployment configuration and caller workflows |
+| 2 | [Create the Azure deployment identity](Step2-AzureIdentity.md) | Azure Subscription Owner, and sometimes Entra ID Admin | A deployment identity that GitHub Actions can use to deploy to Azure |
+| 3 | [Create the GitHub App](Step3-GitHubApp.md) | GitHub Organization Admin | A GitHub App that can trigger workflows and sync repository secrets |
+| 4 | [Set up GitHub teams](Step4-GitHubTeams.md) | GitHub Organization Admin | Teams that control who can use and administer Fkh |
+| 5 | [Configure your environment](Step5-ConfigureEnvironment.md) | GitHub Organization Admin | Completed `deployment.tfvars` and required GitHub Secrets |
+| 6 | [Deploy](Step6-Deploy.md) | GitHub Organization Admin or repo maintainer | Fkh infrastructure deployed to Azure |
+
+## Roles you need
+
+An Fkh installation touches three systems:
+
+- Azure subscription
+- GitHub organization
+- Microsoft Entra ID, formerly Azure AD
+
+In a small organization, one person may hold all required permissions. In a larger organization, you may need three people. Confirm the roles below before starting.
 
 ### Azure Subscription Owner
 
-This person owns (or has **Owner** role on) the Azure subscription where Fkh will be deployed.
+This person has the **Owner** role on the Azure subscription where Fkh will be deployed.
 
 They are responsible for:
 
 - Creating or providing the target Azure subscription.
-- Assigning the **Contributor** and **User Access Administrator** roles to the deployment identity (App Registration or Managed Identity) that the GitHub workflows will use.
-- Approving any Azure policy exemptions if the subscription is governed by organizational policies.
+- Assigning **Contributor** and **User Access Administrator** to the deployment identity used by GitHub Actions.
+- Approving Azure policy exemptions, if your organization requires them.
 
-> **Why Owner?** Assigning privileged roles like *Contributor* and *User Access Administrator* on a subscription requires the **Owner** role. A lesser role is not sufficient.
+> **Why Owner is required:** assigning privileged roles such as **Contributor** and **User Access Administrator** at subscription scope requires the **Owner** role.
 
 ### GitHub Organization Administrator
 
-This person must be able to create repositories in the GitHub organization.
+This person can create repositories, GitHub Apps, teams, secrets, and variables in the GitHub organization.
 
 They are responsible for:
 
-- Creating a **private deployment repository** that holds your organization-specific configuration, secrets, and caller workflows. This is all you need — forking the Fkh repository is **not required**. The deployment workflows reference the public Fkh repository directly.
-- Creating a **GitHub App** in the organization (requires organization owner access).
-- Installing the GitHub App on the deployment repository.
-- Configuring **GitHub Secrets and Variables** in the deployment repository settings.
+- Creating the private deployment repository.
+- Creating and installing the GitHub App.
+- Creating GitHub teams for Fkh access control.
+- Configuring GitHub Actions secrets and variables in the deployment repository.
 
-> **Why a separate deployment repo?** The deployment repository is private because it contains your organization-specific configuration (Azure subscription IDs, GitHub org/team names) and is where GitHub Secrets are stored. The deployment workflows call reusable workflows in the public Freddy-DK/Fkh repository — no fork needed. The GitHub App is used by the backend to dispatch image-build workflows and by the deployment workflow to sync secrets.
+> **Why a private deployment repository is used:** the deployment repository contains organization-specific configuration such as Azure subscription IDs, GitHub organization names, team names, and GitHub Secrets. It calls reusable workflows from the public `Freddy-DK/Fkh` repository; you do not need to fork Fkh just to deploy it.
 
-> **Optional: fork Fkh.** If you want to contribute to Fkh (bug fixes, new features, etc.), you can fork the Fkh repository into your organization and point the deployment workflows at your fork instead. This lets you test changes before submitting pull requests back to the upstream repository.
+> **Optional fork:** fork Fkh only if you want to modify or contribute to the Fkh source code. You can then point the deployment workflows at your fork while testing changes.
 
 ### Entra ID Privileged Role Administrator
 
-This person must be able to grant Microsoft Graph application permissions to a Managed Identity (or App Registration).
+This person can grant Microsoft Graph application permissions to a Managed Identity or App Registration.
 
 They are responsible for:
 
-- Granting the deployment identity the **Privileged Role Administrator** directory role in Entra ID so that Terraform can assign the `Application.ReadWrite.OwnedBy` Graph permission to the Function's managed identity during deployment.
+- Granting the deployment identity the **Privileged Role Administrator** directory role, but only if you enable AAD container authentication.
 
-> **Why this role?** When a user requests AAD authentication on a container, the Fkh backend automatically creates a dedicated Entra ID App Registration for that container. The `Application.ReadWrite.OwnedBy` Graph permission on the Function's managed identity is what makes this possible — it allows the backend to create and manage only the app registrations it owns. The deployment identity needs the directory role so Terraform can grant that Graph permission during infrastructure provisioning.
+> **Why this may be needed:** when AAD container authentication is enabled, the Fkh backend creates a dedicated Entra ID App Registration for each container. The Function App managed identity needs the `Application.ReadWrite.OwnedBy` Microsoft Graph permission to create and manage only the app registrations it owns. Terraform can grant that permission during deployment, but only if the deployment identity has the required Entra ID directory role.
 
-> **Who can do this?** Typically someone with the **Privileged Role Administrator**, **Global Administrator**, or **Application Administrator** role in your Entra ID tenant. The exact role depends on your organization's Entra ID configuration.
+> **Who can usually do this:** someone with **Privileged Role Administrator**, **Global Administrator**, or a role with equivalent permission in your Entra ID tenant. The exact role depends on your tenant configuration.
 
-### Role summary
+## Role summary
 
 | Role | System | Minimum permission required |
-|------|--------|-----------------------------|
+|---|---|---|
 | Azure Subscription Owner | Azure | **Owner** on the target subscription |
-| GitHub Organization Admin | GitHub | Ability to create repos, GitHub Apps, and PATs in the org |
-| Entra ID Privileged Role Admin | Microsoft Entra ID | **Privileged Role Administrator** directory role (to grant `Application.ReadWrite.OwnedBy` to the Function identity) |
+| GitHub Organization Admin | GitHub | Ability to create repos, GitHub Apps, teams, secrets, and variables |
+| Entra ID Privileged Role Admin | Microsoft Entra ID | **Privileged Role Administrator** directory role, required only for AAD container authentication |
 
-> **Tip:** In smaller organizations one person often fills all three roles. In larger enterprises these are typically three different people — plan for a short coordination meeting before you start.
+> **Planning tip:** if these roles are held by different people, schedule a short coordination session before beginning. Step 2 is the main point where Azure and Entra ID responsibilities may overlap.
 
 ---
 

@@ -1,66 +1,89 @@
 # Step 4 — Set Up GitHub Teams for Authorization
 
-> **Performed by:** 🔵 GitHub Organization Admin
+> **Performed by:** GitHub Organization Administrator
 
-> **Already have teams from another Fkh deployment?** You can reuse the same GitHub teams across multiple deployments — just reference the existing team names in your new deployment's `deployment.tfvars` (step 4.4). You do not need to create new teams. Skip ahead to [step 4.4](#44--update-deploymenttfvars).
+Fkh uses GitHub team membership to decide who can provision containers and who has admin access.
 
-Fkh uses GitHub team membership to control who can provision containers and who gets admin access. In this step you create the teams manually in your GitHub organization and add members.
+Terraform does not create or manage these teams. You create the teams in GitHub, then reference them in `deployment.tfvars`.
 
-Terraform does **not** create or manage these teams — it only reads the team names from `deployment.tfvars` and passes them to the Azure Function backend for authorization checks.
+> **Already have teams from another Fkh deployment?** You can reuse them. Skip to [4.4 — Update deployment.tfvars](#44--update-deploymenttfvars) and reference the existing team names.
+
+## Access model
+
+| Team type | Purpose | Required? |
+|---|---|---|
+| Member team | Users who can provision Business Central containers | Yes |
+| Admin team | Users with admin access; they also get normal member access | Optional |
 
 ---
 
-## 4.1 Create the member team
+## 4.1 — Create the member team
 
-1. Go to **https://github.com/orgs/YOUR-ORG/new-team**
-2. **Team name:** `Fkh-members` (or any name you prefer)
-3. **Visibility:** Visible or Secret — your choice
-4. Click **Create team**
-5. Add members who should be able to provision BC containers
+1. Open this URL, replacing `YOUR-ORG` with your GitHub organization name:
 
-## 4.2 Create the admin team (optional)
+   ```text
+   https://github.com/orgs/YOUR-ORG/new-team
+   ```
 
-If you want a separate admin tier with elevated privileges:
+2. Enter a team name, for example `Fkh-members`.
+3. Choose **Visible** or **Secret** visibility.
+4. Select **Create team**.
+5. Add the users who should be allowed to provision Business Central containers.
 
-1. Go to **https://github.com/orgs/YOUR-ORG/new-team**
-2. **Team name:** `Fkh-admins` (or any name you prefer)
-3. Click **Create team**
-4. Add members who should have admin access
+## 4.2 — Create the admin team
 
-Admin team members automatically get normal access too — you don't need to add them to both teams.
+Skip this section if you do not need a separate admin tier.
 
-## 4.3 Cross-organization access (optional)
+1. Open this URL, replacing `YOUR-ORG` with your GitHub organization name:
 
-You can grant access to teams in **any** GitHub organization — the team names don't need to match. Just add each org/team pair to `allowed_org_teams` in your `deployment.tfvars`:
+   ```text
+   https://github.com/orgs/YOUR-ORG/new-team
+   ```
+
+2. Enter a team name, for example `Fkh-admins`.
+3. Select **Create team**.
+4. Add the users who should have admin access.
+
+Admin team members automatically receive normal user access. You do not need to add them to both teams.
+
+## 4.3 — Optional: allow teams from another organization
+
+You can grant access to teams in other GitHub organizations. Add each organization and team pair to `allowed_org_teams` in `deployment.tfvars`.
+
+Example:
 
 ```hcl
 allowed_org_teams = [
-  { org = "my-company",   team = "Fkh-members" },
-  { org = "partner-org",  team = "BC-developers" }
+  { org = "my-company",  team = "Fkh-members" },
+  { org = "partner-org", team = "BC-developers" }
 ]
 ```
 
-The admin of each organization is responsible for creating the team and managing its members in their own org.
+The administrator of each GitHub organization is responsible for creating the team and managing its members.
 
-## 4.4 Update deployment.tfvars
+## 4.4 — Update deployment.tfvars
 
-Open `config/deployment.tfvars` in your deployment repo and set the team references to match the teams you just created:
+In your deployment repository, open `config/deployment.tfvars` and set the team references.
 
 ```hcl
-# Member teams — users in these teams can provision containers
+# Member teams: users in these teams can provision containers
 allowed_org_teams = [
   { org = "my-company", team = "Fkh-members" }
 ]
 
-# Admin teams — members get admin access (and also have normal access)
+# Admin teams: users in these teams get admin access and normal access
 admin_org_teams = [
   { org = "my-company", team = "Fkh-admins" }
 ]
 ```
 
-> **Important:** The `org` and `team` values in `deployment.tfvars` are **case-sensitive** and must match the organization and team names in GitHub **exactly**.
+> **Important:** `org` and `team` values are case-sensitive. They must match the GitHub organization and team names exactly.
+
+## Step complete
+
+GitHub team-based authorization is now ready. You will finish configuring these values in Step 5.
 
 ---
 
-*Previous: [Step 3 — Create the GitHub App](Step3-GitHubApp.md)*
+*Previous: [Step 3 — Create the GitHub App](Step3-GitHubApp.md)*  
 *Next: [Step 5 — Configure Your Environment](Step5-ConfigureEnvironment.md)*

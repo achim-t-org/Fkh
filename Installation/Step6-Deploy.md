@@ -1,66 +1,140 @@
 # Step 6 — Deploy
 
-> **Performed by:** GitHub Organization Admin (or anyone with write access to the deployment repo)
+> **Performed by:** GitHub Organization Administrator, or anyone with write access to the deployment repository
 
-In this step you run the **Deploy Full Stack** workflow, which provisions all Azure infrastructure and publishes the Fkh backend. The workflow is fully automated — once triggered, it takes roughly 15–25 minutes to complete.
+In this step you run the **Deploy Full Stack** workflow. The workflow provisions the Azure infrastructure and publishes the Fkh backend.
+
+The workflow is fully automated after you start it.
+
+## Before you start
+
+Confirm that the previous steps are complete:
+
+| Requirement | Where it was configured |
+|---|---|
+| Private deployment repository exists | Step 1 |
+| Deployment identity exists and has Azure roles | Step 2 |
+| GitHub App exists and is installed on the deployment repository | Step 3 |
+| GitHub teams are created or selected | Step 4 |
+| `deployment.tfvars` is committed to `main` | Step 5 |
+| Required GitHub Secrets exist | Step 5 |
 
 ---
 
 ## 6.1 — Run the Deploy Full Stack workflow
 
-1. Go to your **deployment repository** on GitHub.
-2. Click the **Actions** tab.
-3. Select **Deploy Full Stack** from the workflow list on the left.
-4. Click **Run workflow** → choose the `main` branch → click **Run workflow**.
+1. Open your private deployment repository in GitHub.
+2. Go to the **Actions** tab.
+3. In the workflow list, select **Deploy Full Stack**.
+4. Select **Run workflow**.
+5. Choose the `main` branch.
+6. Select **Run workflow**.
 
-The workflow calls the reusable `DeployFkhFullStack` workflow in your Fkh fork, which performs these steps automatically:
+## What the workflow does
+
+The workflow calls the reusable `DeployFkhFullStack` workflow from your Fkh repository or fork.
 
 | Phase | What happens |
-|-------|-------------|
-| **Checkout** | Checks out both the deployment repo (for `deployment.tfvars`) and the Fkh fork (for Terraform modules and backend code) |
-| **Parse tfvars** | Reads `tenant_id`, `subscription_id`, and `fkhDeploymentName` from your tfvars file |
-| **Azure login** | Authenticates to Azure via OIDC using the deployment identity from Step 2 |
-| **State storage** | Creates a resource group, storage account, and blob container for Terraform state (if they don't already exist) |
-| **Bootstrap apply** | Creates AKS cluster, Container Registry, Function App, managed identity, and core role assignments |
-| **Full apply** | Deploys remaining infrastructure — Kubernetes resources (namespace, SQL Server, services), Helm charts, and all remaining configuration |
-| **Publish function** | Builds and publishes the .NET backend to the Azure Function App |
-| **Sync secrets** | Writes `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `ACR_LOGIN_SERVER`, and `DBS_STORAGE_ACCOUNT` as GitHub Secrets in the deployment repo (used by other workflows like `CreateImages`) |
+|---|---|
+| Checkout | Checks out the deployment repository and the Fkh repository |
+| Parse tfvars | Reads `tenant_id`, `subscription_id`, and `fkhDeploymentName` from `deployment.tfvars` |
+| Azure login | Authenticates to Azure through OIDC using the deployment identity from Step 2 |
+| State storage | Creates Terraform state resource group, storage account, and blob container if needed |
+| Bootstrap apply | Creates core Azure resources such as AKS, Container Registry, Function App, managed identity, and role assignments |
+| Full apply | Deploys remaining infrastructure, including Kubernetes resources, SQL Server, services, Helm charts, and configuration |
+| Publish function | Builds and publishes the .NET backend to the Azure Function App |
+| Sync secrets | Writes generated deployment values back to the deployment repository as GitHub Secrets |
 
-## 6.2 — Monitor the run
+The synced secrets include:
 
-Click into the running workflow to watch progress. If a step fails:
+```text
+AZURE_CLIENT_ID
+AZURE_TENANT_ID
+AZURE_SUBSCRIPTION_ID
+ACR_LOGIN_SERVER
+DBS_STORAGE_ACCOUNT
+```
 
-- **RBAC propagation timeout** — The workflow waits up to 120 seconds for the Storage Blob Data Contributor role to take effect on the state storage account. If this times out, re-run the workflow — the role assignment already exists and will be available on the next attempt.
-- **Terraform bootstrap errors** — Usually caused by Azure resource name conflicts or quota limits. Check the error message for details. Name conflicts typically mean a previous partial deployment left resources behind; Terraform will adopt them on re-run.
-- **func publish fails** — The workflow automatically restarts the Function App as a fallback. If it still fails, check that the .NET SDK version in the workflow matches the backend project's target framework.
+These are used by other workflows, such as `CreateImages`.
 
-> **Tip:** The workflow is idempotent. You can safely re-run it at any time — Terraform will only make changes where the actual state differs from the desired state.
+---
+
+## 6.2 — Monitor the workflow
+
+Open the running workflow in GitHub Actions to follow progress.
+
+If the run fails, use the table below to triage common issues.
+
+| Symptom | Likely cause | What to do |
+|---|---|---|
+| RBAC propagation timeout | Azure role assignment has not propagated yet | Re-run the workflow. The role assignment already exists and is usually available on the next run. |
+| Terraform bootstrap error | Resource name conflict, quota limit, or partially created resource | Read the Terraform error. If resources were partially created by a previous run, re-running often lets Terraform adopt or reconcile them. |
+| Function publish failure | Function App publishing or SDK mismatch issue | The workflow tries to restart the Function App automatically. If it still fails, check that the .NET SDK version in the workflow matches the backend target framework. |
+
+> **Safe to re-run:** the workflow is idempotent. You can re-run it at any time. Terraform only changes resources when the actual state differs from the desired state.
+
+---
 
 ## 6.3 — Verify the deployment
 
-Once the workflow completes successfully:
+After the workflow completes successfully, verify the deployment in Azure and GitHub.
 
-1. **Azure Portal** — Navigate to the resource group `fkh-<deploymentName>` in your subscription. You should see:
-   - An AKS cluster (`fkh-<name>-aks`)
-   - A Container Registry (`fkh<name>acr`)
-   - A Function App (`fkh-<name>-backend`)
-   - Two storage accounts (one for the Function App, one for database backups)
-   - A managed identity (`fkh-<name>-identity`)
-   - Log Analytics workspace and Application Insights
+### Azure resources
 
-2. **Function App health** — Open the Function App in the Azure Portal and go to **Functions**. You should see a list of functions (CreateContainer, StartContainer, StopContainer, etc.).
+In the Azure Portal, open the resource group named:
 
-3. **GitHub Secrets** — Go to your deployment repo → **Settings → Secrets and variables → Actions**. Confirm that `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `ACR_LOGIN_SERVER`, and `DBS_STORAGE_ACCOUNT` were created (these are synced automatically by the workflow).
+```text
+fkh-<deploymentName>
+```
 
-## 6.4 — Re-deploying
+You should see resources similar to these:
 
-You can re-run the **Deploy Full Stack** workflow at any time to:
+| Resource | Name pattern |
+|---|---|
+| AKS cluster | `fkh-<name>-aks` |
+| Container Registry | `fkh<name>acr` |
+| Function App | `fkh-<name>-backend` |
+| Function App storage account | `fkh<name>func` |
+| Database backup storage account | `fkh<name>dbs` |
+| Managed Identity | `fkh-<name>-identity` |
+| Log Analytics workspace | `fkh-<name>-logs` |
+| Application Insights | `fkh-<name>-insights` |
 
-- Apply configuration changes made to `deployment.tfvars`
-- Pick up updates from a newer version of the Fkh fork
-- Recover from a partial deployment
+### Function App health
 
-For **backend-only updates** (no infrastructure changes), use the **Update Backend** workflow instead — it's faster because it skips Terraform and only re-publishes the Function App code.
+1. Open the Function App in the Azure Portal.
+2. Go to **Functions**.
+3. Confirm that functions such as `CreateContainer`, `StartContainer`, and `StopContainer` are listed.
+
+### Synced GitHub Secrets
+
+In the deployment repository, go to:
+
+```text
+Settings → Secrets and variables → Actions
+```
+
+Confirm that these secrets were created automatically:
+
+```text
+AZURE_CLIENT_ID
+AZURE_TENANT_ID
+AZURE_SUBSCRIPTION_ID
+ACR_LOGIN_SERVER
+DBS_STORAGE_ACCOUNT
+```
+
+---
+
+## 6.4 — Re-deploy later
+
+Run **Deploy Full Stack** again when you need to:
+
+- Apply changes from `deployment.tfvars`.
+- Pick up updates from a newer version of the Fkh repository or fork.
+- Recover from a partial deployment.
+
+For backend-only changes, use the **Update Backend** workflow instead. It is faster because it skips Terraform and only republishes the Function App code.
 
 ---
 
@@ -69,27 +143,31 @@ For **backend-only updates** (no infrastructure changes), use the **Update Backe
 ### Azure resources
 
 | Resource | Name pattern | Purpose |
-|----------|-------------|---------|
-| Resource group | `fkh-<name>` | Contains all Fkh resources |
-| Resource group (state) | `fkh-<name>-state` | Contains Terraform state storage |
-| AKS cluster | `fkh-<name>-aks` | Runs BC containers and SQL Server |
-| Container Registry | `fkh<name>acr` | Stores BC Docker images |
+|---|---|---|
+| Resource group | `fkh-<name>` | Contains the Fkh workload resources |
+| Resource group for state | `fkh-<name>-state` | Contains Terraform state storage |
+| AKS cluster | `fkh-<name>-aks` | Runs Business Central containers and SQL Server |
+| Container Registry | `fkh<name>acr` | Stores Business Central Docker images |
 | Function App | `fkh-<name>-backend` | API backend that manages containers |
 | Managed Identity | `fkh-<name>-identity` | Used by the Function App for Azure and AKS access |
-| Storage (function) | `fkh<name>func` | Function App internal storage |
-| Storage (databases) | `fkh<name>dbs` | Database backup storage |
-| Log Analytics | `fkh-<name>-logs` | Centralized logging |
+| Storage account for Function App | `fkh<name>func` | Internal Function App storage |
+| Storage account for databases | `fkh<name>dbs` | Database backup storage |
+| Log Analytics workspace | `fkh-<name>-logs` | Centralized logging |
 | Application Insights | `fkh-<name>-insights` | Function App telemetry |
 
-### GitHub Secrets (synced automatically)
+### GitHub Secrets synced by the workflow
 
 | Secret | Purpose |
-|--------|---------|
-| `AZURE_CLIENT_ID` | Managed identity client ID (for `CreateImages` workflow) |
-| `AZURE_TENANT_ID` | Azure AD tenant ID |
+|---|---|
+| `AZURE_CLIENT_ID` | Managed identity Client ID used by the `CreateImages` workflow |
+| `AZURE_TENANT_ID` | Azure tenant ID |
 | `AZURE_SUBSCRIPTION_ID` | Azure subscription ID |
 | `ACR_LOGIN_SERVER` | Container Registry login server FQDN |
 | `DBS_STORAGE_ACCOUNT` | Database backup storage account name |
+
+## Installation complete
+
+Fkh is now deployed. Use the deployment repository workflows for future updates, image builds, and backend deployments.
 
 ---
 
