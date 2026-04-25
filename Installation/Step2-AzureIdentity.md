@@ -1,5 +1,7 @@
 # Step 2 — Create the Azure Deployment Identity
 
+> **Already have a deployment identity from another Fkh deployment?** You can reuse the same Managed Identity or App Registration for multiple deployments. Just add a new **federated credential** for the new deployment repository (step A.3 or B.2) and ensure the identity has the required **subscription roles** on the new target subscription (step A.4 or B.3). Then skip ahead to [Step 3 — Create the GitHub App](Step3-GitHubApp.md).
+
 The deployment identity is what GitHub Actions uses to deploy and manage all Fkh infrastructure in your Azure subscription. It authenticates using OIDC (OpenID Connect) — no passwords or client secrets are involved.
 
 You have two options for the identity type. Both result in a **Client ID** that you will store as a GitHub secret later. The GitHub workflows do not care which type you chose — they work identically.

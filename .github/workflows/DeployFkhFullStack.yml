@@ -364,9 +364,9 @@ jobs:
 
           ### Backend URL (copy)
 
-          ```
+          ``````
           $functionUrl
-          ```
+          ``````
 
           | Resource | Value |
           |----------|-------|

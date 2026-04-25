@@ -2,6 +2,8 @@
 
 > **Performed by:** GitHub Organization Administrator
 
+> **Already have a GitHub App from another Fkh deployment?** You can reuse the same GitHub App and private key. Just install the app on your new deployment repository (step 3.3) and note the new **Installation ID**. You do not need to create a new app or generate a new private key. Skip ahead to [step 3.3](#33--install-the-app-on-your-deployment-repository).
+
 The GitHub App allows the Fkh backend to automatically trigger image-build workflows when a requested Business Central image is not yet in the Azure Container Registry. The deployment workflow also uses it to sync secrets back to the deployment repository — replacing the need for a Personal Access Token (PAT).
 
 ## What the GitHub App does

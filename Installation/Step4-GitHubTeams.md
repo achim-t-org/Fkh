@@ -2,6 +2,8 @@
 
 > **Performed by:** 🔵 GitHub Organization Admin
 
+> **Already have teams from another Fkh deployment?** You can reuse the same GitHub teams across multiple deployments — just reference the existing team names in your new deployment's `deployment.tfvars` (step 4.4). You do not need to create new teams. Skip ahead to [step 4.4](#44--update-deploymenttfvars).
+
 Fkh uses GitHub team membership to control who can provision containers and who gets admin access. In this step you create the teams manually in your GitHub organization and add members.
 
 Terraform does **not** create or manage these teams — it only reads the team names from `deployment.tfvars` and passes them to the Azure Function backend for authorization checks.
