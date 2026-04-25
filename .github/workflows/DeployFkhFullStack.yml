@@ -15,7 +15,7 @@
 #     2. Role assignments on the target Azure subscription:
 #        • Contributor                (create/manage all resources)
 #        • User Access Administrator  (create role assignments for managed identities)
-#   See docs/AzureSetup-PathA.md for both options.
+#   See Installation/Step2-AzureIdentity.md for both options.
 #
 # ── Inputs ──────────────────────────────────────────────────────────────────
 #   fkh-repo   - Owner/name of the Fkh fork (default: Freddy-DK/Fkh)

@@ -81,7 +81,14 @@ After the workflow completes successfully, verify the deployment in Azure and Gi
 
 ### Azure resources
 
-In the Azure Portal, open the resource group named:
+The deployment creates two resource groups:
+
+| Resource group | Purpose |
+|---|---|
+| `fkh-<deploymentName>` | Contains the Fkh workload resources (AKS, Function App, ACR, storage, etc.). |
+| `fkh-<deploymentName>-state` | Contains the Terraform state storage account and blob container. |
+
+In the Azure Portal, open the workload resource group:
 
 ```text
 fkh-<deploymentName>

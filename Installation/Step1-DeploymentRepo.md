@@ -66,7 +66,7 @@ You can create the private deployment repository with the Fkh CLI or manually in
 
 Run the following command:
 
-```bash
+```pwsh
 fkh createdeploymentrepo --deploymentRepo org/repo [--fkhRepo fkhForkOrg/fkhForkRepo]
 ```
 
@@ -74,7 +74,7 @@ Replace `org/repo` with the GitHub organization and repository name for the priv
 
 Examples:
 
-```bash
+```pwsh
 fkh createdeploymentrepo --deploymentRepo my-company/fkh-deploy-contoso
 fkh createdeploymentrepo --deploymentRepo my-company/fkh-deploy-contoso --fkhRepo my-company/Fkh
 ```

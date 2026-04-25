@@ -17,9 +17,8 @@ The app needs repository permissions only. It does not need organization permiss
 
 | Permission | Access | Why it is needed |
 |---|---|---|
-| Actions | Read & Write | Dispatch the `CreateImages` workflow |
-| Contents | Read-only | Read workflow files from the repository |
-| Secrets | Read & Write | Sync deployment outputs to repository secrets |
+| Actions | Read & Write | Dispatch the `CreateImages` workflow from the Fkh backend, and used by the deployment workflow when syncing outputs |
+| Secrets | Read & Write | Sync deployment outputs to repository secrets at the end of `Deploy Full Stack` |
 
 ---
 
@@ -41,7 +40,6 @@ The app needs repository permissions only. It does not need organization permiss
 | Permission | Access |
 |---|---|
 | Actions | Read & Write |
-| Contents | Read-only |
 | Secrets | Read & Write |
 
 6. Leave all other permissions set to **No access**.

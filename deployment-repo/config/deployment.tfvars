@@ -89,7 +89,7 @@ contact_email_for_letsencrypt = "admin@example.com"
 
 # AAD container authentication — allows users to sign in with Microsoft 365 accounts
 # Requires the deployment identity to have the Privileged Role Administrator directory role in Entra ID.
-# See Installation/Step1-AzureIdentity.md for details.
+# See Installation/Step2-AzureIdentity.md for details.
 enable_aad_container_auth = false
 
 

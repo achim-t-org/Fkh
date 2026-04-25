@@ -47,14 +47,40 @@ Run the **Deploy Full Stack** workflow from the Actions tab to create all Azure 
 
 After the initial deployment, use **Update Backend** to publish code changes without re-running Terraform.
 
-### 4. Create Images
+### 7. Create Images
 
 The **Create Images** workflow can run either:
-- **In your public Fkh fork** (free, but publicly visible which images you build)
+- **In the public Fkh repository or your fork** (free, but publicly visible which images you build)
 - **In this private repo** (paid runners, but private)
 
-Set `create_images_repo` in your `deployment.tfvars` to control which repo the backend dispatches image builds to.
+The Fkh backend dispatches image builds to whichever repository ran the most recent `Deploy Full Stack` workflow (the deployment workflow sets `create_images_repo` automatically from the GitHub Actions context).
 
-## Keeping Up to Date
+## Updating This Deployment Repository
 
-The **Check for Deployment Repo Updates** workflow runs weekly and creates a GitHub Issue if your workflow files differ from the templates in your Fkh fork. You can also run it manually from the Actions tab.
+Workflow templates and other supporting files in this deployment repository can be refreshed from the upstream Fkh repository (or your fork) using the Fkh CLI.
+
+```pwsh
+fkh updatedeploymentrepo --deploymentRepo org/repo [--fkhRepo fkhForkOrg/fkhForkRepo]
+```
+
+Examples:
+
+```pwsh
+fkh updatedeploymentrepo --deploymentRepo my-company/fkh-deploy-contoso
+fkh updatedeploymentrepo --deploymentRepo my-company/fkh-deploy-contoso --fkhRepo my-company/Fkh
+```
+
+What it does:
+
+- Clones the deployment repository to a temporary folder.
+- Fetches every file from the `deployment-repo/` folder of the Fkh repository (or fork) and writes it into the deployment repo, creating any missing folders.
+- In `.yml` files, rewrites the default `Freddy-DK/Fkh` reference to your `--fkhRepo` value when one is provided.
+- **Never overwrites `config/deployment.tfvars`** — your environment-specific configuration is preserved.
+- Commits and pushes the changes using your `gh` user identity.
+
+Use this command whenever the upstream Fkh repository ships changes to the workflow templates so your caller workflows stay in sync.
+
+Requirements:
+
+- The [Fkh CLI](https://github.com/Freddy-DK/Fkh/tree/main/fkh-cli) installed locally.
+- The GitHub CLI (`gh`) installed and authenticated with write access to the deployment repository.

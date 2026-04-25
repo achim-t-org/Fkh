@@ -34,7 +34,7 @@ fkh-contoso-aks
 fkh-contoso-backend
 ```
 
-Use lowercase letters, numbers, and hyphens only.
+Use lowercase letters and numbers only. Uppercase letters, hyphens, and other special characters are not allowed because Azure storage account names derived from this value have the same restrictions.
 
 ### Azure settings
 
@@ -42,6 +42,7 @@ Use lowercase letters, numbers, and hyphens only.
 subscription_id = "00000000-0000-0000-0000-000000000000"
 tenant_id       = "00000000-0000-0000-0000-000000000000"
 location        = "westeurope"
+state_location  = ""
 ```
 
 | Setting | What to enter | Where to find it |
@@ -49,10 +50,11 @@ location        = "westeurope"
 | `subscription_id` | Azure subscription ID | Azure Portal → **Subscriptions** → target subscription → **Subscription ID** |
 | `tenant_id` | Entra ID tenant ID | Azure Portal → **Microsoft Entra ID** → **Overview** → **Tenant ID** |
 | `location` | Azure region for Fkh resources | Choose a region close to your users, for example `westeurope`, `eastus`, or `swedencentral` |
+| `state_location` | Azure region for the Terraform state resource group and storage account | Leave empty to use the same region as `location`. Set explicitly only if your organization requires Terraform state to live in a different region. |
 
 If you use Azure CLI, you can also find these values with:
 
-```bash
+```pwsh
 az account show --query id -o tsv
 az account show --query tenantId -o tsv
 ```
