@@ -292,7 +292,8 @@ $bootstrapArgs = @(
     "-target=azurerm_role_assignment.function_aks",
     "-target=azurerm_role_assignment.function_dbs_storage",
     "-target=azurerm_role_assignment.function_log_analytics_reader",
-    "-target=data.azuread_service_principal.msgraph"
+    "-target=data.azuread_service_principal.msgraph",
+    "-target=azuread_app_role_assignment.function_graph_app_owned"
 )
 if ($AutoApprove) { $bootstrapArgs += "-auto-approve" }
 
