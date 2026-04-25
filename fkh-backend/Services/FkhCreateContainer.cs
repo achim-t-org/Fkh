@@ -692,10 +692,31 @@ public class FkhCreateContainer : FkhServiceBase
         }) ?? throw new InvalidOperationException("Failed to create AAD App Registration — Graph API returned null.");
 
         // Set Application ID URI to api://<appId>
-        await graphClient.Applications[app.Id].PatchAsync(new Application
+        // Microsoft Graph has eventual consistency for newly created applications,
+        // so a PATCH right after POST can fail with "Resource '<id>' does not exist".
+        // Retry with backoff until the app becomes available.
+        var patchBody = new Application
         {
             IdentifierUris = new List<string> { $"api://{app.AppId}" }
-        });
+        };
+        const int maxAttempts = 10;
+        var delay = TimeSpan.FromSeconds(2);
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                await graphClient.Applications[app.Id].PatchAsync(patchBody);
+                break;
+            }
+            catch (ODataError ex) when (attempt < maxAttempts &&
+                (ex.ResponseStatusCode == 404 ||
+                 (ex.Error?.Message?.Contains("does not exist", StringComparison.OrdinalIgnoreCase) ?? false)))
+            {
+                Logger.LogInformation("AAD App Registration not yet replicated (attempt {Attempt}/{Max}); retrying in {Delay}s...", attempt, maxAttempts, delay.TotalSeconds);
+                await Task.Delay(delay);
+                delay = TimeSpan.FromSeconds(Math.Min(delay.TotalSeconds * 2, 15));
+            }
+        }
 
         Logger.LogInformation("AAD App Registration created: {DisplayName} (appId: {AppId}, objectId: {ObjectId})", app.DisplayName, app.AppId, app.Id);
         return (app.Id!, app.AppId!);
