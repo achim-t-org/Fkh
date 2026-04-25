@@ -44,7 +44,7 @@ sealed class CreateDeploymentRepoCommand : ClientCommand
         Console.WriteLine($"  Created: {createOut.Trim()}");
 
         // 3. Populate the repo with template files
-        var result = await UpdateDeploymentRepoCommand.UpdateDeploymentRepoAsync(deployFullRepo, fkhFullRepo, "Initial deployment repo from Fkh template");
+        var result = await UpdateDeploymentRepoCommand.UpdateDeploymentRepoAsync(deployFullRepo, fkhFullRepo, "Initial deployment repo from Fkh template", quiet: true);
         if (result != 0)
             return result;
 

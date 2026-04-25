@@ -27,7 +27,7 @@ sealed class UpdateDeploymentRepoCommand : ClientCommand
     /// Clones the deployment repo, fetches template files from the Fkh fork,
     /// writes them (skipping deployment.tfvars), commits and pushes.
     /// </summary>
-    internal static async Task<int> UpdateDeploymentRepoAsync(string deployFullRepo, string fkhFullRepo, string commitMessage)
+    internal static async Task<int> UpdateDeploymentRepoAsync(string deployFullRepo, string fkhFullRepo, string commitMessage, bool quiet = false)
     {
         // 1. Verify gh is authenticated
         var (ghExit, _, ghErr) = RunProcess("gh", ["auth", "status"]);
@@ -90,7 +90,6 @@ sealed class UpdateDeploymentRepoCommand : ClientCommand
             }
 
             // 4. Configure git identity, commit and push
-            Console.WriteLine("Committing and pushing...");
             var (_, ghName, _) = RunProcess("gh", ["api", "user", "--jq", ".login"]);
             var (_, ghEmail, _) = RunProcess("gh", ["api", "user", "--jq", ".email // (.login + \"@users.noreply.github.com\")"]);
             ghName = ghName?.Trim(); ghEmail = ghEmail?.Trim();
@@ -105,10 +104,12 @@ sealed class UpdateDeploymentRepoCommand : ClientCommand
             var (diffExit, _, _) = RunProcess("git", ["diff", "--cached", "--quiet"], tempDir);
             if (diffExit == 0)
             {
-                Console.WriteLine("No changes detected — deployment repo is already up to date.");
+                if (!quiet)
+                    Console.WriteLine("No changes detected — deployment repo is already up to date.");
                 return 0;
             }
 
+            Console.WriteLine("Committing and pushing...");
             var (commitExit, _, commitErr) = RunProcess("git", ["commit", "-m", commitMessage], tempDir);
             if (commitExit != 0)
             {
@@ -122,7 +123,8 @@ sealed class UpdateDeploymentRepoCommand : ClientCommand
                 return 1;
             }
 
-            Console.WriteLine($"{Ansi.Cyan}Deployment repo updated successfully!{Ansi.Reset}");
+            if (!quiet)
+                Console.WriteLine($"{Ansi.Cyan}Deployment repo updated successfully!{Ansi.Reset}");
         }
         finally
         {
