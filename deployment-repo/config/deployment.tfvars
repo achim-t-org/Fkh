@@ -35,6 +35,7 @@ fkhDeploymentName = "myorg"
 subscription_id = "00000000-0000-0000-0000-000000000000"
 tenant_id       = "00000000-0000-0000-0000-000000000000"
 location        = "westeurope"   # Azure region (e.g. westeurope, eastus, swedencentral)
+state_location  = ""             # Azure region for the Terraform state resource group and storage account. Leave empty to use 'location'.
 
 
 #  _  __     _                          _                _____      _   _   _                 

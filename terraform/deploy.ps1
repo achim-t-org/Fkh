@@ -138,6 +138,8 @@ function Get-TfVar([string]$Name, [string]$File) {
 $tfSubscriptionId = Get-TfVar "subscription_id" $VarFile
 $tfLocation       = Get-TfVar "location"        $VarFile
 $tfDeploymentName = Get-TfVar "fkhDeploymentName" $VarFile
+try { $tfStateLocation = Get-TfVar "state_location" $VarFile } catch { $tfStateLocation = "" }
+if (-not $tfStateLocation) { $tfStateLocation = $tfLocation }
 
 $stateRg      = "fkh-$tfDeploymentName-state"
 $stateAccount = "fkh$($tfDeploymentName.Replace('-','').Substring(0, [Math]::Min($tfDeploymentName.Replace('-','').Length, 14)))state"
@@ -149,8 +151,8 @@ Write-Host "Ensuring state storage: RG=$stateRg Account=$stateAccount Container=
 az account set --subscription $tfSubscriptionId
 if ($LASTEXITCODE -ne 0) { throw "Failed to set Azure subscription to $tfSubscriptionId." }
 
-az group create --name $stateRg --location $tfLocation --output none 2>$null
-az storage account create --name $stateAccount --resource-group $stateRg --location $tfLocation --sku Standard_LRS --kind StorageV2 --allow-blob-public-access false --output none 2>$null
+az group create --name $stateRg --location $tfStateLocation --output none 2>$null
+az storage account create --name $stateAccount --resource-group $stateRg --location $tfStateLocation --sku Standard_LRS --kind StorageV2 --allow-blob-public-access false --output none 2>$null
 
 # Grant the current user "Storage Blob Data Contributor" on the state storage account
 $currentUserId = az ad signed-in-user show --query id -o tsv
