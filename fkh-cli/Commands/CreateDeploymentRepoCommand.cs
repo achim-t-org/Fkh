@@ -55,17 +55,15 @@ sealed class CreateDeploymentRepoCommand : ClientCommand
 
         try
         {
-            // 4. Fetch template files from the Fkh fork
-            var templateFiles = new[]
-            {
-                "deployment-repo/.github/workflows/DeployFullStack.yml",
-                "deployment-repo/.github/workflows/UpdateBackend.yml",
-                "deployment-repo/.github/workflows/CreateImages.yml",
-                "deployment-repo/config/deployment.tfvars",
-                "deployment-repo/README.md",
-            };
-
+            // 4. Enumerate and fetch all files from deployment-repo/ in the Fkh fork
             Console.WriteLine($"Fetching template files from {fkhFullRepo}...");
+            var templateFiles = EnumerateGitHubDirectory(fkhFullRepo, "deployment-repo");
+            if (templateFiles.Count == 0)
+            {
+                Console.Error.WriteLine($"{Ansi.Red}No template files found in {fkhFullRepo}/deployment-repo.{Ansi.Reset}");
+                return 1;
+            }
+
             foreach (var templatePath in templateFiles)
             {
                 var content = await FetchFileFromGitHubAsync(fkhFullRepo, templatePath);
@@ -155,5 +153,25 @@ sealed class CreateDeploymentRepoCommand : ClientCommand
         {
             return Task.FromResult<string?>(null);
         }
+    }
+
+    private static List<string> EnumerateGitHubDirectory(string repo, string dirPath)
+    {
+        var files = new List<string>();
+        var (exit, stdout, _) = RunProcess("gh", ["api", $"repos/{repo}/contents/{dirPath}", "--jq", ".[] | .type + \"\\t\" + .path"]);
+        if (exit != 0 || string.IsNullOrWhiteSpace(stdout))
+            return files;
+
+        foreach (var line in stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var parts = line.Split('\t', 2);
+            if (parts.Length != 2) continue;
+            var (type, path) = (parts[0], parts[1]);
+            if (type == "file")
+                files.Add(path);
+            else if (type == "dir")
+                files.AddRange(EnumerateGitHubDirectory(repo, path));
+        }
+        return files;
     }
 }

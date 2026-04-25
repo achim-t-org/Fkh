@@ -224,6 +224,19 @@ jobs:
             -backend-config="subscription_id=${{ steps.parse.outputs.subscription_id }}" \
             -backend-config="use_azuread_auth=true"
 
+      # ── Remove orphaned resources from state ──────────────────────────────
+      # The GitHub provider was removed from the .tf files but resources may
+      # still linger in state. Remove all github_* resources automatically.
+      - name: Clean up orphaned state resources
+        shell: pwsh
+        run: |
+          $stateList = terraform state list 2>$null
+          $orphaned = $stateList | Where-Object { $_ -like 'github_*' }
+          foreach ($resource in $orphaned) {
+            Write-Host "Removing orphaned resource: $resource" -ForegroundColor Yellow
+            terraform state rm $resource
+          }
+
       # ── Bootstrap (AKS + core infra) ──────────────────────────────────────
       - name: Terraform bootstrap apply
         run: |

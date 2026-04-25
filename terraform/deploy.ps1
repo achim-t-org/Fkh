@@ -186,6 +186,17 @@ terraform init -reconfigure `
     -backend-config="use_azuread_auth=true"
 if ($LASTEXITCODE -ne 0) { throw "Terraform init failed." }
 
+# ── Remove orphaned resources from state ──────────────────────────────────────
+# Resources that were once managed by Terraform but are no longer in the .tf
+# files. Add new entries here when removing providers/resources.
+
+$stateList = terraform state list 2>$null
+$orphaned = $stateList | Where-Object { $_ -like 'github_*' }
+foreach ($resource in $orphaned) {
+    Write-Host "Removing orphaned resource: $resource" -ForegroundColor Yellow
+    terraform state rm $resource
+}
+
 # ── Recover secrets from existing state (avoids re-prompting on redeploys) ────
 
 if ([string]::IsNullOrWhiteSpace($env:TF_VAR_sql_sa_password) -or [string]::IsNullOrWhiteSpace($env:TF_VAR_github_app_private_key)) {
