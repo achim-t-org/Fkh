@@ -112,6 +112,8 @@ jobs:
             throw "fkhDeploymentName ('$deploymentName') must contain only lowercase letters and numbers. Uppercase, hyphens, and special characters are not allowed (Azure storage accounts require this)."
           }
           $githubAppId    = Get-TfVar "github_app_id" $varFile
+          try { $stateLocation = Get-TfVar "state_location" $varFile } catch { $stateLocation = "" }
+          if (-not $stateLocation) { $stateLocation = $location }
 
           $stateRg        = "fkh-$deploymentName-state"
           $stateAccount   = "fkh$($deploymentName.Replace('-','').Substring(0, [Math]::Min($deploymentName.Replace('-','').Length, 14)))state"
@@ -125,6 +127,7 @@ jobs:
           "subscription_id=$subscriptionId" >> $env:GITHUB_OUTPUT
           "tenant_id=$tenantId"           >> $env:GITHUB_OUTPUT
           "location=$location"            >> $env:GITHUB_OUTPUT
+          "state_location=$stateLocation"  >> $env:GITHUB_OUTPUT
           "deployment_name=$deploymentName" >> $env:GITHUB_OUTPUT
           "github_app_id=$githubAppId"    >> $env:GITHUB_OUTPUT
 
@@ -162,14 +165,14 @@ jobs:
           echo "Creating resource group ${{ steps.parse.outputs.state_rg }}..."
           az group create \
             --name "${{ steps.parse.outputs.state_rg }}" \
-            --location "${{ steps.parse.outputs.location }}" \
+            --location "${{ steps.parse.outputs.state_location }}" \
             --output none
 
           echo "Creating storage account ${{ steps.parse.outputs.state_account }}..."
           az storage account create \
             --name "${{ steps.parse.outputs.state_account }}" \
             --resource-group "${{ steps.parse.outputs.state_rg }}" \
-            --location "${{ steps.parse.outputs.location }}" \
+            --location "${{ steps.parse.outputs.state_location }}" \
             --sku Standard_LRS \
             --kind StorageV2 \
             --allow-blob-public-access false \
