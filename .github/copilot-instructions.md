@@ -94,6 +94,34 @@ Fkh is a platform for managing Business Central containers on Azure Kubernetes S
 - There are no human-created secrets, certificates, or API keys that need manual rotation or cycling
 - This is by design and must stay this way — never introduce static secrets, connection strings with keys, or manually provisioned certificates
 
+## Handling Breaking Changes
+
+When a change would break existing clients, use one of the following strategies to maintain backward compatibility during migration.
+
+### Per-endpoint breaking changes (response shape, parameters, behavior)
+
+Use **route-based versioning** to run old and new versions side by side:
+
+1. Set `Hidden = true` on the existing `FunctionDefinition` in `FunctionCatalog.cs` — old clients that already know the route keep working, but the function no longer appears in the catalog for new clients
+2. Create a new `FunctionDefinition` with a versioned route (e.g. `Route = "v2/GetAppInfo"`) — this becomes the catalog-visible entry
+3. Add a new function class (e.g. `GetAppInfoV2Function.cs`) with the v2 route, pointing at either a new or shared service method
+4. Both routes remain live — old clients hit the original route, new clients discover the v2 route from the catalog
+5. Both the CLI and VS Code extension automatically pick up the new function from the catalog without any client-side changes
+
+Once all clients have migrated, remove the old function class and hidden catalog entry.
+
+### Cross-cutting breaking changes (authentication, authorization, request format)
+
+For changes that affect every endpoint (e.g. switching auth token format), **do not duplicate routes**. Instead, extend `FunctionBase.AuthenticateAndAuthorizeAsync` with multi-scheme detection:
+
+1. Detect the new auth/request format from the incoming request (header value, token structure, content type, etc.)
+2. Branch to the appropriate validation logic within `AuthenticateAndAuthorizeAsync`
+3. Old clients continue sending the old format; new clients send the new format; the backend accepts both
+
+This is already the established pattern — `FunctionBase` detects GitHub OIDC tokens vs. GitHub PATs by inspecting the token format and branches accordingly. Any new auth scheme is just another branch in the same pipeline. No function classes, routes, or catalog entries need to change.
+
+Once all clients have migrated, remove the old auth branch and return 401 for the retired format.
+
 ## Prerequisites
 
 ### Hard prerequisites
