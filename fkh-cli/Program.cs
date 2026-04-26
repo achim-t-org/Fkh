@@ -21,6 +21,7 @@ Options:
     --output <path>     Save binary output (e.g. event log) to this file path
     -h, --help          Show help
     --version           Show version
+    --completions       Output completion data as JSON (for shell completers)
 
 Configuration (checked in order):
   1. --backendUrl <url>     command-line override
@@ -51,6 +52,11 @@ try
             ?? "unknown";
         Console.WriteLine(version);
         return 0;
+    }
+
+    if (args.Length > 0 && string.Equals(args[0], "--completions", StringComparison.OrdinalIgnoreCase))
+    {
+        return await GenerateCompletionDataAsync(args);
     }
 
     var settings = LoadSettings();
@@ -688,6 +694,75 @@ static void PrintUsage(FunctionCatalogResponse catalog)
             }
         }
     }
+}
+
+static async Task<int> GenerateCompletionDataAsync(string[] args)
+{
+    var settings = LoadSettings();
+    var cliBackendUrl = FindArgValue(args, "backendUrl");
+    if (!string.IsNullOrWhiteSpace(cliBackendUrl))
+        settings.BackendUrl = cliBackendUrl;
+
+    var commands = new List<object>();
+
+    // Client-side commands (always available, no backend needed)
+    foreach (var cmd in ClientCommands.All)
+    {
+        commands.Add(new
+        {
+            name = cmd.Name.ToLowerInvariant(),
+            description = cmd.Description,
+            parameters = cmd.Parameters.Select(p => new
+            {
+                name = p.Name,
+                type = p.Type,
+                description = p.Description,
+                required = p.Required
+            })
+        });
+    }
+
+    // Catalog functions (from backend)
+    try
+    {
+        var catalog = await GetFunctionCatalogAsync(settings.BackendUrl);
+        foreach (var func in catalog.Functions)
+        {
+            commands.Add(new
+            {
+                name = func.Name.ToLowerInvariant(),
+                description = func.Description,
+                parameters = func.Parameters.Select(p => new
+                {
+                    name = p.Name,
+                    type = p.Type,
+                    description = p.Description,
+                    required = p.Required
+                })
+            });
+        }
+    }
+    catch
+    {
+        // Backend unreachable — still return client-side commands
+    }
+
+    var json = JsonSerializer.Serialize(commands, new JsonSerializerOptions { WriteIndented = false });
+    Console.WriteLine(json);
+
+    // Write cache file for shell completers (fast file read, no process spawn on tab)
+    try
+    {
+        var cacheDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".fkh");
+        Directory.CreateDirectory(cacheDir);
+        File.WriteAllText(Path.Combine(cacheDir, "completions.json"), json);
+    }
+    catch
+    {
+        // Non-critical — completion still works via stdout
+    }
+
+    return 0;
 }
 
 static string? FindArgValue(string[] args, string name)
