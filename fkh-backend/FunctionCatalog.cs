@@ -894,6 +894,87 @@ public static class FunctionCatalog
                     DefaultValue = null
                 }
             }
+        },
+        new FunctionDefinition
+        {
+            Name = "NewUser",
+            Description = "Creates a new user in a running Business Central container and assigns permission sets.",
+            Route = "NewUser",
+            Parameters = new List<FunctionParameterDefinition>
+            {
+                new()
+                {
+                    Name = "name",
+                    Type = "string",
+                    Description = "Name of the container to create the user in.",
+                    Required = true,
+                    DefaultValue = null
+                },
+                new()
+                {
+                    Name = "tenant",
+                    Type = "string",
+                    Description = "Tenant to create the user in.",
+                    Required = false,
+                    DefaultValue = "default"
+                },
+                new()
+                {
+                    Name = "username",
+                    Type = "string",
+                    Description = "Username for the new user.",
+                    Required = true,
+                    DefaultValue = null
+                },
+                new()
+                {
+                    Name = "fullName",
+                    Type = "string",
+                    Description = "Full name for the new user.",
+                    Required = false,
+                    DefaultValue = null
+                },
+                new()
+                {
+                    Name = "licenseType",
+                    Type = "string",
+                    Description = "License type for the new user (Full, Limited, DeviceOnly, WindowsGroup, External, ExternalAdmin, ExternalAccountant, Application, AADGroup, Agent).",
+                    Required = false,
+                    DefaultValue = null
+                },
+                new()
+                {
+                    Name = "company",
+                    Type = "string",
+                    Description = "Default company for the new user.",
+                    Required = false,
+                    DefaultValue = null
+                },
+                new()
+                {
+                    Name = "profileID",
+                    Type = "string",
+                    Description = "Profile ID (role center) for the new user.",
+                    Required = false,
+                    DefaultValue = null
+                },
+                new()
+                {
+                    Name = "authenticationEmail",
+                    Type = "string",
+                    Description = "Authentication email for the new user.",
+                    Required = false,
+                    DefaultValue = null
+                },
+                new()
+                {
+                    Name = "permissions",
+                    Type = "string",
+                    Description = "Comma-separated list of permission set IDs to assign to the user (e.g. 'SUPER,D365 BUS FULL ACCESS').",
+                    Required = true,
+                    DefaultValue = null
+                }
+            }
         }
     };
 
