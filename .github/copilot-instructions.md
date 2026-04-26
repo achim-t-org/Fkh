@@ -93,3 +93,36 @@ Fkh is a platform for managing Business Central containers on Azure Kubernetes S
 - The entire setup uses managed identities, OIDC federation, and platform-provided credentials only
 - There are no human-created secrets, certificates, or API keys that need manual rotation or cycling
 - This is by design and must stay this way — never introduce static secrets, connection strings with keys, or manually provisioned certificates
+
+## Prerequisites
+
+### Hard prerequisites
+These are required for the CLI or VS Code extension to function at all. **Do not add new hard prerequisites without explicit approval.**
+
+#### CLI (`fkh-cli`)
+- **.NET 8.0 runtime** — the CLI targets `net8.0`
+- **GitHub authentication** — one of the following must be available (checked in order):
+  1. `OIDC_TOKEN` environment variable (GitHub Actions)
+  2. `GH_TOKEN` environment variable (PAT)
+  3. `gh auth token` (requires `gh` CLI installed and authenticated)
+- **Backend URL** — resolved in order:
+  1. `--backendUrl` CLI argument
+  2. `FKH_BACKEND_URL` environment variable
+  3. `~/.fkh/settings.json`
+  4. `fkh.settings.json` next to the executable
+
+#### VS Code Extension (`fkh-vsix`)
+- **VS Code >= 1.85.0**
+- **GitHub authentication** — handled via VS Code's built-in `vscode.authentication` API (scopes: `read:user`, `read:org`). No external tools needed.
+- **Backend URL** — configured via `fkh.backendUrl` VS Code setting (string or account-keyed object), or prompted interactively
+
+### Optional prerequisites (CLI only)
+These external tools are not required but enable additional functionality in specific CLI client-side commands. The VS Code extension has **no** optional external tool dependencies — it communicates with the backend purely over HTTP.
+
+| Tool | Commands that use it | Behavior when available | Behavior when unavailable |
+|---|---|---|---|
+| `gh` (GitHub CLI) | `CreateDeploymentRepo` | Creates a private GitHub repo via `gh repo create` | Command fails |
+| `gh` (GitHub CLI) | `UpdateDeploymentRepo` | Clones repo, fetches templates via `gh api` | Command fails |
+| `gh` (GitHub CLI) | `Open` | Resolves GitHub username via `gh api user` for pod label lookup | Falls back to manual pod name entry (only used when `kubectl` is also unavailable) |
+| `kubectl` | `Open` | Finds the pod via `kubectl get pods` and opens an interactive `kubectl exec` PowerShell session in the container | Falls back to `PoorMansTerminal` (backend-based interactive shell) |
+| `git` | `UpdateDeploymentRepo` | Commits and pushes updated deployment repo files | Command fails |
