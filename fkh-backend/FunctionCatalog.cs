@@ -757,6 +757,55 @@ public static class FunctionCatalog
         },
         new FunctionDefinition
         {
+            Name = "GetAppInfo",
+            Description = "Returns installed apps from a running Business Central container. Optionally filters by app name, publisher, or app ID. Supports wildcards (*) in name and publisher filters.",
+            Route = "GetAppInfo",
+            Parameters = new List<FunctionParameterDefinition>
+            {
+                new()
+                {
+                    Name = "name",
+                    Type = "string",
+                    Description = "Name of the container to query.",
+                    Required = true,
+                    DefaultValue = null
+                },
+                new()
+                {
+                    Name = "tenant",
+                    Type = "string",
+                    Description = "Tenant to query for app info.",
+                    Required = false,
+                    DefaultValue = "default"
+                },
+                new()
+                {
+                    Name = "appName",
+                    Type = "string",
+                    Description = "Filter by app name. Supports wildcards (*).",
+                    Required = false,
+                    DefaultValue = null
+                },
+                new()
+                {
+                    Name = "appPublisher",
+                    Type = "string",
+                    Description = "Filter by app publisher. Supports wildcards (*).",
+                    Required = false,
+                    DefaultValue = null
+                },
+                new()
+                {
+                    Name = "appId",
+                    Type = "string",
+                    Description = "Filter by app ID (exact match).",
+                    Required = false,
+                    DefaultValue = null
+                }
+            }
+        },
+        new FunctionDefinition
+        {
             Name = "CopyFileFromContainer",
             Description = "Downloads a file from a running container. Supports wildcard paths. Returns the file content as base64.",
             Route = "CopyFileFromContainer",
