@@ -49,34 +49,49 @@ public class FkhCopyFileToContainer : FkhServiceBase
         var destDir = Path.GetDirectoryName(destPath)?.Replace('/', '\\') ?? "";
         var base64 = Convert.ToBase64String(fileData);
         const int chunkSize = 65536; // 64KB base64 chunks
+        var tempPath = destPath + ".fkh-tmp";
 
-        // Initialize: create dest directory and empty file
+        // Initialize: create dest directory and empty temp file (original stays untouched)
         var initScript = $@"
 if (-not (Test-Path '{destDir}')) {{ New-Item -ItemType Directory -Path '{destDir}' -Force | Out-Null }}
-if (Test-Path '{destPath}') {{ Remove-Item '{destPath}' -Force }}
-[System.IO.File]::WriteAllBytes('{destPath}', @())
+if (Test-Path '{tempPath}') {{ Remove-Item '{tempPath}' -Force }}
+[System.IO.File]::WriteAllBytes('{tempPath}', @())
 Write-Host 'INIT_OK'
 ";
         var initResult = await ExecInPodPwshAsync(client, podName, containerName, initScript);
         if (!initResult.Stdout.Contains("INIT_OK"))
             throw new InvalidOperationException($"Failed to initialize destination: {initResult}");
 
-        // Write base64 chunks and decode
+        // Write base64 chunks to temp file
         for (var offset = 0; offset < base64.Length; offset += chunkSize)
         {
             var chunk = base64.Substring(offset, Math.Min(chunkSize, base64.Length - offset));
             var appendScript = $@"
 $chunk = '{chunk}'
 $bytes = [System.Convert]::FromBase64String($chunk)
-$fs = [System.IO.File]::Open('{destPath}', [System.IO.FileMode]::Append)
+$fs = [System.IO.File]::Open('{tempPath}', [System.IO.FileMode]::Append)
 $fs.Write($bytes, 0, $bytes.Length)
 $fs.Close()
 Write-Host 'CHUNK_OK'
 ";
             var appendResult = await ExecInPodPwshAsync(client, podName, containerName, appendScript);
             if (!appendResult.Stdout.Contains("CHUNK_OK"))
+            {
+                // Clean up temp file on failure — original file is still intact
+                await ExecInPodPwshAsync(client, podName, containerName, $"Remove-Item '{tempPath}' -Force -ErrorAction SilentlyContinue");
                 throw new InvalidOperationException($"Failed to write file chunk at offset {offset}: {appendResult}");
+            }
         }
+
+        // All chunks written successfully — replace original with temp file
+        var moveScript = $@"
+if (Test-Path '{destPath}') {{ Remove-Item '{destPath}' -Force }}
+Move-Item -Path '{tempPath}' -Destination '{destPath}' -Force
+Write-Host 'MOVE_OK'
+";
+        var moveResult = await ExecInPodPwshAsync(client, podName, containerName, moveScript);
+        if (!moveResult.Stdout.Contains("MOVE_OK"))
+            throw new InvalidOperationException($"Failed to replace destination file: {moveResult}");
     }
 
     private async Task<ExecResult> ExecInPodPwshAsync(Kubernetes client, string podName, string containerName, string psScript)

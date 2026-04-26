@@ -178,6 +178,7 @@ sealed class EditCommand : ClientCommand
             if (!response.IsSuccessStatusCode)
             {
                 Console.Error.WriteLine($"{Ansi.Red}Upload failed ({(int)response.StatusCode}): {body}{Ansi.Reset}");
+                Console.Error.WriteLine($"{Ansi.Yellow}Your changes are preserved locally at: {localFile}{Ansi.Reset}");
                 return 1;
             }
         }
