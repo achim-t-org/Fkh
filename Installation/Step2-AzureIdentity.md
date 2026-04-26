@@ -37,6 +37,14 @@ This feature is disabled by default.
 
 When AAD container authentication is enabled, Terraform grants the `Application.ReadWrite.OwnedBy` Microsoft Graph permission to the Function App managed identity that is created during deployment. To grant that permission, the deployment identity you create in this step must have the **Privileged Role Administrator** directory role in Entra ID.
 
+Optionally, you can also set:
+
+```hcl
+aad_auth_is_multitenant = true
+```
+
+When `aad_auth_is_multitenant` is `true`, AAD App Registrations created for containers allow users from any Entra ID tenant to sign in. When `false` (default), only users from your own tenant can sign in.
+
 Use this rule:
 
 | If `enable_aad_container_auth` is... | Then... |

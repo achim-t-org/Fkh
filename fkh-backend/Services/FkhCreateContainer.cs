@@ -48,6 +48,9 @@ public class FkhCreateContainer : FkhServiceBase
 
         var authenticationEmail = parameters.TryGetValue("authenticationEmail", out var authEmail) ? authEmail : null;
         var useAadAuth = !string.IsNullOrWhiteSpace(authenticationEmail);
+        var aadAuthIsMultitenant = string.Equals(
+            Environment.GetEnvironmentVariable("AAD_AUTH_IS_MULTITENANT") ?? "false",
+            "true", StringComparison.OrdinalIgnoreCase);
 
         var imageTag = GetImageTag(artifactUrl);
         var fullImage = $"{AcrLoginServer}/{AcrRepository}:{imageTag}";
@@ -155,7 +158,7 @@ public class FkhCreateContainer : FkhServiceBase
         if (useAadAuth)
         {
             var redirectUri = $"https://{publicDnsName}/BC/SignIn";
-            (aadAppObjectId, aadAppClientId) = await CreateAadAppRegistrationAsync(appName, redirectUri);
+            (aadAppObjectId, aadAppClientId) = await CreateAadAppRegistrationAsync(appName, redirectUri, aadAuthIsMultitenant);
         }
 
         await CreateDeploymentAsync(client, deploymentName, appName, fullImage, adminUsername, secretName, publicDnsName, databaseName, cpuRequest, memoryRequest, repo, project, multitenant, useSpot, authenticationEmail, aadAppClientId, aadAppObjectId);
@@ -646,9 +649,10 @@ public class FkhCreateContainer : FkhServiceBase
         return envVars;
     }
 
-    private async Task<(string ObjectId, string ClientId)> CreateAadAppRegistrationAsync(string appName, string redirectUri)
+    private async Task<(string ObjectId, string ClientId)> CreateAadAppRegistrationAsync(string appName, string redirectUri, bool multitenant)
     {
-        Logger.LogInformation("Creating AAD App Registration for container '{AppName}' with redirect URI: {RedirectUri}", appName, redirectUri);
+        var signInAudience = multitenant ? "AzureADMultipleOrgs" : "AzureADMyOrg";
+        Logger.LogInformation("Creating AAD App Registration for container '{AppName}' with redirect URI: {RedirectUri} (signInAudience: {Audience})", appName, redirectUri, signInAudience);
 
 #pragma warning disable CS0618
         var credential = new ManagedIdentityCredential(ClientId);
@@ -658,7 +662,7 @@ public class FkhCreateContainer : FkhServiceBase
         var app = await graphClient.Applications.PostAsync(new Application
         {
             DisplayName = $"fkh-{appName}-auth",
-            SignInAudience = "AzureADMyOrg",
+            SignInAudience = signInAudience,
             Web = new WebApplication
             {
                 RedirectUris = new List<string> { redirectUri },

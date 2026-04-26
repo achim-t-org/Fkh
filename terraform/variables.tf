@@ -237,6 +237,12 @@ variable "enable_aad_container_auth" {
   default     = false
 }
 
+variable "aad_auth_is_multitenant" {
+  description = "When true, AAD App Registrations created for containers use multi-tenant sign-in (AzureADMultipleOrgs), allowing users from other Entra ID tenants. When false (default), apps are single-tenant (AzureADMyOrg). Only takes effect when enable_aad_container_auth is true."
+  type        = bool
+  default     = false
+}
+
 variable "kubecost_enabled" {
   description = "Deploy Kubecost free tier for per-pod cost analysis."
   type        = bool

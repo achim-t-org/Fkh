@@ -104,6 +104,14 @@ Set this to `true` only if users should sign in to Business Central containers w
 
 If you set it to `true`, the deployment identity must have the **Privileged Role Administrator** directory role in Entra ID. See Step 2, section A.5 or B.4.
 
+### AAD multi-tenant
+
+```hcl
+aad_auth_is_multitenant = false
+```
+
+Set this to `true` to create AAD App Registrations as multi-tenant, allowing users from other Entra ID tenants to sign in to containers. Only takes effect when `enable_aad_container_auth` is `true`.
+
 ### GitHub teams
 
 Use the teams created or selected in Step 4.

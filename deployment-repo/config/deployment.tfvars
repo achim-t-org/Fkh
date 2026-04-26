@@ -91,6 +91,7 @@ contact_email_for_letsencrypt = "admin@example.com"
 # Requires the deployment identity to have the Privileged Role Administrator directory role in Entra ID.
 # See Installation/Step2-AzureIdentity.md for details.
 enable_aad_container_auth = false
+aad_auth_is_multitenant  = false
 
 
 #   _____ _ _   _    _       _         _____      _   _   _                 

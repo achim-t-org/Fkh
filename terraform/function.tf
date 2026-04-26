@@ -95,6 +95,7 @@ resource "azurerm_windows_function_app" "this" {
     CONTAINER_DEFAULT_CPU                     = var.container_default_cpu
     CONTAINER_DEFAULT_MEMORY                  = var.container_default_memory
     AAD_TENANT_ID                            = var.tenant_id
+    AAD_AUTH_IS_MULTITENANT                   = tostring(var.aad_auth_is_multitenant)
     APPINSIGHTS_INSTRUMENTATIONKEY          = azurerm_application_insights.this.instrumentation_key
     APPLICATIONINSIGHTS_CONNECTION_STRING   = azurerm_application_insights.this.connection_string
   }
