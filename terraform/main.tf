@@ -109,10 +109,13 @@ resource "azurerm_kubernetes_cluster_node_pool" "win" {
   os_type                      = "Windows"
   os_sku                       = "Windows2022"
   temporary_name_for_rotation  = "wintmp"
-  node_count                   = var.windows_min_node_count
   min_count                    = var.windows_min_node_count
   max_count                    = var.windows_max_node_count
   auto_scaling_enabled         = true
+
+  lifecycle {
+    ignore_changes = [node_count]
+  }
 }
 
 # ============================================================================
@@ -127,7 +130,6 @@ resource "azurerm_kubernetes_cluster_node_pool" "winspot" {
   os_type                      = "Windows"
   os_sku                       = "Windows2022"
   temporary_name_for_rotation  = "spottmp"
-  node_count                   = var.windows_spot_min_node_count
   min_count             = var.windows_spot_min_node_count
   max_count             = var.windows_spot_max_node_count
   auto_scaling_enabled  = true
@@ -142,6 +144,10 @@ resource "azurerm_kubernetes_cluster_node_pool" "winspot" {
   node_taints = [
     "kubernetes.azure.com/scalesetpriority=spot:NoSchedule"
   ]
+
+  lifecycle {
+    ignore_changes = [node_count]
+  }
 }
 
 # ============================================================================
