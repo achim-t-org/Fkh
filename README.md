@@ -1,5 +1,7 @@
 # Freddy's Kubernetes Helper (Fkh)
 
+<img width="1774" height="887" alt="DevOps Shiba 2" src="https://github.com/user-attachments/assets/aba8a19d-cc32-45d6-9503-66e3cd6a3009" />
+
 ## License
 
 This project is licensed under the [MIT License with Commons Clause](LICENSE).
