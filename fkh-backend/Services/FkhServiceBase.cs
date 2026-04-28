@@ -28,6 +28,7 @@ public abstract class FkhServiceBase
     protected readonly string? LogAnalyticsWorkspaceId;
     protected readonly string AadTenantId;
     protected readonly string? AadGraphClientId;
+    protected readonly string AadAppNamePrefix;
     protected readonly ILogger Logger;
 
     protected const string Namespace = "app";
@@ -59,6 +60,7 @@ public abstract class FkhServiceBase
         AadTenantId = Environment.GetEnvironmentVariable("AAD_TENANT_ID")
             ?? throw new InvalidOperationException("AAD_TENANT_ID is not configured.");
         AadGraphClientId = Environment.GetEnvironmentVariable("AAD_GRAPH_CLIENT_ID");
+        AadAppNamePrefix = Environment.GetEnvironmentVariable("AAD_APP_NAME_PREFIX") ?? "";
     }
 
     /// <summary>

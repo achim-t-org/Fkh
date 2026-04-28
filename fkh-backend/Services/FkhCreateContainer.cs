@@ -663,7 +663,7 @@ public class FkhCreateContainer : FkhServiceBase
 
         var app = await graphClient.Applications.PostAsync(new Application
         {
-            DisplayName = $"fkh-{appName}-auth",
+            DisplayName = $"{AadAppNamePrefix}fkh-{appName}-auth",
             SignInAudience = signInAudience,
             Web = new WebApplication
             {

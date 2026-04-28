@@ -96,6 +96,7 @@ contact_email_for_letsencrypt = "admin@example.com"
 # See Installation/Step2-AzureIdentity.md for details.
 enable_aad_container_auth = false
 aad_auth_is_multitenant  = false
+aad_app_name_prefix      = ""           # Optional prefix before 'fkh' in AAD app names (e.g. "dbc-" → dbc-fkh-<container>-auth)
 
 
 #   _____ _ _   _    _       _         _____      _   _   _                 

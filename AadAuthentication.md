@@ -29,7 +29,7 @@ The container's web client URL will use the `/BC/SignIn` path for AAD login inst
 
 ## How It Works
 
-1. When `authenticationEmail` is provided, the Function creates a new AAD App Registration named `fkh-<container>-auth` with a redirect URI of `https://<container-fqdn>/BC/SignIn`.
+1. When `authenticationEmail` is provided, the Function creates a new AAD App Registration named `[<prefix>]fkh-<container>-auth` with a redirect URI of `https://<container-fqdn>/BC/SignIn`. The optional prefix is controlled by the `aad_app_name_prefix` setting in `deployment.tfvars`.
 2. The app's client ID is stored as a Kubernetes annotation (`fkh/aad-app-object-id`) on the deployment so it can be cleaned up later.
 3. The container receives `AadAppId`, `AadAppRedirectUri`, `AadTenantId`, and `authenticationEMail` as environment variables.
 4. Users sign in via the standard Microsoft login flow in the browser.

@@ -96,6 +96,7 @@ resource "azurerm_windows_function_app" "this" {
     CONTAINER_DEFAULT_MEMORY                  = var.container_default_memory
     AAD_TENANT_ID                            = var.tenant_id
     AAD_AUTH_IS_MULTITENANT                   = tostring(var.aad_auth_is_multitenant)
+    AAD_APP_NAME_PREFIX                       = var.aad_app_name_prefix
     AAD_GRAPH_CLIENT_ID                       = var.enable_aad_container_auth ? data.azuread_client_config.current.client_id : ""
     APPINSIGHTS_INSTRUMENTATIONKEY          = azurerm_application_insights.this.instrumentation_key
     APPLICATIONINSIGHTS_CONNECTION_STRING   = azurerm_application_insights.this.connection_string

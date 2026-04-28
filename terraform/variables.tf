@@ -249,6 +249,12 @@ variable "aad_auth_is_multitenant" {
   default     = false
 }
 
+variable "aad_app_name_prefix" {
+  description = "Optional prefix inserted before 'fkh' in AAD App Registration display names. For example, setting this to 'dbc-' produces 'dbc-fkh-<container>-auth' instead of 'fkh-<container>-auth'. Leave empty for the default naming."
+  type        = string
+  default     = ""
+}
+
 variable "kubecost_enabled" {
   description = "Deploy Kubecost free tier for per-pod cost analysis."
   type        = bool
