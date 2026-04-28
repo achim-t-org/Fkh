@@ -12,6 +12,10 @@ sealed class CreateDeploymentRepoCommand : ClientCommand
     {
         var parameters = ParseClientArgs(args);
 
+        // If --ghUser was specified, resolve that user's token so all gh CLI calls use the correct account
+        if (!string.IsNullOrWhiteSpace(settings.User))
+            Environment.SetEnvironmentVariable("GH_TOKEN", GetToken(parameters, settings.User));
+
         if (!parameters.TryGetValue("deploymentRepo", out var deployFullRepo) || string.IsNullOrWhiteSpace(deployFullRepo))
         {
             Console.Error.WriteLine($"{Ansi.Red}--deploymentRepo is required (e.g. myorg/fkh-deploy).{Ansi.Reset}");
