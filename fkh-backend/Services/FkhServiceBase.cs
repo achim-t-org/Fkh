@@ -29,6 +29,7 @@ public abstract class FkhServiceBase
     protected readonly string AadTenantId;
     protected readonly string? AadGraphClientId;
     protected readonly string AadAppNamePrefix;
+    protected readonly string? AadAppAdditionalOwner;
     protected readonly ILogger Logger;
 
     protected const string Namespace = "app";
@@ -61,6 +62,7 @@ public abstract class FkhServiceBase
             ?? throw new InvalidOperationException("AAD_TENANT_ID is not configured.");
         AadGraphClientId = Environment.GetEnvironmentVariable("AAD_GRAPH_CLIENT_ID");
         AadAppNamePrefix = Environment.GetEnvironmentVariable("AAD_APP_NAME_PREFIX") ?? "";
+        AadAppAdditionalOwner = Environment.GetEnvironmentVariable("AAD_APP_ADDITIONAL_OWNER");
     }
 
     /// <summary>

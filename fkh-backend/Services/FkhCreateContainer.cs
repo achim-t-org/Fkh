@@ -724,6 +724,23 @@ public class FkhCreateContainer : FkhServiceBase
             }
         }
 
+        // Add additional human owner if configured
+        if (!string.IsNullOrWhiteSpace(AadAppAdditionalOwner))
+        {
+            try
+            {
+                await graphClient.Applications[app.Id].Owners.Ref.PostAsync(new Microsoft.Graph.Models.ReferenceCreate
+                {
+                    OdataId = $"https://graph.microsoft.com/v1.0/directoryObjects/{AadAppAdditionalOwner}"
+                });
+                Logger.LogInformation("Added additional owner {OwnerId} to AAD App Registration {AppName}", AadAppAdditionalOwner, app.DisplayName);
+            }
+            catch (ODataError ex)
+            {
+                Logger.LogWarning(ex, "Failed to add additional owner {OwnerId} to AAD App Registration {AppName}: {Message}", AadAppAdditionalOwner, app.DisplayName, ex.Error?.Message);
+            }
+        }
+
         Logger.LogInformation("AAD App Registration created: {DisplayName} (appId: {AppId}, objectId: {ObjectId})", app.DisplayName, app.AppId, app.Id);
         return (app.Id!, app.AppId!);
     }

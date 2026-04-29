@@ -183,4 +183,7 @@ jobs:
             az functionapp restart --name $functionAppName --resource-group $resourceGroupName
             if ($LASTEXITCODE -ne 0) { throw "func publish and fallback restart both failed." }
             Write-Host "Function app restarted successfully." -ForegroundColor Green
+            throw "func publish failed (build errors). Function app was restarted but new code was NOT deployed."
           }
+
+          Write-Host "Function app $functionAppName published successfully." -ForegroundColor Green

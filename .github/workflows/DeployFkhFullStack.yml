@@ -293,7 +293,9 @@ jobs:
               Write-Host "func publish exited with code $LASTEXITCODE — restarting function app..." -ForegroundColor Yellow
               az functionapp restart --name $functionAppName --resource-group $resourceGroupName
               if ($LASTEXITCODE -ne 0) { throw "func publish and fallback restart both failed." }
+              throw "func publish failed (build errors). Function app was restarted but new code was NOT deployed."
             }
+            Write-Host "Function app $functionAppName published successfully." -ForegroundColor Green
           }
           finally {
             Pop-Location

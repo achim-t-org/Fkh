@@ -255,6 +255,12 @@ variable "aad_app_name_prefix" {
   default     = ""
 }
 
+variable "aad_app_additional_owner" {
+  description = "Optional Entra ID object ID of a user to add as an additional owner on every AAD App Registration created for containers. Leave empty to skip. Only takes effect when enable_aad_container_auth is true."
+  type        = string
+  default     = ""
+}
+
 variable "kubecost_enabled" {
   description = "Deploy Kubecost free tier for per-pod cost analysis."
   type        = bool

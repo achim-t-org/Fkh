@@ -96,7 +96,11 @@ contact_email_for_letsencrypt = "admin@example.com"
 # See Installation/Step2-AzureIdentity.md for details.
 enable_aad_container_auth = false
 aad_auth_is_multitenant  = false
-aad_app_name_prefix      = ""           # Optional prefix before 'fkh' in AAD app names (e.g. "dbc-" → dbc-fkh-<container>-auth)
+# Optional prefix before 'fkh' in AAD app names (e.g. "dbc-" → dbc-fkh-<container>-auth)
+aad_app_name_prefix      = ""
+# Optional: Entra ID object ID of a user to add as co-owner on created AAD apps
+# Find a user's object ID with: az ad user show --id user@domain.com --query id -o tsv
+aad_app_additional_owner  = ""
 
 
 #   _____ _ _   _    _       _         _____      _   _   _                 
