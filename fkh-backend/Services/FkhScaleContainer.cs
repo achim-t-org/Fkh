@@ -66,22 +66,6 @@ public class FkhScaleContainer : FkhServiceBase
         await EnsureWindowsNodeReadyAsync(client, useSpot);
         await CleanupPlaceholderPodAsync(client, useSpot);
 
-        // Clear stale BC server instance encryption data from the app database.
-        // Each pod gets a new machine identity, so DPAPI-protected encryption keys
-        // from the previous pod are unusable. Clearing stale entries forces BC
-        // to regenerate a fresh encryption key on startup.
-        // Only do this when replicas is currently 0 (container is fully stopped) to avoid
-        // racing with a pod that has already started and written a fresh entry.
-        if ((deployment.Spec.Replicas ?? 0) == 0)
-        {
-            var envVars = deployment.Spec.Template.Spec.Containers[0].Env;
-            var databaseName = envVars?.FirstOrDefault(e => e.Name == "databaseName")?.Value;
-            if (!string.IsNullOrEmpty(databaseName))
-            {
-                await ClearStaleServerInstancesAsync(client, databaseName);
-            }
-        }
-
         var result = await ScaleAsync(parameters, 1);
 
         parameters.TryGetValue("autostop", out var autoStopValue);
@@ -202,24 +186,5 @@ public class FkhScaleContainer : FkhServiceBase
         var action = replicas == 0 ? "Stopped" : "Started";
         Logger.LogInformation("{Action} deployment '{Deployment}'.", action, deploymentName);
         return new ScaleResult(appName, deploymentName, replicas);
-    }
-
-    private async Task ClearStaleServerInstancesAsync(Kubernetes client, string databaseName)
-    {
-        try
-        {
-            // The deployment has replicas=0 at this point (verified above), so there are
-            // no running pods for this container. All [Server Instance] entries are from
-            // dead pods with unusable DPAPI encryption keys — safe to clear them all.
-            var podName = await FindMssqlPodAsync(client);
-            var sql = $"IF OBJECT_ID(N'[{databaseName}].[dbo].[Server Instance]', N'U') IS NOT NULL DELETE FROM [{databaseName}].[dbo].[Server Instance]";
-            var script = $"{SqlcmdPath} -S localhost -U sa -P \"$MSSQL_SA_PASSWORD\" -C -b -Q \"{sql}\"";
-            await ExecInMssqlPodAsync(client, podName, script);
-            Logger.LogInformation("Cleared [Server Instance] entries in database '{DatabaseName}' for fresh encryption key generation.", databaseName);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "Failed to clear [Server Instance] entries in database '{DatabaseName}'. Container may fail to start if encryption keys are stale.", databaseName);
-        }
     }
 }
