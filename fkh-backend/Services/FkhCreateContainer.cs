@@ -755,7 +755,8 @@ public class FkhCreateContainer : FkhServiceBase
                 NamespaceProperty = Namespace,
                 Annotations = new Dictionary<string, string>
                 {
-                    ["service.beta.kubernetes.io/azure-dns-label-name"] = dnsLabel
+                    ["service.beta.kubernetes.io/azure-dns-label-name"] = dnsLabel,
+                    ["service.beta.kubernetes.io/azure-load-balancer-health-probe-protocol"] = "tcp"
                 }
             },
             Spec = new V1ServiceSpec
