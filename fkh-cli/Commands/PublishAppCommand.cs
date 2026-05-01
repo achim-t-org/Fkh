@@ -208,7 +208,7 @@ try {{
     Publish-NAVApp -ServerInstance $serverInstance -Path $appPath -SkipVerification
     'Publish-NAVApp completed' | Out-File '{LogPath}' -Append
 
-    Sync-NAVApp -ServerInstance $serverInstance -Name $appInfo.Name -Version $appInfo.Version -Tenant $tenant -Mode {syncMode}
+    Sync-NAVApp -ServerInstance $serverInstance -Name $appInfo.Name -Version $appInfo.Version -Tenant $tenant -Mode {syncMode} -Force
     'Sync-NAVApp completed' | Out-File '{LogPath}' -Append
 
     $existingApp = Get-NAVAppInfo -ServerInstance $serverInstance -Tenant $tenant -Name $appInfo.Name -TenantSpecificProperties | Where-Object {{ $_.IsInstalled -eq $true }}

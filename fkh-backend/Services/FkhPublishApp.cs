@@ -50,7 +50,7 @@ try {{
     $appInfo = Get-NAVAppInfo -Path $appPath
     Write-Host ""Publishing app: $($appInfo.Name) v$($appInfo.Version)""
     Publish-NAVApp -ServerInstance $serverInstance -Path $appPath -SkipVerification
-    Sync-NAVApp -ServerInstance $serverInstance -Name $appInfo.Name -Version $appInfo.Version -Tenant $tenant -Mode {syncMode}
+    Sync-NAVApp -ServerInstance $serverInstance -Name $appInfo.Name -Version $appInfo.Version -Tenant $tenant -Mode {syncMode} -Force
     $existingApp = Get-NAVAppInfo -ServerInstance $serverInstance -Tenant $tenant -Name $appInfo.Name -TenantSpecificProperties | Where-Object {{ $_.IsInstalled -eq $true }}
     if ($existingApp) {{
         Write-Host ""Upgrading from v$($existingApp.Version)...""
