@@ -503,39 +503,6 @@ public static class FunctionCatalog
         },
         new FunctionDefinition
         {
-            Name = "PublishApp",
-            Description = "Publishes a .app file to a running Business Central container. The app is copied into the container and installed via Publish-NAVApp.",
-            Route = "PublishApp",
-            Parameters = new List<FunctionParameterDefinition>
-            {
-                new()
-                {
-                    Name = "name",
-                    Type = "string",
-                    Description = "Name of the container to publish the app to.",
-                    Required = true,
-                    DefaultValue = null
-                },
-                new()
-                {
-                    Name = "appFile",
-                    Type = "file",
-                    Description = "Path to the .app file to publish.",
-                    Required = true,
-                    DefaultValue = null
-                },
-                new()
-                {
-                    Name = "syncMode",
-                    Type = "string",
-                    Description = "Sync mode for the app (Add, ForceSync, Clean, Development).",
-                    Required = false,
-                    DefaultValue = "Add"
-                }
-            }
-        },
-        new FunctionDefinition
-        {
             Name = "GetDatabaseUploadSas",
             Description = "Returns a SAS URL for uploading database backups to blob storage. Admin only.",
             Route = "GetDatabaseUploadSas",
@@ -613,6 +580,24 @@ public static class FunctionCatalog
             Hidden = true,
             AdminOnly = true,
             Parameters = new List<FunctionParameterDefinition>()
+        },
+        new FunctionDefinition
+        {
+            Name = "GetContainerDetails",
+            Description = "Returns admin credentials, dev scope flag, and web client URL for a container. Only the container owner (or an admin) can retrieve details.",
+            Route = "GetContainerDetails",
+            Hidden = true,
+            Parameters = new List<FunctionParameterDefinition>
+            {
+                new()
+                {
+                    Name = "name",
+                    Type = "string",
+                    Description = "Name of the container.",
+                    Required = true,
+                    DefaultValue = null
+                }
+            }
         },
         new FunctionDefinition
         {
