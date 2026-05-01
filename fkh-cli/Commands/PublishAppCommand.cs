@@ -252,7 +252,7 @@ try {{
     Sync-NAVApp -ServerInstance $serverInstance -Name $appInfo.Name -Version $appInfo.Version -Tenant $tenant -Mode {syncMode} -Force
     Write-Host 'Sync-NAVApp completed'
 
-    $existingApp = Get-NAVAppInfo -ServerInstance $serverInstance -Tenant $tenant -Name $appInfo.Name -TenantSpecificProperties | Where-Object {{ $_.IsInstalled -eq $true }}
+    $existingApp = Get-NAVAppInfo -ServerInstance $serverInstance -Tenant $tenant -Id $appInfo.AppId -TenantSpecificProperties | Where-Object {{ $_.IsInstalled -eq $true }}
     if ($existingApp) {{
         Write-Host ('Upgrading from v' + $existingApp.Version)
         Start-NAVAppDataUpgrade -ServerInstance $serverInstance -Name $appInfo.Name -Version $appInfo.Version -Tenant $tenant
