@@ -1,5 +1,7 @@
+using Fkh.Models;
 using k8s;
 using Microsoft.Extensions.Logging;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace Fkh.Services;
@@ -66,37 +68,106 @@ public class FkhInvokeScript : FkhServiceBase
         var podName = pod.Metadata.Name;
         var containerName = pod.Spec.Containers[0].Name;
 
-        // Write script to a temp file in the container and invoke it.
-        // This ensures param() blocks work regardless of --command vs --scriptFile.
-        var tempFileName = $"fkh-{Guid.NewGuid():N}.ps1";
-        var tempFilePath = $"C:\\run\\my\\{tempFileName}";
+        // Deterministic job ID so retries find the same running job
+        var jobId = ComputeJobId(appName, script, scriptParams);
+        var basePath = $"C:\\run\\my\\fkh-{jobId}";
+        var scriptPath = $"{basePath}.ps1";
+        var wrapperPath = $"{basePath}-run.ps1";
+        var stdoutPath = $"{basePath}.stdout";
+        var stderrPath = $"{basePath}.stderr";
+        var donePath = $"{basePath}.done";
 
-        // Base64-encode the script to safely transfer it into the container
-        var scriptBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(script));
-        var writeScript = $"[IO.File]::WriteAllBytes('{tempFilePath}', [Convert]::FromBase64String('{scriptBase64}'))";
-        await ExecInBcPodPwshAsync(client, podName, containerName, writeScript);
+        // Check if job is already complete (retry after previous timeout)
+        var doneCheck = await ExecInBcPodPwshAsync(client, podName, containerName,
+            $"if (Test-Path '{donePath}') {{ 'DONE' }} else {{ 'PENDING' }}");
 
+        if (doneCheck.Stdout.Trim() == "DONE")
+        {
+            return await CollectResultAndCleanupAsync(client, podName, containerName, appName, basePath, stdoutPath, stderrPath);
+        }
+
+        // Check if job is already running (script file exists but no done marker)
+        var runningCheck = await ExecInBcPodPwshAsync(client, podName, containerName,
+            $"if (Test-Path '{scriptPath}') {{ 'RUNNING' }} else {{ 'NEW' }}");
+
+        if (runningCheck.Stdout.Trim() == "NEW")
+        {
+            // First invocation — write script and wrapper, launch detached
+            var scriptBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(script));
+            await ExecInBcPodPwshAsync(client, podName, containerName,
+                $"[IO.File]::WriteAllBytes('{scriptPath}', [Convert]::FromBase64String('{scriptBase64}'))");
+
+            var wrapperScript = $@"
+try {{
+    . 'C:\run\prompt.ps1' -silent
+    . '{scriptPath}' {scriptParams}
+}} finally {{
+    'DONE' | Out-File '{donePath}' -NoNewline
+}}";
+            var wrapperBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(wrapperScript));
+            await ExecInBcPodPwshAsync(client, podName, containerName,
+                $"[IO.File]::WriteAllBytes('{wrapperPath}', [Convert]::FromBase64String('{wrapperBase64}'))");
+
+            // Launch detached with stdout/stderr redirected to files
+            await ExecInBcPodPwshAsync(client, podName, containerName,
+                $"Start-Process -FilePath 'pwsh' -ArgumentList '-NoProfile','-File','{wrapperPath}' " +
+                $"-RedirectStandardOutput '{stdoutPath}' -RedirectStandardError '{stderrPath}' -WindowStyle Hidden");
+        }
+
+        // Poll for completion (up to ~4 minutes to stay within Azure Functions timeout)
+        var maxPollTime = TimeSpan.FromMinutes(4);
+        var pollInterval = TimeSpan.FromSeconds(3);
+        var elapsed = TimeSpan.Zero;
+
+        while (elapsed < maxPollTime)
+        {
+            await Task.Delay(pollInterval);
+            elapsed += pollInterval;
+
+            var pollCheck = await ExecInBcPodPwshAsync(client, podName, containerName,
+                $"if (Test-Path '{donePath}') {{ 'DONE' }} else {{ 'PENDING' }}");
+
+            if (pollCheck.Stdout.Trim() == "DONE")
+            {
+                return await CollectResultAndCleanupAsync(client, podName, containerName, appName, basePath, stdoutPath, stderrPath);
+            }
+        }
+
+        // Script still running — tell client to retry
+        throw new RetryAfterException("Script still running...", 10);
+    }
+
+    private async Task<object> CollectResultAndCleanupAsync(
+        Kubernetes client, string podName, string containerName, string appName,
+        string basePath, string stdoutPath, string stderrPath)
+    {
+        var stdoutResult = await ExecInBcPodPwshAsync(client, podName, containerName,
+            $"if (Test-Path '{stdoutPath}') {{ Get-Content '{stdoutPath}' -Raw }} else {{ '' }}");
+        var stderrResult = await ExecInBcPodPwshAsync(client, podName, containerName,
+            $"if (Test-Path '{stderrPath}') {{ Get-Content '{stderrPath}' -Raw }} else {{ '' }}");
+
+        // Clean up all job files
         try
         {
-            var fullScript = $". 'C:\\run\\prompt.ps1' -silent; . '{tempFilePath}' {scriptParams}";
-            var result = await ExecInBcPodPwshAsync(client, podName, containerName, fullScript);
+            await ExecInBcPodPwshAsync(client, podName, containerName,
+                $"Remove-Item '{basePath}*' -Force -ErrorAction SilentlyContinue");
+        }
+        catch { /* best-effort cleanup */ }
 
-            return new
-            {
-                Container = appName,
-                Output = result.Stdout.TrimEnd(),
-                Stderr = string.IsNullOrWhiteSpace(result.Stderr) ? null : result.Stderr.TrimEnd(),
-            };
-        }
-        finally
+        var stderr = stderrResult.Stdout.TrimEnd();
+        return new
         {
-            // Clean up the temp file
-            try
-            {
-                await ExecInBcPodPwshAsync(client, podName, containerName, $"Remove-Item '{tempFilePath}' -Force -ErrorAction SilentlyContinue");
-            }
-            catch { /* best-effort cleanup */ }
-        }
+            Container = appName,
+            Output = stdoutResult.Stdout.TrimEnd(),
+            Stderr = string.IsNullOrWhiteSpace(stderr) ? null : stderr,
+        };
+    }
+
+    private static string ComputeJobId(string appName, string script, string scriptParams)
+    {
+        var input = $"{appName}|{script}|{scriptParams}";
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(input));
+        return Convert.ToHexString(hash)[..16].ToLowerInvariant();
     }
 
     private async Task<ExecResult> ExecInBcPodPwshAsync(Kubernetes client, string podName, string containerName, string psScript)
