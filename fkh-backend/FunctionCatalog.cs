@@ -498,6 +498,14 @@ public static class FunctionCatalog
                     Description = "Path to a PowerShell script file (.ps1) to execute in the container. Use this or --command, not both.",
                     Required = false,
                     DefaultValue = null
+                },
+                new()
+                {
+                    Name = "scriptParams",
+                    Type = "string",
+                    Description = "Parameters to pass to the script (PowerShell syntax, e.g. -Name 'value' -Count 5).",
+                    Required = false,
+                    DefaultValue = null
                 }
             }
         },

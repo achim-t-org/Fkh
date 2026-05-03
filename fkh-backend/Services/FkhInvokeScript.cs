@@ -50,6 +50,7 @@ public class FkhInvokeScript : FkhServiceBase
     {
         var githubUsername = parameters["_githubUsername"];
         var appName = ResolveAppName(parameters);
+        var scriptParams = parameters.TryGetValue("scriptParams", out var sp) ? sp : "";
 
         Logger.LogInformation(
             "User '{User}' invoking script in container '{Container}'.",
@@ -65,16 +66,37 @@ public class FkhInvokeScript : FkhServiceBase
         var podName = pod.Metadata.Name;
         var containerName = pod.Spec.Containers[0].Name;
 
-        // Execute the script using PowerShell 7 (pwsh) inside the BC pod
-        var fullScript = $". 'C:\\run\\prompt.ps1' -silent; {script}";
-        var result = await ExecInBcPodPwshAsync(client, podName, containerName, fullScript);
+        // Write script to a temp file in the container and invoke it.
+        // This ensures param() blocks work regardless of --command vs --scriptFile.
+        var tempFileName = $"fkh-{Guid.NewGuid():N}.ps1";
+        var tempFilePath = $"C:\\run\\my\\{tempFileName}";
 
-        return new
+        // Base64-encode the script to safely transfer it into the container
+        var scriptBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(script));
+        var writeScript = $"[IO.File]::WriteAllBytes('{tempFilePath}', [Convert]::FromBase64String('{scriptBase64}'))";
+        await ExecInBcPodPwshAsync(client, podName, containerName, writeScript);
+
+        try
         {
-            Container = appName,
-            Output = result.Stdout.TrimEnd(),
-            Stderr = string.IsNullOrWhiteSpace(result.Stderr) ? null : result.Stderr.TrimEnd(),
-        };
+            var fullScript = $". 'C:\\run\\prompt.ps1' -silent; . '{tempFilePath}' {scriptParams}";
+            var result = await ExecInBcPodPwshAsync(client, podName, containerName, fullScript);
+
+            return new
+            {
+                Container = appName,
+                Output = result.Stdout.TrimEnd(),
+                Stderr = string.IsNullOrWhiteSpace(result.Stderr) ? null : result.Stderr.TrimEnd(),
+            };
+        }
+        finally
+        {
+            // Clean up the temp file
+            try
+            {
+                await ExecInBcPodPwshAsync(client, podName, containerName, $"Remove-Item '{tempFilePath}' -Force -ErrorAction SilentlyContinue");
+            }
+            catch { /* best-effort cleanup */ }
+        }
     }
 
     private async Task<ExecResult> ExecInBcPodPwshAsync(Kubernetes client, string podName, string containerName, string psScript)

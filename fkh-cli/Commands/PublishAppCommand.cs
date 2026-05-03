@@ -240,7 +240,6 @@ sealed class PublishAppCommand : ClientCommand
         return $@"
 $ErrorActionPreference = 'Stop'
 try {{
-    . 'c:\run\prompt.ps1'
     $appPath = '{AppDestPath}'
     $serverInstance = 'BC'
     $tenant = 'default'
