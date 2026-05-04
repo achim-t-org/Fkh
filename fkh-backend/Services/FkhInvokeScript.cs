@@ -100,7 +100,9 @@ public class FkhInvokeScript : FkhServiceBase
             var wrapperScript = $@"
 try {{
     . 'C:\run\prompt.ps1' -silent
-    . '{scriptPath}' {scriptParams}
+    & {{ . '{scriptPath}' {scriptParams} }} 2> '{stderrPath}' 6>&1 3>&1 4>&1 5>&1 | Out-File '{stdoutPath}' -Encoding utf8
+}} catch {{
+    $_.Exception.Message | Out-File '{stderrPath}' -Append -Encoding utf8
 }} finally {{
     'DONE' | Out-File '{donePath}' -NoNewline
 }}";
@@ -108,21 +110,15 @@ try {{
             await ExecInBcPodPwshAsync(client, podName, containerName,
                 $"[IO.File]::WriteAllBytes('{wrapperPath}', [Convert]::FromBase64String('{wrapperBase64}'))");
 
-            // Launch detached with stdout/stderr redirected to files
+            // Launch detached — output redirection is handled inside the wrapper script
             await ExecInBcPodPwshAsync(client, podName, containerName,
-                $"Start-Process -FilePath 'pwsh' -ArgumentList '-NoProfile','-File','{wrapperPath}' " +
-                $"-RedirectStandardOutput '{stdoutPath}' -RedirectStandardError '{stderrPath}' -WindowStyle Hidden");
+                $"Start-Process -FilePath 'pwsh' -ArgumentList '-NoProfile','-File','{wrapperPath}' -WindowStyle Hidden");
         }
 
-        // Poll for completion (up to ~4 minutes to stay within Azure Functions timeout)
-        var maxPollTime = TimeSpan.FromMinutes(4);
-        var pollInterval = TimeSpan.FromSeconds(3);
-        var elapsed = TimeSpan.Zero;
-
-        while (elapsed < maxPollTime)
+        // Wait up to 30 seconds for the script to finish before returning 202
+        for (var i = 0; i < 6; i++)
         {
-            await Task.Delay(pollInterval);
-            elapsed += pollInterval;
+            await Task.Delay(5_000);
 
             var pollCheck = await ExecInBcPodPwshAsync(client, podName, containerName,
                 $"if (Test-Path '{donePath}') {{ 'DONE' }} else {{ 'PENDING' }}");
@@ -133,8 +129,8 @@ try {{
             }
         }
 
-        // Script still running — tell client to retry
-        throw new RetryAfterException("Script still running...", 10);
+        // Script still running — tell client to poll back
+        throw new RetryAfterException("Script still running...", 5);
     }
 
     private async Task<object> CollectResultAndCleanupAsync(

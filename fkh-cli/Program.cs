@@ -213,6 +213,8 @@ try
         client.Timeout = TimeSpan.FromMinutes(30); // Large file uploads need more time
     }
 
+    var retryInProgress = false;
+
     while (true)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
@@ -258,19 +260,29 @@ try
                 int.TryParse(retryValues.FirstOrDefault(), out retrySeconds);
             if (retrySeconds > 0)
             {
-                Console.WriteLine($"{Ansi.Yellow}{message}{Ansi.Reset}");
+                if (!parsed.AsJson)
+                {
+                    if (!retryInProgress)
+                    {
+                        Console.Write($"{Ansi.Yellow}{message}{Ansi.Reset}");
+                        retryInProgress = true;
+                    }
+                    Console.Write(".");
+                }
                 if (parsed.NoWait)
                 {
+                    if (!parsed.AsJson && retryInProgress) Console.WriteLine();
                     Console.WriteLine("--nowait specified, not waiting for completion.");
                     return 0;
                 }
-                Console.WriteLine($"{Ansi.Dim}Retrying in {retrySeconds} seconds... (Ctrl+C to cancel){Ansi.Reset}");
                 await Task.Delay(TimeSpan.FromSeconds(retrySeconds), cts.Token);
                 // Refresh token (OIDC tokens are short-lived)
                 token = await tokenProvider.GetTokenAsync();
                 continue;
             }
         }
+
+        if (retryInProgress && !parsed.AsJson) Console.WriteLine();
 
         if (response.IsSuccessStatusCode)
         {
