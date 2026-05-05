@@ -46,5 +46,3 @@ Write-Host "Sync'ing Tenant"
 Sync-NAVTenant  -ServerInstance $ServerInstance `
                 -Tenant $tenantId `
                 -Force
-
-

@@ -40,7 +40,7 @@ public class FkhGetUser : FkhServiceBase
 
         var script = $@"
 $ErrorActionPreference = 'Stop'
-. 'c:\run\prompt.ps1'
+. 'c:\run\my\prompt.ps1'
 $users = @(Get-NAVServerUser -ServerInstance BC -Tenant '{escapedTenant}'{userFilter})
 $result = @()
 foreach ($user in $users) {{

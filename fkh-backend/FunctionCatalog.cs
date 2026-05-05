@@ -1042,6 +1042,72 @@ public static class FunctionCatalog
                     DefaultValue = null
                 }
             }
+        },
+        new FunctionDefinition
+        {
+            Name = "DismountTenant",
+            Description = "Dismounts a tenant from a running Business Central container and optionally removes the tenant database.",
+            Route = "DismountTenant",
+            Parameters = new List<FunctionParameterDefinition>
+            {
+                new()
+                {
+                    Name = "name",
+                    Type = "string",
+                    Description = "Name of the container to dismount the tenant from.",
+                    Required = true,
+                    DefaultValue = null
+                },
+                new()
+                {
+                    Name = "tenant",
+                    Type = "string",
+                    Description = "Tenant to dismount.",
+                    Required = true,
+                    DefaultValue = null
+                },
+                new()
+                {
+                    Name = "doNotRemoveDatabase",
+                    Type = "boolean",
+                    Description = "If set, the tenant database will not be removed after dismounting.",
+                    Required = false,
+                    DefaultValue = null
+                }
+            }
+        },
+        new FunctionDefinition
+        {
+            Name = "MountTenant",
+            Description = "Mounts a tenant database in a running Business Central container. The database must already exist (e.g. from a previous dismount with --doNotRemoveDatabase, or restored via RestoreTenantDatabase). The database name is derived as '<containername>-<tenant>'.",
+            Route = "MountTenant",
+            Parameters = new List<FunctionParameterDefinition>
+            {
+                new()
+                {
+                    Name = "name",
+                    Type = "string",
+                    Description = "Name of the container to mount the tenant in.",
+                    Required = true,
+                    DefaultValue = null
+                },
+                new()
+                {
+                    Name = "tenant",
+                    Type = "string",
+                    Description = "Tenant to mount. The database name is derived as '<containername>-<tenant>'.",
+                    Required = true,
+                    DefaultValue = null
+                },
+                new()
+                {
+                    Name = "environmentType",
+                    Type = "string",
+                    Description = "Environment type for the tenant (e.g. 'Production', 'Sandbox'). If omitted, uses the server's default.",
+                    Required = false,
+                    DefaultValue = null
+                }
+            }
         }
     };
 

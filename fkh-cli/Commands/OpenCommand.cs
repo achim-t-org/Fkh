@@ -151,7 +151,7 @@ sealed class OpenCommand : ClientCommand
         try { cols = Console.WindowWidth; rows = Console.WindowHeight; }
         catch { cols = 120; rows = 50; }
 
-        var sizeCmd = $"try {{ $r = $Host.UI.RawUI; $r.BufferSize = [System.Management.Automation.Host.Size]::new({cols}, 9999); $r.WindowSize = [System.Management.Automation.Host.Size]::new({cols}, {rows}) }} catch {{}}";
+        var sizeCmd = $"try {{ $r = $Host.UI.RawUI; $r.BufferSize = [System.Management.Automation.Host.Size]::new({cols}, 9999); $r.WindowSize = [System.Management.Automation.Host.Size]::new({cols}, {rows}) }} catch {{}}; . 'C:\\run\\my\\prompt.ps1' -silent";
 
         if (wait)
         {

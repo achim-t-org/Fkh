@@ -413,6 +413,7 @@ public class FkhCreateContainer : FkhServiceBase
                     },
                     Spec = new V1PodSpec
                     {
+                        EnableServiceLinks = false,
                         NodeSelector = nodeSelector,
                         Tolerations = tolerations.Count > 0 ? tolerations : null,
                         Affinity = new V1Affinity

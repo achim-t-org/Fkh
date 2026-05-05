@@ -56,7 +56,7 @@ public class FkhNewUser : FkhServiceBase
 
         var script = $@"
 $ErrorActionPreference = 'Stop'
-. 'c:\run\prompt.ps1'
+. 'c:\run\my\prompt.ps1'
 New-NAVServerUser -ServerInstance BC -Tenant '{escapedTenant}' -UserName '{escapedUsername}'{optionalParams} -State Enabled
 {permScript}
 Write-Output 'User created successfully.'

@@ -24,7 +24,7 @@ sealed class PoorMansTerminal
         Console.WriteLine($"{Ansi.Dim}Type 'exit' or 'quit' to close.{Ansi.Reset}");
         Console.WriteLine();
 
-        var initResult = await InvokeAsync(". 'C:\\run\\prompt.ps1' -silent; $PWD.Path");
+        var initResult = await InvokeAsync(". 'C:\\run\\my\\prompt.ps1' -silent; $PWD.Path");
         if (initResult is not null && !string.IsNullOrWhiteSpace(initResult.Output))
             _currentPath = initResult.Output.Trim();
 
@@ -54,7 +54,7 @@ sealed class PoorMansTerminal
 
             var escapedPath = _currentPath.Replace("'", "''");
             var widthCmd = $"try {{ $Host.UI.RawUI.BufferSize = [System.Management.Automation.Host.Size]::new({_width}, 9999) }} catch {{}}";
-            var wrapped = $"{widthCmd}; . 'C:\\run\\prompt.ps1' -silent; Set-Location '{escapedPath}'; {trimmed}; Write-Output \"@@FKH_PWD:$($PWD.Path)\"";
+            var wrapped = $"{widthCmd}; . 'C:\\run\\my\\prompt.ps1' -silent; Set-Location '{escapedPath}'; {trimmed}; Write-Output \"@@FKH_PWD:$($PWD.Path)\"";
 
             var result = await InvokeAsync(wrapped);
             if (result is null)

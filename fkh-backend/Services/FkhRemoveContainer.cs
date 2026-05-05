@@ -43,9 +43,13 @@ public class FkhRemoveContainer : FkhServiceBase
         results.Add(await TryDeleteAsync("Service", () => client.DeleteNamespacedServiceAsync(serviceName, Namespace)));
         results.Add(await TryDeleteAsync("Secret", () => client.DeleteNamespacedSecretAsync(secretName, Namespace)));
 
-        // Drop databases via k8s exec (ignore if they don't exist)
-        results.Add(await TryDropDatabaseAsync(client, $"{databaseName}-default"));
+        // Drop all databases for this container (app db + all tenant dbs matching appName-*)
         results.Add(await TryDropDatabaseAsync(client, databaseName));
+        var tenantDbs = await FindTenantDatabasesAsync(client, databaseName);
+        foreach (var db in tenantDbs)
+        {
+            results.Add(await TryDropDatabaseAsync(client, db));
+        }
 
         // Delete the per-container AAD App Registration if one was created
         if (!string.IsNullOrWhiteSpace(aadAppObjectId))
@@ -138,6 +142,27 @@ public class FkhRemoveContainer : FkhServiceBase
         {
             Logger.LogWarning(ex, "Failed to delete container blobs for '{AppName}'", appName);
             return $"Container blobs deletion failed: {ex.Message}";
+        }
+    }
+
+    private async Task<List<string>> FindTenantDatabasesAsync(Kubernetes client, string appName)
+    {
+        try
+        {
+            var podName = await FindMssqlPodAsync(client);
+            var sql = $"SET NOCOUNT ON; SELECT name FROM sys.databases WHERE name LIKE '{appName}-%'";
+            var script = $"{SqlcmdPath} -S localhost -U sa -P \"$MSSQL_SA_PASSWORD\" -C -b -h -1 -W -Q \"{sql}\"";
+            var result = await ExecInMssqlPodAsync(client, podName, script);
+            return result.Stdout
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .Select(l => l.Trim())
+                .Where(l => !string.IsNullOrWhiteSpace(l))
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to enumerate tenant databases for '{AppName}'", appName);
+            return new List<string>();
         }
     }
 }

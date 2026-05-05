@@ -99,7 +99,7 @@ public class FkhInvokeScript : FkhServiceBase
 
             var wrapperScript = $@"
 try {{
-    . 'C:\run\prompt.ps1' -silent
+    . 'C:\run\my\prompt.ps1' -silent
     & {{ . '{scriptPath}' {scriptParams} }} 2> '{stderrPath}' 6>&1 3>&1 4>&1 5>&1 | Out-File '{stdoutPath}' -Encoding utf8
 }} catch {{
     $_.Exception.Message | Out-File '{stderrPath}' -Append -Encoding utf8
