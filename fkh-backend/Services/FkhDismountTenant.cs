@@ -26,7 +26,7 @@ public class FkhDismountTenant : FkhServiceBase
 
         // Dismount the tenant from Business Central
         Logger.LogInformation("Dismounting tenant '{Tenant}' from container '{Container}'...", tenant, containerName);
-        var dismountScript = $". 'C:\\run\\my\\prompt.ps1' -silent; Dismount-NAVTenant -ServerInstance $ServerInstance -Tenant '{tenant}' -Force";
+        var dismountScript = $"if (Test-Path 'C:\\run\\my\\prompt.ps1') {{ . 'C:\\run\\my\\prompt.ps1' -silent }} else {{ . 'C:\\run\\prompt.ps1' -silent }}; Dismount-NAVTenant -ServerInstance $ServerInstance -Tenant '{tenant}' -Force";
         var dismountResult = await ExecInBcPodPwshAsync(client, podName, bcContainerName, dismountScript);
 
         if (!string.IsNullOrWhiteSpace(dismountResult.Stderr))

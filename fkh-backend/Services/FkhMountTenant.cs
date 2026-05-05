@@ -32,7 +32,7 @@ public class FkhMountTenant : FkhServiceBase
 
         // Build the Mount-NAVTenant command
         var envTypeParam = environmentType != null ? $" -EnvironmentType '{environmentType}'" : "";
-        var mountScript = ". 'C:\\run\\my\\prompt.ps1' -silent; " +
+        var mountScript = "if (Test-Path 'C:\\run\\my\\prompt.ps1') { . 'C:\\run\\my\\prompt.ps1' -silent } else { . 'C:\\run\\prompt.ps1' -silent }; " +
             $"$securePassword = ConvertTo-SecureString ([System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{saPasswordBase64}'))) -AsPlainText -Force; " +
             "$databaseCredentials = New-Object System.Management.Automation.PSCredential('sa', $securePassword); " +
             $"Mount-NAVTenant -ServerInstance $ServerInstance -Tenant '{tenant}' " +

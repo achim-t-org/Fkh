@@ -38,7 +38,7 @@ public class FkhGetAppInfo : FkhServiceBase
 
         var script = $@"
 $ErrorActionPreference = 'Stop'
-. 'c:\run\my\prompt.ps1'
+if (Test-Path 'c:\run\my\prompt.ps1') {{ . 'c:\run\my\prompt.ps1' }} else {{ . 'c:\run\prompt.ps1' }}
 Get-NAVAppInfo -ServerInstance bc -TenantSpecificProperties -Tenant '{tenant}' |
     Select-Object @{{N='AppId';E={{$_.AppId.Value.ToString()}}}}, Name, Publisher, @{{N='Version';E={{$_.Version.ToString()}}}}, ExtensionType, Scope, IsInstalled, IsPublished, SyncState, NeedsUpgrade |
     ConvertTo-Json -Depth 5
