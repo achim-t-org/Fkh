@@ -12,7 +12,6 @@ public class FkhBackupDatabase : FkhBackupDatabaseBase
         var containerName = ResolveAppName(parameters);
         var backupName = parameters["backupName"];
         var backupVersion = parameters["backupVersion"];
-
         var databaseName = containerName;
 
         return await BackupDatabaseToStorageAsync(githubUsername, databaseName, backupName, backupVersion);

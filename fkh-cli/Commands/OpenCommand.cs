@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 sealed class OpenCommand : ClientCommand
 {
@@ -77,6 +78,32 @@ sealed class OpenCommand : ClientCommand
             return await new PoorMansTerminal(backendUrl, tokenProvider, containerName, width).RunAsync();
         }
 
+        // Ensure kubectl is pointing at the correct AKS cluster
+        if (!EnsureKubectlContext(settings.BackendUrl))
+        {
+            // Context check failed or user chose poor mans terminal — fall back
+            var backendUrl = ValidateBackendUrl(settings.BackendUrl);
+            if (backendUrl is null)
+            {
+                Console.Error.WriteLine($"{Ansi.Red}Cannot fall back to backend terminal — no backend URL configured.{Ansi.Reset}");
+                return 1;
+            }
+
+            TokenProvider tokenProvider;
+            try { tokenProvider = CreateTokenProvider(parameters, settings); }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"{Ansi.Red}{ex.Message}{Ansi.Reset}");
+                return 1;
+            }
+
+            int width;
+            try { width = Console.WindowWidth; } catch { width = 220; }
+
+            Console.WriteLine($"{Ansi.Cyan}Falling back to backend terminal...{Ansi.Reset}");
+            return await new PoorMansTerminal(backendUrl, tokenProvider, containerName, width).RunAsync();
+        }
+
         // Resolve container name to app label (same as server-side ResolveAppName)
         // If name contains '-', treat as full name (admin); otherwise prefix with GitHub username
         var appName = containerName.Contains('-')
@@ -89,7 +116,7 @@ sealed class OpenCommand : ClientCommand
         var getPodPsi = new ProcessStartInfo
         {
             FileName = "kubectl",
-            ArgumentList = { "get", "pods", "-n", "app", "-l", $"app={appName}", "-o", "jsonpath={.items[0].metadata.name}" },
+            ArgumentList = { "get", "pods", "-n", "app", "-l", $"app={appName}", "-o", "jsonpath={.items[*].metadata.name}" },
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -103,7 +130,7 @@ sealed class OpenCommand : ClientCommand
             return 1;
         }
 
-        var podName = getPodProcess.StandardOutput.ReadToEnd().Trim();
+        var podName = getPodProcess.StandardOutput.ReadToEnd().Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
         var podErr = getPodProcess.StandardError.ReadToEnd().Trim();
         getPodProcess.WaitForExit();
 
@@ -168,6 +195,86 @@ sealed class OpenCommand : ClientCommand
             return fallback.ExitCode;
         }
         return 0;
+    }
+
+    /// <summary>
+    /// Checks whether kubectl is pointing at the AKS cluster that matches the backend URL.
+    /// Returns true if kubectl context is correct and ready to use, false to fall back to poor mans terminal.
+    /// Backend URL pattern: https://fkh-{name}-backend.azurewebsites.net/api
+    /// → Resource group: fkh-{name}, Cluster: fkh-{name}-aks
+    /// </summary>
+    private static bool EnsureKubectlContext(string? backendUrl)
+    {
+        if (string.IsNullOrWhiteSpace(backendUrl))
+            return true; // Can't derive cluster info — proceed optimistically
+
+        // Extract deployment name from backend URL
+        // Expected format: https://fkh-{deploymentName}-backend.azurewebsites.net/api
+        if (!Uri.TryCreate(backendUrl.TrimEnd('/'), UriKind.Absolute, out var uri))
+            return true;
+
+        var host = uri.Host; // e.g. fkh-contoso-backend.azurewebsites.net
+        const string prefix = "fkh-";
+        const string suffix = "-backend.azurewebsites.net";
+        if (!host.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ||
+            !host.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+            return true; // Non-standard URL — proceed optimistically
+
+        var deploymentName = host[prefix.Length..^suffix.Length];
+        if (string.IsNullOrWhiteSpace(deploymentName))
+            return true;
+
+        var expectedCluster = $"fkh-{deploymentName}-aks";
+        var resourceGroup = $"fkh-{deploymentName}";
+
+        // Check current kubectl context
+        var currentContext = RunKubectl("config", "current-context");
+        if (currentContext is not null && currentContext.Contains(expectedCluster, StringComparison.OrdinalIgnoreCase))
+        {
+            Console.WriteLine($"{Ansi.Dim}kubectl context: {currentContext}{Ansi.Reset}");
+            return true;
+        }
+
+        Console.WriteLine($"{Ansi.Yellow}kubectl context '{currentContext ?? "(none)"}' does not match expected cluster '{expectedCluster}'.{Ansi.Reset}");
+        Console.Write($"Switch kubectl context to '{expectedCluster}'? [Y]es / [N]o (use backend terminal): ");
+
+        var key = Console.ReadKey(intercept: false);
+        Console.WriteLine();
+
+        if (key.Key != ConsoleKey.Y)
+            return false; // User chose poor mans terminal
+
+        Console.WriteLine($"{Ansi.Cyan}Running: az aks get-credentials --resource-group {resourceGroup} --name {expectedCluster} --overwrite-existing{Ansi.Reset}");
+
+        // az CLI on Windows is az.cmd — must invoke via cmd.exe
+        var azFileName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "cmd" : "az";
+        var azArgs = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? new[] { "/c", "az", "aks", "get-credentials", "--resource-group", resourceGroup, "--name", expectedCluster, "--overwrite-existing" }
+            : new[] { "aks", "get-credentials", "--resource-group", resourceGroup, "--name", expectedCluster, "--overwrite-existing" };
+
+        while (true)
+        {
+            var result = RunProcess(azFileName, azArgs);
+            if (result.ExitCode == 0)
+            {
+                Console.WriteLine($"{Ansi.Cyan}Switched kubectl context to '{expectedCluster}'.{Ansi.Reset}");
+                return true;
+            }
+
+            Console.Error.WriteLine($"{Ansi.Red}Failed to get AKS credentials:{Ansi.Reset}");
+            if (!string.IsNullOrWhiteSpace(result.Stderr))
+                Console.Error.WriteLine($"{Ansi.Red}{result.Stderr}{Ansi.Reset}");
+
+            Console.Write($"{Ansi.Yellow}Run 'az login' in another terminal, then press [R]etry / [N]o (use backend terminal): {Ansi.Reset}");
+            var retryKey = Console.ReadKey(intercept: false);
+            Console.WriteLine();
+
+            if (retryKey.Key != ConsoleKey.R)
+            {
+                Console.Error.WriteLine($"{Ansi.Yellow}Reverting to backend terminal.{Ansi.Reset}");
+                return false;
+            }
+        }
     }
 
     private static bool IsKubectlAvailable()
