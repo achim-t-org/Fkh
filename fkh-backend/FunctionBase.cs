@@ -688,6 +688,21 @@ public abstract class FunctionBase
             return Respond(req, HttpStatusCode.ServiceUnavailable,
                 "The cluster API is not reachable yet. It may still be starting up — please try again in a minute.");
         }
+        catch (InvalidOperationException ex)
+        {
+            logger.LogWarning(ex, "Operation {Operation} failed for user {Username}.", operationName, username);
+            return Respond(req, HttpStatusCode.BadRequest, ex.Message);
+        }
+        catch (ArgumentException ex)
+        {
+            logger.LogWarning(ex, "Operation {Operation} failed for user {Username}.", operationName, username);
+            return Respond(req, HttpStatusCode.BadRequest, ex.Message);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            logger.LogWarning(ex, "Operation {Operation} denied for user {Username}.", operationName, username);
+            return Respond(req, HttpStatusCode.Forbidden, ex.Message);
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to execute {Operation} for user {Username}.", operationName, username);
