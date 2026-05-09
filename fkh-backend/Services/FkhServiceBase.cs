@@ -621,6 +621,23 @@ public abstract class FkhServiceBase
         Logger.LogInformation("Database '{DatabaseName}' restored successfully.", databaseName);
     }
 
+    /// <summary>
+    /// Clears the tenant mount records from a restored app database so BC server
+    /// doesn't try to mount stale tenants (which causes NavEncryptionDataTooLongException).
+    /// </summary>
+    protected async Task ClearTenantPropertiesAsync(Kubernetes client, string databaseName)
+    {
+        Logger.LogInformation("Clearing tenant properties from restored app database '{DatabaseName}'...", databaseName);
+        var podName = await FindMssqlPodAsync(client);
+        var sql = $"IF OBJECT_ID('[{databaseName}].[dbo].[$ndo$tenantproperty]') IS NOT NULL DELETE FROM [{databaseName}].[dbo].[$ndo$tenantproperty]";
+        var script = $"{SqlcmdPath} -S localhost -U sa -P \"$MSSQL_SA_PASSWORD\" -C -b -Q \"{sql}\" && echo 'CLEAR_TENANTS_OK'";
+        var result = await ExecInMssqlPodAsync(client, podName, script);
+        if (!result.Stdout.Contains("CLEAR_TENANTS_OK"))
+            Logger.LogWarning("Failed to clear tenant properties from '{DatabaseName}': {Result}", databaseName, result);
+        else
+            Logger.LogInformation("Tenant properties cleared from '{DatabaseName}'.", databaseName);
+    }
+
     protected async Task<ExecResult> ExecInBcPodPwshAsync(Kubernetes client, string podName, string containerName, string psScript)
     {
         var command = new[] { "pwsh", "-NoProfile", "-Command", psScript };
