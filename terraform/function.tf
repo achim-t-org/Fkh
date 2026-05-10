@@ -136,7 +136,11 @@ resource "azurerm_windows_function_app" "staging" {
     }
   }
 
-  app_settings = local.function_app_settings
+  # nonsensitive() is required to work around an azurerm provider bug where
+  # sensitive values in the map cause "inconsistent values for sensitive
+  # attribute" errors during plan expansion (the provider treats app_settings
+  # as sensitive internally, so double-sensitivity triggers the bug).
+  app_settings = nonsensitive(local.function_app_settings)
 
   tags = azurerm_resource_group.this.tags
 }
