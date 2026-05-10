@@ -1,7 +1,5 @@
 using k8s;
-using k8s.Models;
 using Microsoft.Extensions.Logging;
-using System.Text.Json;
 
 namespace Fkh.Services;
 
@@ -30,75 +28,62 @@ public class FkhConvertToSingleTenant : FkhServiceBase
         var podName = pod.Metadata.Name;
         var bcContainerName = pod.Spec.Containers[0].Name;
 
-        // Read database credentials from the mssql-secret
-        var secret = await client.ReadNamespacedSecretAsync("mssql-secret", Namespace);
-        var saPassword = System.Text.Encoding.UTF8.GetString(secret.Data["sa-password"]);
-        var saPasswordBase64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(saPassword));
+        // Step 1: Stop the service tier so we can safely modify the databases
+        Logger.LogInformation("Step 1/5: Stopping service tier for '{Container}'...", containerName);
+        await ExecInBcPodPwshAsync(client, podName, bcContainerName,
+            ". 'C:\\run\\prompt.ps1' -silent; Stop-NAVServerInstance -ServerInstance $ServerInstance -Force");
+        Logger.LogInformation("Service tier stopped.");
 
-        // Build the script that:
-        // 1. Stops the service tier
-        // 2. Exports the application tables from the app database into the tenant database (Export-NAVApplication)
-        // 3. Reconfigures the server instance to single-tenant mode
-        // 4. Optionally restarts the service tier
-        var restartPart = doNotRestart
-            ? ""
-            : " Start-NAVServerInstance -ServerInstance $ServerInstance -Force;";
-
-        var script =
-            ". 'C:\\run\\prompt.ps1' -silent; " +
-            "Stop-NAVServerInstance -ServerInstance $ServerInstance -Force; " +
-            $"$securePassword = ConvertTo-SecureString ([System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{saPasswordBase64}'))) -AsPlainText -Force; " +
-            "$databaseCredentials = New-Object System.Management.Automation.PSCredential('sa', $securePassword); " +
-            $"Export-NAVApplication -DatabaseServer 'mssql-service' -DatabaseInstance '' " +
-            $"-DatabaseName '{appDatabaseName}' -DestinationDatabaseName '{tenantDatabaseName}' " +
-            "-DatabaseCredentials $databaseCredentials -Force; " +
-            "Set-NAVServerConfiguration -ServerInstance $ServerInstance -KeyName 'Multitenant' -KeyValue 'false';" +
-            restartPart;
-
-        Logger.LogInformation(
-            "Converting container '{Container}' to single-tenant using tenant '{Tenant}' (database '{Database}')...",
-            containerName, tenant, tenantDatabaseName);
-
-        var result = await RunDetachedInBcPodAsync(
-            client, podName, bcContainerName,
-            jobPrefix: "fkh-converttosingletenant",
-            jobIdInput: $"{containerName}|{tenant}|{tenantDatabaseName}",
-            script: script,
-            retryAfterSeconds: 15,
-            retryMessage: "Converting to single-tenant — still running...");
-
-        if (!string.IsNullOrWhiteSpace(result.Stderr))
-            throw new InvalidOperationException($"Failed to convert container '{containerName}' to single-tenant: {result.Stderr}");
-
-        // Drop the old app database and rename the tenant database to the app database name
-        // so the DatabaseName in custom config doesn't need to change
         var mssqlPod = await FindMssqlPodAsync(client);
-        var dropSql = $"IF DB_ID('{appDatabaseName}') IS NOT NULL BEGIN ALTER DATABASE [{appDatabaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{appDatabaseName}]; END";
+
+        // Step 2: Copy application tables from app database into the tenant database
+        // Export-NAVApplication doesn't support SQL auth, so we replicate its logic via direct SQL:
+        // copy all tables that exist in the app database but not in the tenant database.
+        Logger.LogInformation("Step 2/5: Copying application tables from '{AppDb}' to '{TenantDb}'...", appDatabaseName, tenantDatabaseName);
+        var copySql = "DECLARE @sql NVARCHAR(MAX) = N'';" +
+            $" SELECT @sql = @sql + N'SELECT * INTO [{tenantDatabaseName}].[dbo].' + QUOTENAME(t.name) + N' FROM [{appDatabaseName}].[dbo].' + QUOTENAME(t.name) + N'; '" +
+            $" FROM [{appDatabaseName}].sys.tables t" +
+            $" WHERE t.name NOT IN (SELECT name FROM [{tenantDatabaseName}].sys.tables);" +
+            " EXEC sp_executesql @sql; PRINT 'COPY_TABLES_OK'";
+        var copyScript = $"{SqlcmdPath} -S localhost -U sa -P \"$MSSQL_SA_PASSWORD\" -C -b -Q \"{copySql}\"";
+        var copyResult = await ExecInMssqlPodAsync(client, mssqlPod, copyScript);
+        if (!copyResult.Stdout.Contains("COPY_TABLES_OK"))
+            throw new InvalidOperationException($"Failed to copy application tables from '{appDatabaseName}' to '{tenantDatabaseName}'. {copyResult}");
+        Logger.LogInformation("Application tables copied.");
+
+        // Step 3: Drop the old app database and rename the tenant database to the app database name
+        // so the DatabaseName in custom config doesn't need to change.
+        Logger.LogInformation("Step 3/5: Dropping old app database '{AppDb}'...", appDatabaseName);
+        var dropSql = $"ALTER DATABASE [{appDatabaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{appDatabaseName}]";
         var dropScript = $"{SqlcmdPath} -S localhost -U sa -P \"$MSSQL_SA_PASSWORD\" -C -b -Q \"{dropSql}\" && echo 'DROP_COMPLETE'";
         var dropResult = await ExecInMssqlPodAsync(client, mssqlPod, dropScript);
         if (!dropResult.Stdout.Contains("DROP_COMPLETE"))
             throw new InvalidOperationException($"Failed to drop old app database '{appDatabaseName}'. {dropResult}");
 
+        Logger.LogInformation("Step 4/5: Renaming database '{TenantDb}' to '{AppDb}'...", tenantDatabaseName, appDatabaseName);
         var renameSql = $"ALTER DATABASE [{tenantDatabaseName}] MODIFY NAME = [{appDatabaseName}]";
         var renameScript = $"{SqlcmdPath} -S localhost -U sa -P \"$MSSQL_SA_PASSWORD\" -C -b -Q \"{renameSql}\" && echo 'RENAME_COMPLETE'";
         var renameResult = await ExecInMssqlPodAsync(client, mssqlPod, renameScript);
         if (!renameResult.Stdout.Contains("RENAME_COMPLETE"))
             throw new InvalidOperationException($"Failed to rename database '{tenantDatabaseName}' to '{appDatabaseName}'. {renameResult}");
+        Logger.LogInformation("Database renamed from '{TenantDb}' to '{AppDb}'.", tenantDatabaseName, appDatabaseName);
 
-        Logger.LogInformation("Dropped old app database and renamed '{TenantDb}' to '{AppDb}'.", tenantDatabaseName, appDatabaseName);
-
-        // Remove the multitenant env var from the deployment so restarts stay single-tenant
+        // Step 5: Remove the multitenant env var from the deployment.
+        // This triggers a new pod with the correct single-tenant configuration.
+        Logger.LogInformation("Step 5/5: Updating deployment to remove 'multitenant' env var...");
         var deployment = await client.ReadNamespacedDeploymentAsync(deploymentName, Namespace);
         var container = deployment.Spec.Template.Spec.Containers[0];
         container.Env = container.Env?.Where(e => e.Name != "multitenant").ToList();
+        if (doNotRestart)
+            deployment.Spec.Replicas = 0;
         await client.ReplaceNamespacedDeploymentAsync(deployment, deploymentName, Namespace);
-        Logger.LogInformation("Removed 'multitenant' env var from deployment '{Deployment}'.", deploymentName);
+        Logger.LogInformation("Deployment updated.");
 
         Logger.LogInformation("Container '{Container}' converted to single-tenant successfully.", containerName);
 
         var restartMsg = doNotRestart
-            ? " Service tier was not restarted (--doNotRestart)."
-            : " Service tier has been restarted.";
+            ? " Container is stopped (--doNotRestart). Start it to apply the changes."
+            : " Container is restarting with single-tenant configuration.";
 
         return new
         {
