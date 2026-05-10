@@ -72,6 +72,9 @@ windows_prepull_images = [
 # Needs minimum D4s Linux VM Size to enable
 kubecost_enabled = false
 
+# Staging — deploy a staging Function App alongside production for testing backend changes
+enable_staging_backend = false
+
 # SQL Server
 # sql_sa_password = ""  # set as GitHub Secret: SQL_SA_PASSWORD
 namespace        = "app"
