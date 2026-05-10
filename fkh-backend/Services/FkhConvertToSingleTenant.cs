@@ -77,8 +77,8 @@ public class FkhConvertToSingleTenant : FkhServiceBase
         // Clean up stale multi-tenant data: the [$ndo$tenants] table was copied from the app
         // database and still contains mounted-tenant entries that are invalid in single-tenant mode.
         Logger.LogInformation("Cleaning up stale tenant mount records...");
-        var cleanupSql = $"IF OBJECT_ID('[{tenantDatabaseName}].[dbo].[$ndo$tenants]') IS NOT NULL" +
-            $" DELETE FROM [{tenantDatabaseName}].[dbo].[$ndo$tenants]; PRINT 'CLEANUP_OK'";
+        var cleanupSql = $"IF OBJECT_ID('[{tenantDatabaseName}].[dbo].[\\$ndo\\$tenants]') IS NOT NULL" +
+            $" DELETE FROM [{tenantDatabaseName}].[dbo].[\\$ndo\\$tenants]; PRINT 'CLEANUP_OK'";
         var cleanupScript = $"{SqlcmdPath} -S localhost -U sa -P \"$MSSQL_SA_PASSWORD\" -C -b -Q \"{cleanupSql}\"";
         var cleanupResult = await ExecInMssqlPodAsync(client, mssqlPod, cleanupScript);
         if (!cleanupResult.Stdout.Contains("CLEANUP_OK"))
