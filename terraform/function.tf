@@ -105,3 +105,32 @@ resource "azurerm_windows_function_app" "this" {
 
   tags = azurerm_resource_group.this.tags
 }
+
+# ── Staging Function App (optional, same identity + settings as production) ──
+
+resource "azurerm_windows_function_app" "staging" {
+  count               = var.enable_staging_backend ? 1 : 0
+  name                = "${local.function_app_name}-staging"
+  resource_group_name = azurerm_resource_group.this.name
+  location            = azurerm_resource_group.this.location
+
+  storage_account_name       = azurerm_storage_account.function.name
+  storage_account_access_key = azurerm_storage_account.function.primary_access_key
+  service_plan_id            = azurerm_service_plan.function.id
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.function.id]
+  }
+
+  site_config {
+    application_stack {
+      dotnet_version              = "v8.0"
+      use_dotnet_isolated_runtime = true
+    }
+  }
+
+  app_settings = azurerm_windows_function_app.this.app_settings
+
+  tags = azurerm_resource_group.this.tags
+}

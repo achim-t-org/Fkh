@@ -266,3 +266,9 @@ variable "kubecost_enabled" {
   type        = bool
   default     = false
 }
+
+variable "enable_staging_backend" {
+  description = "Deploy a staging Function App alongside production for testing backend changes."
+  type        = bool
+  default     = false
+}

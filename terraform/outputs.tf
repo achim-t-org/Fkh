@@ -33,6 +33,16 @@ output "function_url" {
   value       = "https://${azurerm_windows_function_app.this.default_hostname}/api"
 }
 
+output "staging_function_app_name" {
+  description = "Name of the staging Function App (empty if staging is disabled)."
+  value       = var.enable_staging_backend ? azurerm_windows_function_app.staging[0].name : ""
+}
+
+output "staging_function_url" {
+  description = "Base URL of the staging Function App (empty if staging is disabled)."
+  value       = var.enable_staging_backend ? "https://${azurerm_windows_function_app.staging[0].default_hostname}/api" : ""
+}
+
 output "acr_login_server" {
   description = "ACR login server for docker login."
   value       = azurerm_container_registry.this.login_server

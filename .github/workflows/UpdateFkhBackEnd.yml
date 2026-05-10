@@ -39,6 +39,11 @@ on:
         required: false
         type: string
         default: 'main'
+      staging:
+        description: 'Deploy to the staging Function App instead of production'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   id-token: write
@@ -153,9 +158,19 @@ jobs:
               -backend-config="subscription_id=$subscriptionId" `
               -backend-config="use_azuread_auth=true"
 
-            $functionAppName = terraform output -raw function_app_name
-            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($functionAppName)) {
-              throw "Could not retrieve function_app_name from Terraform output."
+            $staging = "${{ inputs.staging }}" -eq "true"
+            if ($staging) {
+              $functionAppName = terraform output -raw staging_function_app_name
+              if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($functionAppName)) {
+                throw "Staging backend is not enabled. Set enable_staging_backend = true in deployment.tfvars and run a full deploy first."
+              }
+              Write-Host "Deploying to STAGING: $functionAppName"
+            }
+            else {
+              $functionAppName = terraform output -raw function_app_name
+              if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($functionAppName)) {
+                throw "Could not retrieve function_app_name from Terraform output."
+              }
             }
             $resourceGroupName = terraform output -raw resource_group_name
             if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($resourceGroupName)) {
@@ -166,6 +181,13 @@ jobs:
           "resource_group_name=$resourceGroupName" >> $env:GITHUB_OUTPUT
           Write-Host "Function App: $functionAppName"
           Write-Host "Resource Group: $resourceGroupName"
+
+          # Also resolve staging app name for the auto-deploy-to-staging step
+          $stagingAppName = terraform output -raw staging_function_app_name 2>$null
+          if (-not [string]::IsNullOrWhiteSpace($stagingAppName)) {
+            "staging_function_app_name=$stagingAppName" >> $env:GITHUB_OUTPUT
+            Write-Host "Staging Function App: $stagingAppName"
+          }
 
       # ── Publish function code ─────────────────────────────────────────────
       - name: Publish Azure Function
@@ -187,3 +209,22 @@ jobs:
           }
 
           Write-Host "Function app $functionAppName published successfully." -ForegroundColor Green
+
+      # ── Also publish to staging (when deploying to production and staging exists) ──
+      - name: Publish to staging
+        if: inputs.staging != true && steps.resolve.outputs.staging_function_app_name != ''
+        shell: pwsh
+        working-directory: fkh/fkh-backend
+        run: |
+          $stagingAppName    = "${{ steps.resolve.outputs.staging_function_app_name }}"
+          $resourceGroupName = "${{ steps.resolve.outputs.resource_group_name }}"
+
+          Write-Host "Also publishing to staging: $stagingAppName..."
+
+          func azure functionapp publish $stagingAppName --dotnet-isolated
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Staging publish failed (exit code $LASTEXITCODE) — production was deployed successfully." -ForegroundColor Yellow
+            az functionapp restart --name $stagingAppName --resource-group $resourceGroupName
+          }
+
+          Write-Host "Staging function app $stagingAppName published successfully." -ForegroundColor Green

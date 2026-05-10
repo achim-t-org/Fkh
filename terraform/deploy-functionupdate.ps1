@@ -11,9 +11,13 @@
 .PARAMETER FunctionProjectPath
     Path to the FKH backend project folder. Defaults to ../fkh-backend relative to this script.
 
+.PARAMETER Staging
+    Publish to the staging Function App instead of production. Reads 'staging_function_app_name' from Terraform output.
+
 .EXAMPLE
     .\deploy-functionupdate.ps1
     .\deploy-functionupdate.ps1 -FunctionAppName fkh-myorg-backend
+    .\deploy-functionupdate.ps1 -Staging
 #>
 param(
     [Parameter(Mandatory = $false)]
@@ -23,7 +27,10 @@ param(
     [string] $ResourceGroupName = "",
 
     [Parameter(Mandatory = $false)]
-    [string] $FunctionProjectPath = ""
+    [string] $FunctionProjectPath = "",
+
+    [Parameter(Mandatory = $false)]
+    [switch] $Staging
 )
 
 $ErrorActionPreference = "Stop"
@@ -44,9 +51,17 @@ if (-not (Test-Path $FunctionProjectPath)) {
 Push-Location $scriptDir
 try {
     if ([string]::IsNullOrWhiteSpace($FunctionAppName)) {
-        $FunctionAppName = terraform output -raw function_app_name
-        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($FunctionAppName)) {
-            throw "Could not retrieve function_app_name from Terraform output. Pass -FunctionAppName explicitly."
+        if ($Staging) {
+            $FunctionAppName = terraform output -raw staging_function_app_name
+            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($FunctionAppName)) {
+                throw "Staging backend is not enabled. Set enable_staging_backend = true in your tfvars and run a full deploy first."
+            }
+        }
+        else {
+            $FunctionAppName = terraform output -raw function_app_name
+            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($FunctionAppName)) {
+                throw "Could not retrieve function_app_name from Terraform output. Pass -FunctionAppName explicitly."
+            }
         }
     }
     if ([string]::IsNullOrWhiteSpace($ResourceGroupName)) {
@@ -61,6 +76,9 @@ finally {
 }
 Write-Host "  Function app: $FunctionAppName" -ForegroundColor Gray
 Write-Host "  Resource group: $ResourceGroupName" -ForegroundColor Gray
+if ($Staging) {
+    Write-Host "  Target: STAGING" -ForegroundColor Yellow
+}
 
 # ── Publish function code ────────────────────────────────────────────────────
 
@@ -91,6 +109,27 @@ try {
         az functionapp restart --name $FunctionAppName --resource-group $ResourceGroupName
         if ($LASTEXITCODE -ne 0) { throw "func publish and fallback restart both failed." }
         Write-Host "Function app restarted successfully." -ForegroundColor Green
+    }
+
+    # When deploying to production, also deploy to staging so it's never older than prod
+    if (-not $Staging) {
+        Push-Location $scriptDir
+        try {
+            $stagingAppName = terraform output -raw staging_function_app_name 2>$null
+        }
+        finally {
+            Pop-Location
+        }
+        if (-not [string]::IsNullOrWhiteSpace($stagingAppName)) {
+            Write-Host ""
+            Write-Host "  Also publishing to staging: $stagingAppName" -ForegroundColor Yellow
+            func azure functionapp publish $stagingAppName --dotnet-isolated --verbose
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "Staging publish exited with code $LASTEXITCODE — restarting staging function app..." -ForegroundColor Yellow
+                az functionapp restart --name $stagingAppName --resource-group $ResourceGroupName
+                if ($LASTEXITCODE -ne 0) { Write-Host "Warning: staging publish failed, but production was deployed successfully." -ForegroundColor Yellow }
+            }
+        }
     }
 }
 finally {
