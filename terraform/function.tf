@@ -49,30 +49,10 @@ resource "azurerm_service_plan" "function" {
   sku_name            = "Y1"
 }
 
-# ── Azure Function App ───────────────────────────────────────────────────────
+# ── Shared app settings (used by both production and staging Function Apps) ──
 
-resource "azurerm_windows_function_app" "this" {
-  name                = local.function_app_name
-  resource_group_name = azurerm_resource_group.this.name
-  location            = azurerm_resource_group.this.location
-
-  storage_account_name       = azurerm_storage_account.function.name
-  storage_account_access_key = azurerm_storage_account.function.primary_access_key
-  service_plan_id            = azurerm_service_plan.function.id
-
-  identity {
-    type         = "UserAssigned"
-    identity_ids = [azurerm_user_assigned_identity.function.id]
-  }
-
-  site_config {
-    application_stack {
-      dotnet_version              = "v8.0"
-      use_dotnet_isolated_runtime = true
-    }
-  }
-
-  app_settings = {
+locals {
+  function_app_settings = {
     FUNCTIONS_WORKER_RUNTIME                = "dotnet-isolated"
     AZURE_CLIENT_ID                         = azurerm_user_assigned_identity.function.client_id
     AKS_SUBSCRIPTION_ID                     = var.subscription_id
@@ -102,6 +82,32 @@ resource "azurerm_windows_function_app" "this" {
     APPINSIGHTS_INSTRUMENTATIONKEY          = azurerm_application_insights.this.instrumentation_key
     APPLICATIONINSIGHTS_CONNECTION_STRING   = azurerm_application_insights.this.connection_string
   }
+}
+
+# ── Azure Function App ───────────────────────────────────────────────────────
+
+resource "azurerm_windows_function_app" "this" {
+  name                = local.function_app_name
+  resource_group_name = azurerm_resource_group.this.name
+  location            = azurerm_resource_group.this.location
+
+  storage_account_name       = azurerm_storage_account.function.name
+  storage_account_access_key = azurerm_storage_account.function.primary_access_key
+  service_plan_id            = azurerm_service_plan.function.id
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.function.id]
+  }
+
+  site_config {
+    application_stack {
+      dotnet_version              = "v8.0"
+      use_dotnet_isolated_runtime = true
+    }
+  }
+
+  app_settings = local.function_app_settings
 
   tags = azurerm_resource_group.this.tags
 }
@@ -130,7 +136,7 @@ resource "azurerm_windows_function_app" "staging" {
     }
   }
 
-  app_settings = azurerm_windows_function_app.this.app_settings
+  app_settings = local.function_app_settings
 
   tags = azurerm_resource_group.this.tags
 }
