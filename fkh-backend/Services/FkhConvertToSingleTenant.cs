@@ -83,7 +83,7 @@ public class FkhConvertToSingleTenant : FkhServiceBase
             // Step 2: Start SQL Server Express in the Windows BC pod
             Logger.LogInformation("Step 2: Starting SQL Server Express in BC pod...");
             var startExpressResult = await ExecInBcPodPwshAsync(client, podName, bcContainerName,
-                "Start-Service 'MSSQL`$SQLEXPRESS'; Write-Output 'EXPRESS_STARTED'");
+                "Start-Service 'MSSQL$SQLEXPRESS'; Write-Output 'EXPRESS_STARTED'");
             if (!startExpressResult.Stdout.Contains("EXPRESS_STARTED"))
                 throw new InvalidOperationException($"Failed to start SQL Server Express. {startExpressResult}");
 
@@ -226,7 +226,7 @@ public class FkhConvertToSingleTenant : FkhServiceBase
             // Step 12: Clean up SQL Express and temp files in BC pod
             Logger.LogInformation("Step 12: Stopping SQL Server Express and cleaning up...");
             await ExecInBcPodPwshAsync(client, podName, bcContainerName,
-                "Stop-Service 'MSSQL`$SQLEXPRESS' -Force -ErrorAction SilentlyContinue; " +
+                "Stop-Service 'MSSQL$SQLEXPRESS' -Force -ErrorAction SilentlyContinue; " +
                 "Remove-Item 'C:\\temp\\*.bak' -Force -ErrorAction SilentlyContinue");
 
             // Step 13: Update deployment — set multitenant env var to false and set customsetting
