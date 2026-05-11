@@ -358,6 +358,14 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($resourceGroupName)) {
 & (Join-Path $scriptDir "deploy-functionupdate.ps1") -FunctionAppName $functionAppName -ResourceGroupName $resourceGroupName -FunctionProjectPath $FunctionProjectPath
 if ($LASTEXITCODE -ne 0) { throw "Function publish failed." }
 
+# Publish to staging if enabled
+$stagingFunctionAppName = terraform output -raw staging_function_app_name 2>$null
+if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($stagingFunctionAppName)) {
+    Write-Host "Publishing to staging function app: $stagingFunctionAppName" -ForegroundColor Cyan
+    & (Join-Path $scriptDir "deploy-functionupdate.ps1") -FunctionAppName $stagingFunctionAppName -ResourceGroupName $resourceGroupName -FunctionProjectPath $FunctionProjectPath
+    if ($LASTEXITCODE -ne 0) { throw "Staging function publish failed." }
+}
+
 # ── Step 5: Sync GitHub Actions secrets from Terraform outputs ────────────────
 
 $ghCommand = Get-Command gh -ErrorAction SilentlyContinue

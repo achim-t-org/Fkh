@@ -301,6 +301,32 @@ jobs:
             Pop-Location
           }
 
+      - name: Publish Azure Function (staging)
+        shell: pwsh
+        run: |
+          $stagingAppName = terraform output -raw staging_function_app_name 2>$null
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($stagingAppName)) {
+            Write-Host "Staging backend not enabled — skipping." -ForegroundColor Yellow
+            return
+          }
+          $resourceGroupName = terraform output -raw resource_group_name
+          $projectPath       = Resolve-Path "../fkh-backend"
+
+          Push-Location $projectPath
+          try {
+            func azure functionapp publish $stagingAppName --dotnet-isolated
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "func publish (staging) exited with code $LASTEXITCODE — restarting..." -ForegroundColor Yellow
+              az functionapp restart --name $stagingAppName --resource-group $resourceGroupName
+              if ($LASTEXITCODE -ne 0) { throw "Staging func publish and fallback restart both failed." }
+              throw "Staging func publish failed. Function app was restarted but new code was NOT deployed."
+            }
+            Write-Host "Staging function app $stagingAppName published successfully." -ForegroundColor Green
+          }
+          finally {
+            Pop-Location
+          }
+
       # ── Sync GitHub Actions secrets ───────────────────────────────────────
       - name: Generate GitHub App token for secret sync
         id: app-token
