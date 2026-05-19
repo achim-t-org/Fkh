@@ -22,6 +22,10 @@ if ($auth -eq "Windows") {
     }
     else {
         Write-Host "SUPER user already exists"
-        Set-NavServerUser -ServerInstance $ServerInstance @tenantParam -Username $username -Password $securePassword -AuthenticationEMail $authenticationEMail
+        Set-NavServerUser -ServerInstance $ServerInstance @tenantParam -Username $username -Password $securePassword
+        if ($authenticationEMail) {
+            Write-Host "Updating authentication email"
+            Set-NavServerUser -ServerInstance $ServerInstance @tenantParam -Username $username -AuthenticationEMail $authenticationEMail
+        }
     }
 }
