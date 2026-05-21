@@ -417,7 +417,8 @@ async function getFunctionCatalog(): Promise<FunctionCatalogResponse | undefined
 async function promptForParameters(
   definition: FunctionDefinition,
   prefilled: Record<string, string> = {},
-  context?: string
+  context?: string,
+  prefilledDefaults: Record<string, string> = {}
 ): Promise<Record<string, string> | undefined> {
   const config = vscode.workspace.getConfiguration('fkh');
   const isAdmin = vmsProvider?.visible ?? false;
@@ -433,8 +434,16 @@ async function promptForParameters(
       k => k.toLowerCase() === param.name.toLowerCase()
     );
     if (prefilledKey) {
-      resolvedDefaults[param.name] = prefilled[prefilledKey];
+      if (prefilled[prefilledKey]) {
+        resolvedDefaults[param.name] = prefilled[prefilledKey];
+      }
       continue;
+    }
+    const defaultKey = Object.keys(prefilledDefaults).find(
+      k => k.toLowerCase() === param.name.toLowerCase()
+    );
+    if (defaultKey && prefilledDefaults[defaultKey]) {
+      resolvedDefaults[param.name] = prefilledDefaults[defaultKey];
     }
 
     const uris = await vscode.window.showOpenDialog({
@@ -461,14 +470,30 @@ async function promptForParameters(
       k => k.toLowerCase() === param.name.toLowerCase()
     );
     if (prefilledKey) {
-      resolvedDefaults[param.name] = prefilled[prefilledKey];
+      if (prefilled[prefilledKey]) {
+        resolvedDefaults[param.name] = prefilled[prefilledKey];
+      }
       continue;
     }
 
+    // Keys with ? suffix: use value as default but still show for prompting
+    const defaultKey = Object.keys(prefilledDefaults).find(
+      k => k.toLowerCase() === param.name.toLowerCase()
+    );
+    if (defaultKey && prefilledDefaults[defaultKey]) {
+      resolvedDefaults[param.name] = prefilledDefaults[defaultKey];
+    }
+
     const settingKey = `${definition.name}.${param.name}`;
-    const settingValue = config.get<string>(settingKey, '').trim();
-    if (settingValue) {
-      resolvedDefaults[param.name] = settingValue;
+    const inspected = config.inspect<string>(settingKey);
+    const settingValue = (inspected?.workspaceFolderValue ?? inspected?.workspaceValue ?? inspected?.globalValue);
+    if (settingValue !== undefined) {
+      const trimmed = settingValue.trim();
+      if (trimmed) {
+        resolvedDefaults[param.name] = trimmed;
+      }
+      // Setting explicitly exists — skip prompting (even if empty)
+      continue;
     }
 
     // Auto-detect public IP for parameters named 'ip'
@@ -678,7 +703,7 @@ function formatJsonResult(obj: unknown, indent = 0): string {
   return String(obj);
 }
 
-async function invokeFunctionByName(functionName: string, prefilled: Record<string, string> = {}, context?: string): Promise<Record<string, unknown> | undefined> {
+async function invokeFunctionByName(functionName: string, prefilled: Record<string, string> = {}, context?: string, prefilledDefaults: Record<string, string> = {}): Promise<Record<string, unknown> | undefined> {
   const catalog = await getFunctionCatalog();
   if (!catalog) { return; }
 
@@ -688,7 +713,7 @@ async function invokeFunctionByName(functionName: string, prefilled: Record<stri
     return;
   }
 
-  const parameters = await promptForParameters(definition, prefilled, context);
+  const parameters = await promptForParameters(definition, prefilled, context, prefilledDefaults);
   if (!parameters) { return; }
 
   // Send the client's timezone so the server can resolve time-of-day autostop values
@@ -1000,11 +1025,18 @@ async function createContainer(project?: string): Promise<void> {
   // Extract fkh.CreateContainer.* overrides from AL-Go settings
   const fkhSettings = settings['fkh'] as Record<string, string> | undefined;
   const prefilled: Record<string, string> = {};
+  const prefilledDefaults: Record<string, string> = {};
   if (fkhSettings && typeof fkhSettings === 'object') {
     const prefix = 'CreateContainer.';
     for (const [key, value] of Object.entries(fkhSettings)) {
-      if (key.startsWith(prefix) && value) {
-        prefilled[key.substring(prefix.length)] = String(value);
+      if (key.startsWith(prefix)) {
+        const paramKey = key.substring(prefix.length);
+        if (paramKey.endsWith('?')) {
+          // Trailing ? means show the parameter with value as default
+          prefilledDefaults[paramKey.slice(0, -1)] = String(value ?? '');
+        } else {
+          prefilled[paramKey] = String(value ?? '');
+        }
       }
     }
   }
@@ -1038,7 +1070,7 @@ async function createContainer(project?: string): Promise<void> {
 
   const projectContext = options.project ? `${options.repoName}/${options.project}` : options.repoName;
 
-  const result = await invokeFunctionByName('CreateContainer', { artifactUrl, repo: options.repoName, project: options.project || '', ...prefilled }, projectContext);
+  const result = await invokeFunctionByName('CreateContainer', { artifactUrl, repo: options.repoName, project: options.project || '', ...prefilled }, projectContext, prefilledDefaults);
 
   // Update launch.json if configured and container was created successfully
   if (result) {
