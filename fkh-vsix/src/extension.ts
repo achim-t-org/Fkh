@@ -19,6 +19,7 @@ let vmsView: vscode.TreeView<VMTreeItem>;
 const containerLogContents = new Map<string, string>();
 const notifiedAutoStopContainers = new Set<string>();
 let autoStopCheckTimer: ReturnType<typeof setInterval> | undefined;
+let cachedFkhSettings: Record<string, string> | undefined;
 const containerLogProvider: vscode.TextDocumentContentProvider = {
   provideTextDocumentContent(uri: vscode.Uri): string {
     return containerLogContents.get(uri.toString()) ?? '';
@@ -115,6 +116,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Delay initial population to let the extension host settle
   setTimeout(async () => {
+    await loadFkhSettings();
     await containersProvider.refresh();
     updateConnectionTitle();
     projectsProvider.refresh();
@@ -414,6 +416,20 @@ async function getFunctionCatalog(): Promise<FunctionCatalogResponse | undefined
   }
 }
 
+async function loadFkhSettings(): Promise<void> {
+  try {
+    const session = await getGitHubSession();
+    if (!session) { return; }
+    const options = await createReadSettingsOptions(session.accessToken);
+    if (!options?.baseFolder) { return; }
+    const settings = await readSettings(options);
+    const fkh = settings['fkh'];
+    cachedFkhSettings = (fkh && typeof fkh === 'object') ? fkh as Record<string, string> : undefined;
+  } catch {
+    // Silently ignore — settings may not be available (no repo, no AL-Go)
+  }
+}
+
 async function promptForParameters(
   definition: FunctionDefinition,
   prefilled: Record<string, string> = {},
@@ -422,6 +438,28 @@ async function promptForParameters(
 ): Promise<Record<string, string> | undefined> {
   const config = vscode.workspace.getConfiguration('fkh');
   const isAdmin = vmsProvider?.visible ?? false;
+
+  // Apply cached AL-Go fkh settings for this function
+  if (cachedFkhSettings) {
+    const prefix = `${definition.name}.`;
+    for (const [key, value] of Object.entries(cachedFkhSettings)) {
+      if (key.startsWith(prefix)) {
+        const paramKey = key.substring(prefix.length);
+        if (paramKey.endsWith('?')) {
+          // Trailing ? means show the parameter with value as default (don't override explicit prefilledDefaults)
+          const cleanKey = paramKey.slice(0, -1);
+          if (!(cleanKey in prefilledDefaults)) {
+            prefilledDefaults[cleanKey] = String(value ?? '');
+          }
+        } else {
+          // Hard override (don't override explicit prefilled)
+          if (!(paramKey in prefilled)) {
+            prefilled[paramKey] = String(value ?? '');
+          }
+        }
+      }
+    }
+  }
 
   // Resolve defaults: prefilled > settings > auto-detect > catalog default
   const resolvedDefaults: Record<string, string> = {};
@@ -486,9 +524,10 @@ async function promptForParameters(
 
     const settingKey = `${definition.name}.${param.name}`;
     const inspected = config.inspect<string>(settingKey);
-    const settingValue = (inspected?.workspaceFolderValue ?? inspected?.workspaceValue ?? inspected?.globalValue);
+    const settingValue = inspected?.workspaceFolderValue ?? inspected?.workspaceValue ?? inspected?.globalValue
+      ?? config.get<string>(settingKey);
     if (settingValue !== undefined) {
-      const trimmed = settingValue.trim();
+      const trimmed = String(settingValue).trim();
       if (trimmed) {
         resolvedDefaults[param.name] = trimmed;
       }
@@ -971,24 +1010,9 @@ async function createContainer(project?: string): Promise<void> {
   const artifact = String(settings['artifact'] ?? '');
   const country = String(settings['country'] ?? 'us');
 
-  // Extract fkh.CreateContainer.* overrides from AL-Go settings
-  const fkhSettings = settings['fkh'] as Record<string, string> | undefined;
-  const prefilled: Record<string, string> = {};
-  const prefilledDefaults: Record<string, string> = {};
-  if (fkhSettings && typeof fkhSettings === 'object') {
-    const prefix = 'CreateContainer.';
-    for (const [key, value] of Object.entries(fkhSettings)) {
-      if (key.startsWith(prefix)) {
-        const paramKey = key.substring(prefix.length);
-        if (paramKey.endsWith('?')) {
-          // Trailing ? means show the parameter with value as default
-          prefilledDefaults[paramKey.slice(0, -1)] = String(value ?? '');
-        } else {
-          prefilled[paramKey] = String(value ?? '');
-        }
-      }
-    }
-  }
+  // Update the cached fkh settings from the freshly-read AL-Go settings
+  const fkhSettings = settings['fkh'];
+  cachedFkhSettings = (fkhSettings && typeof fkhSettings === 'object') ? fkhSettings as Record<string, string> : undefined;
 
   outputChannel.appendLine('--- ReadSettings Options ---');
   outputChannel.appendLine(`  baseFolder: ${options.baseFolder.toString()}`);
@@ -1009,17 +1033,11 @@ async function createContainer(project?: string): Promise<void> {
   outputChannel.appendLine('--- Resolved Settings ---');
   outputChannel.appendLine(`  Country: ${country}`);
   outputChannel.appendLine(`  Artifact: ${artifactUrl}${!artifact ? ' (defaulted)' : ''}`);
-  if (Object.keys(prefilled).length > 0) {
-    outputChannel.appendLine('  Fkh overrides from AL-Go settings:');
-    for (const [key, value] of Object.entries(prefilled)) {
-      outputChannel.appendLine(`    ${key}: ${value}`);
-    }
-  }
   outputChannel.show(true);
 
   const projectContext = options.project ? `${options.repoName}/${options.project}` : options.repoName;
 
-  const result = await invokeFunctionByName('CreateContainer', { artifactUrl, repo: options.repoName, project: options.project || '', ...prefilled }, projectContext, prefilledDefaults);
+  const result = await invokeFunctionByName('CreateContainer', { artifactUrl, repo: options.repoName, project: options.project || '' }, projectContext);
 
   // Update launch.json if configured and container was created successfully
   if (result) {
@@ -1027,7 +1045,17 @@ async function createContainer(project?: string): Promise<void> {
     const containerName = String(result.deployment || '');
     if (serverUrl && containerName) {
       try {
-        await updateLaunchJsonAfterCreate(containerName, serverUrl, options.project || '', prefilled);
+        // Extract CreateContainer hard overrides from cached settings for launch.json
+        const launchOverrides: Record<string, string> = {};
+        if (cachedFkhSettings) {
+          const prefix = 'CreateContainer.';
+          for (const [key, value] of Object.entries(cachedFkhSettings)) {
+            if (key.startsWith(prefix) && !key.endsWith('?')) {
+              launchOverrides[key.substring(prefix.length)] = String(value ?? '');
+            }
+          }
+        }
+        await updateLaunchJsonAfterCreate(containerName, serverUrl, options.project || '', launchOverrides);
       } catch (err) {
         logOutput(`[UpdateLaunchJson] ${err instanceof Error ? err.message : String(err)}`, true);
       }
