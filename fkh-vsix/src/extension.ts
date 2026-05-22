@@ -124,8 +124,8 @@ export function activate(context: vscode.ExtensionContext) {
     checkAutoStopNotifications();
   }, 5000);
 
-  // Check for approaching auto-stop times every 60 seconds
-  autoStopCheckTimer = setInterval(() => checkAutoStopNotifications(), 60_000);
+  // Refresh containers/projects and check for approaching auto-stop times every 60 seconds
+  autoStopCheckTimer = setInterval(() => void checkAutoStopNotifications(), 60_000);
 
   context.subscriptions.push(
     outputChannel,
@@ -1073,7 +1073,10 @@ export function deactivate() {
   }
 }
 
-function checkAutoStopNotifications(): void {
+async function checkAutoStopNotifications(): Promise<void> {
+  await containersProvider.refresh();
+  projectsProvider.refresh();
+
   const containers = containersProvider.getMyContainers();
   const now = Date.now();
 
