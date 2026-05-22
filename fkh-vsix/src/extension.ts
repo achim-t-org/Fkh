@@ -181,15 +181,15 @@ export function activate(context: vscode.ExtensionContext) {
     }),
     vscode.commands.registerCommand('fkh.startContainer', async (item: ContainerTreeItem | ProjectTreeItem) => {
       if (!item.containerInfo) { return; }
-      await invokeContainerAction('StartContainer', item.containerInfo.appLabel);
+      await invokeFunctionByName('StartContainer', { name: item.containerInfo.appLabel });
     }),
     vscode.commands.registerCommand('fkh.stopContainer', async (item: ContainerTreeItem | ProjectTreeItem) => {
       if (!item.containerInfo) { return; }
-      await invokeContainerAction('StopContainer', item.containerInfo.appLabel);
+      await invokeFunctionByName('StopContainer', { name: item.containerInfo.appLabel });
     }),
     vscode.commands.registerCommand('fkh.extendAutoStop', async (item: ContainerTreeItem | ProjectTreeItem) => {
       if (!item.containerInfo) { return; }
-      await invokeContainerAction('ExtendAutoStop', item.containerInfo.appLabel);
+      await invokeFunctionByName('ExtendAutoStop', { name: item.containerInfo.appLabel });
     }),
     vscode.commands.registerCommand('fkh.setAutoStop', async (item: ContainerTreeItem | ProjectTreeItem) => {
       if (!item.containerInfo) { return; }
@@ -209,7 +209,7 @@ export function activate(context: vscode.ExtensionContext) {
         'Remove'
       );
       if (confirm !== 'Remove') { return; }
-      await invokeContainerAction('RemoveContainer', name);
+      await invokeFunctionByName('RemoveContainer', { name });
     }),
     vscode.commands.registerCommand('fkh.waitForContainer', async (item: ContainerTreeItem | ProjectTreeItem) => {
       if (!item.containerInfo) { return; }
@@ -832,57 +832,6 @@ async function invokeFunctionByName(functionName: string, prefilled: Record<stri
   return invokeResult;
 }
 
-async function invokeContainerAction(
-  functionName: string,
-  containerName: string,
-  extraParams?: Record<string, string>,
-): Promise<void> {
-  const baseUrl = getBackendUrl();
-  if (!baseUrl) { return; }
-
-  const session = await getGitHubSession();
-  if (!session) { return; }
-
-  await vscode.window.withProgress(
-    {
-      location: vscode.ProgressLocation.Notification,
-      title: `${functionName}: ${containerName}`,
-      cancellable: false,
-    },
-    async () => {
-      try {
-        const body: FunctionInvokeRequest = { parameters: { name: containerName, ...extraParams } };
-
-        const response = await fetch(`${baseUrl}/${functionName}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.accessToken}`,
-          },
-          body: JSON.stringify(body),
-        });
-
-        if (response.ok) {
-          const result = await response.json();
-          logOutput(`[${functionName}] ${formatJsonResult(result)}`);
-        } else {
-          const responseText = await response.text();
-          const error = response.status === 401 || response.status === 403
-            ? `Access denied (${response.status}). ${responseText || 'Make sure your GitHub account is a member of an authorized team.'}`
-            : `Failed (${response.status}): ${responseText}`;
-          logOutput(`[${functionName}] ${error}`, true);
-        }
-      } catch (err) {
-        logOutput(`[${functionName}] Could not reach the provisioning service: ${err instanceof Error ? err.message : String(err)}`, true);
-      }
-
-      await containersProvider.refresh();
-      updateConnectionTitle();
-      projectsProvider.refresh();
-    }
-  );
-}
-
 async function showContainerLog(appLabel: string, containerName: string): Promise<void> {
   const baseUrl = getBackendUrl();
   if (!baseUrl) { return; }
@@ -1151,7 +1100,7 @@ function checkAutoStopNotifications(): void {
       ).then(async (action) => {
         if (action === 'Extend 2h') {
           notifiedAutoStopContainers.delete(key);
-          await invokeContainerAction('ExtendAutoStop', label);
+          await invokeFunctionByName('ExtendAutoStop', { name: label });
         }
       });
     }
