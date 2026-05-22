@@ -454,8 +454,8 @@ async function promptForParameters(
           if (!(cleanKey in prefilledDefaults) && strValue) {
             prefilledDefaults[cleanKey] = strValue;
           }
-        } else if (strValue) {
-          // Hard override — only if non-empty (don't override explicit prefilled)
+        } else {
+          // Hard override — skip prompting for this param (don't override explicit prefilled)
           if (!(paramKey in prefilled)) {
             prefilled[paramKey] = strValue;
           }
