@@ -274,6 +274,13 @@ jobs:
           az aks get-credentials --resource-group "$AKS_RG" --name "$AKS_NAME" --overwrite-existing
 
       # ── Build and push MSSQL FTS image to ACR ─────────────────────────────
+      - name: Re-login to Azure (refresh OIDC token before ACR push)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ steps.parse.outputs.deploy_client_id }}
+          tenant-id: ${{ steps.parse.outputs.tenant_id }}
+          subscription-id: ${{ steps.parse.outputs.subscription_id }}
+          
       - name: Build and push MSSQL FTS image
         shell: pwsh
         run: |
